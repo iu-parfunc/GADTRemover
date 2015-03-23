@@ -1,0 +1,11 @@
+
+# GADTRemover: #
+gadt_exp
+toHaskellIO (gadt_exp)
+toHaskellIO (fromGDTAtoADT gadt_exp)
+retrieveCastsIO gadt_exp
+toLambdaPrologIO (fromGDTAtoTypeSystem gadt_exp) 
+
+# GADTCreator: #
+gadtCreator (fromGDTAtoTypeSystem gadt_exp)
+toHaskellIO (gadtCreator (fromGDTAtoTypeSystem gadt_exp))
