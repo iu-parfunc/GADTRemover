@@ -1,3 +1,8 @@
+{- 
+This file is part of the GADTRemover.
+Author: Matteo Cimini
+-}
+
 module ToLambdaProlog where
 
 import Data.List

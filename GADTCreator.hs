@@ -1,3 +1,9 @@
+{- 
+This file is part of the GADTCreator.
+Author: Matteo Cimini
+-}
+
+
 module GADTCreator where
 
 import System.IO.Unsafe 

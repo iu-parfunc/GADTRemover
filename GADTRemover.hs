@@ -1,3 +1,8 @@
+{- 
+This file is part of the GADTRemover.
+Author: Matteo Cimini
+-}
+
 module GADTRemover where
 
 import System.IO.Unsafe 
