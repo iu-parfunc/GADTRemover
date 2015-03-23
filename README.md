@@ -1,4 +1,4 @@
-# The GADTRemover and the GADTCreator
+# GADTRemover and GADTCreator
 
 
 The GADTRemover is a tool for transforming Haskell code that makes use of GADTs into one that does not. 
