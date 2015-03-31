@@ -1,8 +1,3 @@
-{- 
-This file is part of the GADTRemover.
-Author: Matteo Cimini
--}
-
 module ToLambdaProlog where
 
 import Data.List
@@ -27,11 +22,13 @@ toLambdaPrologR (Rule premises term typ) =
 			premisesWithComma = intercalate ", " premises'
 			 
 toLambdaPrologPr :: Premise -> String
-toLambdaPrologPr (Formula pred info terms) = pred ++ (concat info) ++ displayTerms
-												where
-												displayTerms = if calculated == "" then "" else " " ++ calculated
-												calculated = (intercalate " " (map toLambdaPrologTerm terms)) 
-												
+toLambdaPrologPr (Formula pred info interms outterms) = pred ++ (concat info) ++ displayInputs ++ displayOutputs
+											where
+											displayInputs = if calculatedIn == "" then "" else " " ++ calculatedIn
+											displayOutputs = if calculatedOut == "" then "" else " " ++ calculatedOut
+											calculatedIn = (intercalate " " (map toLambdaPrologTerm interms)) 
+											calculatedOut = (intercalate " " (map toLambdaPrologTerm outterms)) 
+
 toLambdaPrologTerm :: Term -> String
 toLambdaPrologTerm (VarT varterm) = varterm
 toLambdaPrologTerm (Term c terms) = "(" ++ c ++ displayTerms ++ ")"

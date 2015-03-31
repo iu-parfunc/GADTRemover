@@ -7,6 +7,9 @@ import GADTCreator
 import ToHaskell
 import RetrieveCasts
 import ToLambdaProlog
+import FromTypeSystemToHaskell
+import UpToConsistency
+
 
 int :: TypeExpr
 int = Constructor "Int" []

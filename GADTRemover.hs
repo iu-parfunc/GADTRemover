@@ -1,8 +1,3 @@
-{- 
-This file is part of the GADTRemover.
-Author: Matteo Cimini
--}
-
 module GADTRemover where
 
 import System.IO.Unsafe 
@@ -76,9 +71,9 @@ createPremise trackOfCasts c n = let tmp = HM.lookup c trackOfCasts in
 								case tmp of 
 									Just pairs -> (let tmp2 = HM.lookup n (HM.fromList pairs) in 
 											case tmp2 of
-												Just realtype -> (Formula "typeOf" [] [(VarT ("E" ++ (show n))), (extractType realtype)])
-												Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n))), newvar]))
-									Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n))), newvar])
+												Just realtype -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [(extractType realtype)])
+												Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [newvar]))
+									Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [newvar])
 								where 
 								newvar = (VarT (unsafePerformIO gensymTT))
 								
