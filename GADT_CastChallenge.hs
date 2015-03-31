@@ -37,8 +37,7 @@ instance ReifyTy 'AnyTy  where reifyTy _ = AnyTy
 --------------------------------------------------------------------------------
 -- (*) Environments
 
-data Env = EmptyEnv
-         | forall a . Extend a Env
+data Env = EmptyEnv | Extend Ty Env
 
 deriving instance (Typeable 'EmptyEnv)
 deriving instance Typeable 'Extend
