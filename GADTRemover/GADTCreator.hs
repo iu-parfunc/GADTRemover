@@ -1,9 +1,3 @@
-{- 
-This file is part of the GADTCreator.
-Author: Matteo Cimini
--}
-
-
 module GADTCreator where
 
 import System.IO.Unsafe 
@@ -26,7 +20,7 @@ toClause (Rule premises term typ) = (Clause c typexprs)
 									typexprs = map entryTEXp premises
 
 entryTEXp :: Premise -> TypeExpr
-entryTEXp (Formula pred strings terms) = if pred == "typeOf" then (Constructor "Expr" [termTOtexpr (last terms)])
+entryTEXp (Formula pred strings interms outterms) = if pred == "typeOf" then (Constructor "Expr" [termTOtexpr (last outterms)])
 										 else error "ERROR: found a premise that I cannot process"
 
 termTOtexpr :: Term -> TypeExpr

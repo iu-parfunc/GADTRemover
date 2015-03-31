@@ -1,10 +1,13 @@
 
+ghci Examples.hs
+
 # GADTRemover: #
 gadt_exp
 toHaskellIO (gadt_exp)
 toHaskellIO (fromGDTAtoADT gadt_exp)
 retrieveCastsIO gadt_exp
 toLambdaPrologIO (fromGDTAtoTypeSystem gadt_exp) 
+fromTStoHaskellIO_ (fromGDTAtoTypeSystem gadt_exp)
 
 # GADTCreator: #
 gadtCreator (fromGDTAtoTypeSystem gadt_exp)

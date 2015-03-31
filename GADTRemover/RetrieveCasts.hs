@@ -1,8 +1,3 @@
-{- 
-This file is part of the GADTRemover.
-Author: Matteo Cimini
--}
-
 module RetrieveCasts where
 
 import Data.List
