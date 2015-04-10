@@ -76,13 +76,13 @@ deriving instance (Show (Idx env t))
 --------------------------------------------------------------------------------
 -- (2) ADT version:
 
--- | Strip all phantom type args. 
+-- | Strip all phantom type args.
 --   (BUT... it could reify them all instead?)
-data Exp2 = T2 
+data Exp2 = T2
           | F2
           | If2 Exp2 Exp2 Exp2
           | Lit2 Int
-          | Add2 Exp2 Exp2 
+          | Add2 Exp2 Exp2
           | Let2 Exp2 Exp2
           | Var2 Idx2
   deriving (Show, Typeable)
@@ -104,7 +104,7 @@ downcast e =
     F  -> F2
     If a b c -> If2 (downcast a) (downcast b) (downcast c)
     Add a b -> Add2 (downcast a) (downcast b)
-    Let a b -> Let2 (downcast a) (downcast b) 
+    Let a b -> Let2 (downcast a) (downcast b)
     Var ix  -> Var2 (downcastIdx ix)
 
 downcastIdx :: forall env1 a1 . ReifyTy a1 =>
@@ -134,18 +134,18 @@ toType :: Ty -> SealedTy
 toType IntTy  = SealedTy (Proxy :: Proxy 'IntTy)
 toType BoolTy = SealedTy (Proxy :: Proxy 'BoolTy)
 toType AnyTy  = SealedTy (Proxy :: Proxy 'AnyTy)
-                                  
+
 
 -- upcastIdx :: Typeable a => Idx2 -> Idx env a
 upcastIdx :: Idx2 -> SealedIdx
 upcastIdx (Zero2 ty) =
   case toType ty of
-    SealedTy (_ :: Proxy tty) -> 
+    SealedTy (_ :: Proxy tty) ->
       SealedIdx (Zero :: Idx ('Extend tty 'EmptyEnv) tty)
 upcastIdx (Succ2 ty ix2) =
   case (toType ty, upcastIdx ix2) of
     (SealedTy (_ :: Proxy tty),
-     SealedIdx (ixb :: Idx env2 a2)) -> 
+     SealedIdx (ixb :: Idx env2 a2)) ->
       SealedIdx (Succ ixb :: Idx ('Extend tty env2) a2)
 
 
@@ -167,7 +167,7 @@ upcast1 exp2 =
          (Sealed (a::Exp env1 t1),
           Sealed (b::Exp env2 t2),
           Sealed (c::Exp env3 t3)) ->
-           trace ("IF of "++show (Sealed a,Sealed b,Sealed c)) $ 
+           trace ("IF of "++show (Sealed a,Sealed b,Sealed c)) $
            Sealed $
            -- FIXME: Need to somehow COMBINE the environments:
            If (safeCast a :: Exp env1 BoolTy)
@@ -177,18 +177,18 @@ upcast1 exp2 =
      Add2 x1 x2 ->
        case (go x1, go x2) of
          (Sealed (a::Exp env1 t1), Sealed b) ->
-           trace ("ADD of "++show (Sealed a,Sealed b)) $ 
-           
+           trace ("ADD of "++show (Sealed a,Sealed b)) $
+
           Sealed $ Add (safeCast a :: Exp env1 IntTy)
                        (safeCast b :: Exp env1 IntTy)
      Var2 x -> case upcastIdx x of
                  SealedIdx ix -> Sealed (Var ix)
-     
+
      Let2 x1 x2 ->
        case (go x1, go x2) of
          (Sealed (a::Exp env1 t1),
-          Sealed (b::Exp env2 t2)) -> 
-           Sealed 
+          Sealed (b::Exp env2 t2)) ->
+           Sealed
             (Let a (safeCast b :: Exp (Extend t1 env1) t2)
              :: Exp env1 t2)
 
@@ -199,13 +199,13 @@ safeCast a =
     Just x -> x
     Nothing -> error $ "safeCast failed, from "++show (typeOf (unused::a))++
                        " to "++show (typeOf (unused::b))
-    
+
 
 --------------------------------------------------------------------------------
 -- Option 2: the new way.  Consumer demands the type and we upcast
 -- without ever sealing.
 
--- FINISHME   
+-- FINISHME
 
 --------------------------------------------------------------------------------
 -- Misc + Test programs:
@@ -226,7 +226,7 @@ p0 :: Exp EmptyEnv IntTy
 p0 = If T (Lit 3) (Lit 4)
 
 t_p0 :: Exp EmptyEnv IntTy
-t_p0 = upcast1 (downcast p0) 
+t_p0 = upcast1 (downcast p0)
 
 p1 :: Exp EmptyEnv IntTy
 p1 = Let (Lit 5) (Var Zero)
@@ -235,11 +235,11 @@ p2 :: Exp EmptyEnv IntTy
 p2 = (If T (Lit 11) p1)
 
 p3 :: Exp EmptyEnv IntTy
-p3 = Let (Lit 5) 
+p3 = Let (Lit 5)
       (If T (Var Zero) (Lit 4))
 
 p3b :: Exp2
-p3b = Let2 (Lit2 5) 
+p3b = Let2 (Lit2 5)
       (If2 T2 (Var2 (Zero2 IntTy)) (Lit2 4))
 
 -- An Add with different envs:
@@ -250,7 +250,7 @@ p4 = Let (Lit 4) $
 
 
 i0 :: Idx (Extend IntTy (Extend BoolTy EmptyEnv)) BoolTy
-i0 = Succ Zero 
+i0 = Succ Zero
 
 t_i0 :: IO ()
 t_i0 = print $ upcastIdx $ downcastIdx i0
@@ -276,3 +276,4 @@ main = do
     putStrLn$ "  Orig: "++show expr
     putStrLn$ "  Down: "++show (downcast expr)
     putStrLn$ "  BkUp: "++show (upcast1 (downcast expr) :: Exp EmptyEnv a)
+
