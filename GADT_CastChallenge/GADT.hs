@@ -8,6 +8,10 @@
 {-# LANGUAGE StandaloneDeriving        #-}
 {-# LANGUAGE TypeFamilies              #-}
 
+-- This module define a GADT for a simple expression language that contains lots
+-- of type level information. We will use this datatype as our example for
+-- converting into a simpler ADT, and then (hopefully) back again.
+--
 module GADT where
 
 import Data.Typeable
@@ -21,7 +25,7 @@ import Data.Typeable
 -- for value types which can reify them.
 --
 data Ty = BoolTy | IntTy | AnyTy
-  deriving (Show, Typeable)
+  deriving (Eq, Show, Typeable)
 
 deriving instance (Typeable 'BoolTy)
 deriving instance (Typeable 'IntTy)
