@@ -30,7 +30,11 @@ data Exp
 type Ix = Int
 
 data Type = TInt | TBool
-  deriving (Eq, Show, Typeable)
+  deriving (Eq, Typeable)
+
+instance Show Type where
+  show TInt  = "Int"
+  show TBool = "Bool"
 
 
 -- We can't write 'eval' for Exp because untyped languages are stupid.
@@ -82,16 +86,22 @@ incLayout EmptyLayout         = EmptyLayout
 incLayout (PushLayout ix lyt) = PushLayout (GADT.SuccIdx ix) (incLayout lyt)
 
 
+typeError :: forall s t a. (Typeable s, Typeable t) => s -> t -> a
+typeError _ _
+  = error
+  $ printf "Couldn't match expected type `%s' with actual type `%s'"
+           (show (typeOf (undefined::s)))
+           (show (typeOf (undefined::t)))
+
+
 -- Get an index out of the environment
 --
 upcastIdx :: forall t env env'. Typeable t => Int -> Layout env env' -> GADT.Idx env t
 upcastIdx 0 (PushLayout (ix :: GADT.Idx env t') _)
-  | Just ix' <- gcast ix       = ix'
-  | otherwise                  = error $ printf "Couldn't match expected type `%s' with actual type `%s'"
-                                           (show (typeOf (undefined::t )))
-                                           (show (typeOf (undefined::t')))
-upcastIdx n (PushLayout _ lyt) = upcastIdx (n-1) lyt
-upcastIdx _ _                  = error "unbound variable"
+  | Just ix' <- gcast ix        = ix'
+  | otherwise                   = typeError (undefined::t) (undefined::t')
+upcastIdx n (PushLayout _ lyt)  = upcastIdx (n-1) lyt
+upcastIdx _ _                   = error "unbound variable"
 
 
 data Sealed env where
@@ -103,9 +113,14 @@ data Sealed env where
 upcast :: forall t. GADT.Elt t => Exp -> GADT.Exp '[] t
 upcast exp = unseal (upcast' EmptyLayout exp)
   where
+    resultTy = expType exp
+
     unseal (Sealed gadt)
-      | expTypeRep (expType exp) == typeRep (Proxy :: Proxy t)  = unsafeCoerce gadt
-      | otherwise                                               = error "type error"
+      | expTypeRep resultTy == typeRep (Proxy :: Proxy t) = unsafeCoerce gadt
+      | otherwise
+      = case resultTy of
+          TInt  -> typeError (undefined::t) (undefined::Int)
+          TBool -> typeError (undefined::t) (undefined::Bool)
 
     -- Determine what the value level type of the expression should be. If the
     -- expression is ill-typed, this should be caught by the upcast process (??)
@@ -159,5 +174,8 @@ upcast' lyt exp = cvt exp
 -- Gain some type-level knowledge when two value-level types match
 --
 unify :: (Typeable s, Typeable t) => s -> t -> Maybe (s :~: t)
-unify _ _ = eqT
+unify s t =
+  case eqT of
+    Nothing   -> typeError s t
+    refl      -> refl
 

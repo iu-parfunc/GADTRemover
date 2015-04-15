@@ -82,3 +82,11 @@ p4 = Let (Const 4)
    $ Add (Var ZeroIdx)
          (Var (SuccIdx ZeroIdx))
 
+p5 :: Exp '[] Bool
+p5 = Const True
+
+p6 :: Exp '[] Bool
+p6 = Let p5
+   $ If (Var ZeroIdx) (Const False)
+                      (Var ZeroIdx)
+
