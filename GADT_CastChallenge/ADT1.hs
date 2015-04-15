@@ -15,7 +15,7 @@ import Data.Typeable
 import Text.Printf
 import Data.Type.Equality
 
-import qualified GADT
+import qualified GADT1 as GADT
 
 --------------------------------------------------------------------------------
 -- (1): A simple ADT version of the language
@@ -25,10 +25,9 @@ import qualified GADT
 -- RRN: BUT... it could reify them all to the value level instead?
 --
 data Exp
-  = T
-  | F
+  = B Bool
+  | I Int
   | If Exp Exp Exp
-  | Lit Int
   | Add Exp Exp
   | Let Exp Exp
   | Var Idx
@@ -55,9 +54,8 @@ data Idx
 downcast :: GADT.ReifyTy a => GADT.Exp env a -> Exp
 downcast e =
   case e of
-    GADT.Lit n     -> Lit n
-    GADT.T         -> T
-    GADT.F         -> F
+    GADT.I n       -> I n
+    GADT.B b       -> B b
     GADT.If a b c  -> If  (downcast a) (downcast b) (downcast c)
     GADT.Add a b   -> Add (downcast a) (downcast b)
     GADT.Let a b   -> Let (downcast a) (downcast b)
@@ -89,16 +87,6 @@ downcastIdx ix =
 -- of 'env' and 'a' should imply Typeable, but we have no way to
 -- express that.
 --
-{--
-data Sealed = forall env a . (Typeable env, GADT.ReifyTy a) =>
-             Sealed (GADT.Exp env a)
-
-data SealedIdx = forall env a . (Typeable env, GADT.ReifyTy a) =>
-                 SealedIdx (GADT.Idx env a)
-
-data SealedTy = forall (t :: GADT.Ty) . GADT.ReifyTy t =>
-                SealedTy (Proxy t)
---}
 
 data Sealed where
   Sealed :: (Typeable env, GADT.ReifyTy t)
@@ -119,7 +107,9 @@ deriving instance Show Sealed
 deriving instance Show SealedIdx
 deriving instance Show SealedTy
 
--- | The inverse of reifyTy: value to type level.
+-- | The inverse of reifyTy: value to type level. We can do this because
+-- it is still packed inside a Sealed thing
+--
 toType :: GADT.Ty -> SealedTy
 toType GADT.IntTy  = SealedTy (Proxy :: Proxy 'GADT.IntTy)
 toType GADT.BoolTy = SealedTy (Proxy :: Proxy 'GADT.BoolTy)
@@ -127,9 +117,10 @@ toType GADT.AnyTy  = SealedTy (Proxy :: Proxy 'GADT.AnyTy)
 
 
 -- upcastIdx :: Typeable a => Idx2 -> Idx env a
+--
 upcastIdx :: Idx -> SealedIdx
 upcastIdx (Zero ty)
-  | SealedTy (_ :: Proxy e) <- toType ty
+  | SealedTy  (Proxy :: Proxy e) <- toType ty
   = SealedIdx (GADT.Zero :: GADT.Idx ('GADT.Extend e 'GADT.EmptyEnv) e)
 
 upcastIdx (Succ ty ix)
@@ -173,9 +164,8 @@ upcast exp
   | otherwise                  = Nothing
   where
     cvt :: Exp -> Maybe Sealed
-    cvt T           = Just $ Sealed (GADT.T     :: GADT.Exp GADT.EmptyEnv GADT.BoolTy)
-    cvt F           = Just $ Sealed (GADT.F     :: GADT.Exp GADT.EmptyEnv GADT.BoolTy)
-    cvt (Lit x)     = Just $ Sealed (GADT.Lit x :: GADT.Exp GADT.EmptyEnv GADT.IntTy)
+    cvt (B b) = Just $ Sealed (GADT.B b :: GADT.Exp GADT.EmptyEnv GADT.BoolTy)
+    cvt (I i) = Just $ Sealed (GADT.I i :: GADT.Exp GADT.EmptyEnv GADT.IntTy)
     cvt (If p t e)
       -- First, convert the subexpressions
       | Just (Sealed (p' :: GADT.Exp env1 p)) <- cvt p

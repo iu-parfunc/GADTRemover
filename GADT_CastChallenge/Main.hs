@@ -5,7 +5,7 @@ import Control.Monad (forM_)
 import Data.Maybe
 import Debug.Trace
 
-import GADT
+import GADT1
 import qualified ADT1 as ADT1
 import qualified ADT2 as ADT2
 
@@ -13,33 +13,33 @@ import qualified ADT2 as ADT2
 -- Test programs:
 
 p0 :: Exp EmptyEnv IntTy
-p0 = If T (Lit 3) (Lit 4)
+p0 = If (B True) (I 3) (I 4)
 
 t_p0 :: Exp EmptyEnv IntTy
 t_p0 = fromJust $ ADT1.upcast (ADT1.downcast p0)
 
 p1 :: Exp EmptyEnv IntTy
-p1 = Let (Lit 5) (Var Zero)
+p1 = Let (I 5) (Var Zero)
 
 p2 :: Exp EmptyEnv IntTy
-p2 = (If T (Lit 11) p1)
+p2 = (If (B True) (I 11) p1)
 
 p3 :: Exp EmptyEnv IntTy
-p3 = Let (Lit 5)
-      (If T (Var Zero) (Lit 4))
+p3 = Let (I 5)
+      (If (B True) (Var Zero) (I 4))
 
 p3b :: ADT1.Exp
 p3b =
   ADT1.Let
-    (ADT1.Lit 5)
-    (ADT1.If ADT1.T
+    (ADT1.I 5)
+    (ADT1.If (ADT1.B True)
              (ADT1.Var (ADT1.Zero IntTy))
-             (ADT1.Lit 4))
+             (ADT1.I 4))
 
 -- An Add with different envs:
 p4 :: Exp EmptyEnv IntTy
-p4 = Let (Lit 4)
-   $ Let (Lit 5)
+p4 = Let (I 4)
+   $ Let (I 5)
    $ Add (Var Zero)
          (Var (Succ Zero))
 

@@ -12,7 +12,7 @@
 -- of type level information. We will use this datatype as our example for
 -- converting into a simpler ADT, and then (hopefully) back again.
 --
-module GADT where
+module GADT1 where
 
 import Data.Typeable
 
@@ -52,16 +52,17 @@ type instance ENV_HEAD ('Extend s e) = s
 --------------------------------------------------------------------------------
 -- (1) GADT based AST
 
+-- TLM: How do you write an evaluator for this?
+--
 data Exp (env :: Env) (a :: Ty) where
-  T   :: Exp env BoolTy
-  F   :: Exp env BoolTy
+  B   :: Bool -> Exp env 'BoolTy
+  I   :: Int  -> Exp env 'IntTy
   If  :: Exp env BoolTy -> Exp env a -> Exp env a -> Exp env a
-  Lit :: Int -> Exp env IntTy
   Add :: Exp env IntTy -> Exp env IntTy -> Exp env IntTy
-  Let :: ReifyTy t1 =>
-         Exp env t1
-      -> Exp (Extend t1 env) a
-      -> Exp env a
+  Let :: ReifyTy bnd
+      => Exp env bnd
+      -> Exp (Extend bnd env) body
+      -> Exp env body
   Var :: Idx env a -> Exp env a
   deriving Typeable
 
@@ -75,4 +76,3 @@ data Idx (env :: Env) (t :: Ty) where
 
 deriving instance (Show (Exp env a))
 deriving instance (Show (Idx env t))
-
