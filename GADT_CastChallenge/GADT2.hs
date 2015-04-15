@@ -1,11 +1,13 @@
-{-# LANGUAGE GADTs         #-}
-{-# LANGUAGE TypeFamilies  #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DataKinds          #-}
+{-# LANGUAGE GADTs              #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE TypeOperators      #-}
 
 module GADT2 where
 
 import Data.Typeable
+import Prelude                                          hiding ( exp )
 
 data Idx env t where
   ZeroIdx ::              Idx (t ': env) t
@@ -22,9 +24,13 @@ data Exp env t where
   Var   :: Elt t => Idx env t -> Exp env t
   Let   :: (Elt a, Elt b) => Exp env a -> Exp (a ': env) b -> Exp env b
 
+deriving instance Show (Exp env t)
+deriving instance Show (Idx env t)
+
 prj :: Idx env t -> Env env -> t
 prj ZeroIdx      (PushEnv x _)   = x
 prj (SuccIdx ix) (PushEnv _ env) = prj ix env
+prj _            _               = error "impossible evaluation"
 
 eval :: Exp '[] t -> t
 eval = eval' EmptyEnv
@@ -50,7 +56,7 @@ data EltR a where
   EltR_Int  :: EltR Int
   EltR_Bool :: EltR Bool
 
-class Typeable a => Elt a where
+class (Typeable a, Show a) => Elt a where
   reify :: a -> EltR a
 
 instance Elt Int  where reify _ = EltR_Int

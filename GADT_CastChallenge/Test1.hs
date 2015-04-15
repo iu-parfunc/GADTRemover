@@ -67,7 +67,7 @@ tests_adt1 =
 
 runTests :: IO ()
 runTests = do
-  putStrLn "\nTest i0:"
+  putStrLn "Test i0:"
   t_i0
 
   forM_ tests_adt1 $ \ (name, ADT1.Sealed (expr :: Exp env a)) -> do
@@ -75,4 +75,6 @@ runTests = do
     putStrLn$ "  Orig: "++show expr
     putStrLn$ "  Down: "++show (ADT1.downcast expr)
     putStrLn$ "  BkUp: "++maybe "<failed>" show (ADT1.upcast (ADT1.downcast expr) :: Maybe (Exp EmptyEnv a))
+
+  putStrLn ""
 
