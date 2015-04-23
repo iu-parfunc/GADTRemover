@@ -38,8 +38,8 @@ f5 = ADT.Var ADT.TInt 0        -- unbound variable
 
 roundtrip :: forall t. GADT.Elt t => String -> GADT.Exp '[] t -> IO ()
 roundtrip name gadt = do
-  let adt       = ADT.downcast gadt
-      gadt'     = ADT.upcast adt                :: GADT.Exp '[] t
+  let adt       = ADT.upcast gadt
+      gadt'     = ADT.downcast adt                :: GADT.Exp '[] t
 
   printf "Test %s:\n"     name
   printf "  Orig: %s\n"   (show gadt)
@@ -49,7 +49,7 @@ roundtrip name gadt = do
 
 shouldFail :: String -> ADT.Exp -> IO ()
 shouldFail name adt = do
-  let gadt      = ADT.upcast adt        :: GADT.Exp '[] Int
+  let gadt      = ADT.downcast adt        :: GADT.Exp '[] Int
 
   printf "Test %s:\n" name
   printf "  Orig:    %s\n" (show adt)
@@ -75,4 +75,3 @@ runTests = do
   shouldFail "f3" f3
   shouldFail "f4" f4
   shouldFail "f5" f5
-
