@@ -25,6 +25,13 @@ import qualified GADT2 as GADT
 -- Should each language form need to reify something about the
 -- stripped type parameters?  Or is that instead the job of the type
 -- system to (re)infer all such type parameters?
+--
+-- Maybe Var's special treatment could indeed be automated based on
+-- the fact that type param stripping leaves the "Var" type
+-- constructor in the original GADT with an underconstrained return
+-- type.  All other cases are have other arguments that either
+-- determine the return type or recursively refer to "Exp".  Drilling
+-- into Idx, ZeroIdx is completely unconstrained.
 
 data Exp
   = Const Val
@@ -33,6 +40,8 @@ data Exp
   | Let Exp Exp
   | Var Type Ix
   deriving (Eq, Show, Typeable)
+
+-- RRN: This would probably stay a peano encoding:
 
 type Ix = Int
 
