@@ -58,7 +58,7 @@ idxToInt (GADT.SuccIdx ix) = 1 + idxToInt ix
 upcast :: forall env t. GADT.Exp env t -> Exp
 upcast exp =
   case exp of
-    GADT.Var ix       -> Var (upcastType (undefined::t)) (idxToInt ix)
+    GADT.Var ix       -> Var (upcastType (unused::t)) (idxToInt ix)
     GADT.Let bnd body -> Let (upcast bnd) (upcast body)
     GADT.Add x y      -> Add (upcast x) (upcast y)
     GADT.If p t e     -> If (upcast p) (upcast t) (upcast e)
@@ -90,8 +90,8 @@ typeError :: forall s t a. (Typeable s, Typeable t) => s -> t -> a
 typeError _ _
   = error
   $ printf "Couldn't match expected type `%s' with actual type `%s'"
-           (show (typeOf (undefined::s)))
-           (show (typeOf (undefined::t)))
+           (show (typeOf (unused::s)))
+           (show (typeOf (unused::t)))
 
 
 -- Get an index out of the environment
@@ -99,7 +99,7 @@ typeError _ _
 downcastIdx :: forall t env env'. Typeable t => Int -> Layout env env' -> GADT.Idx env t
 downcastIdx 0 (PushLayout (ix :: GADT.Idx env t') _)
   | Just ix' <- gcast ix        = ix'
-  | otherwise                   = typeError (undefined::t) (undefined::t')
+  | otherwise                   = typeError (unused::t) (unused::t')
 downcastIdx n (PushLayout _ lyt)  = downcastIdx (n-1) lyt
 downcastIdx _ _                   = error "unbound variable"
 
@@ -119,8 +119,8 @@ downcast exp = unseal (downcast' EmptyLayout exp)
       | expTypeRep resultTy == typeRep (Proxy :: Proxy t) = unsafeCoerce gadt
       | otherwise
       = case resultTy of
-          TInt  -> typeError (undefined::t) (undefined::Int)
-          TBool -> typeError (undefined::t) (undefined::Bool)
+          TInt  -> typeError (unused::t) (unused::Int)
+          TBool -> typeError (unused::t) (unused::Bool)
 
     -- Determine what the value level type of the expression should be. If the
     -- expression is ill-typed, this should be caught by the downcast process (??)
@@ -150,16 +150,16 @@ downcast' lyt exp = cvt exp
     cvt (Add x y)
       | Sealed (x' :: GADT.Exp env x)   <- downcast' lyt x
       , Sealed (y' :: GADT.Exp env y)   <- downcast' lyt y
-      , Just Refl                       <- unify (undefined :: x) (undefined :: Int)
-      , Just Refl                       <- unify (undefined :: x) (undefined :: y)
+      , Just Refl                       <- unify (unused :: x) (unused :: Int)
+      , Just Refl                       <- unify (unused :: x) (unused :: y)
       = Sealed (GADT.Add x' y')
 
     cvt (If p t e)
       | Sealed (p' :: GADT.Exp env p)   <- downcast' lyt p
       , Sealed (t' :: GADT.Exp env t)   <- downcast' lyt t
       , Sealed (e' :: GADT.Exp env e)   <- downcast' lyt e
-      , Just Refl                       <- unify (undefined :: p) (undefined :: Bool)
-      , Just Refl                       <- unify (undefined :: t) (undefined :: e)
+      , Just Refl                       <- unify (unused :: p) (unused :: Bool)
+      , Just Refl                       <- unify (unused :: t) (unused :: e)
       = Sealed (GADT.If p' t' e')
 
     cvt (Let x y)
@@ -178,3 +178,6 @@ unify s t =
   case eqT of
     Nothing   -> typeError s t
     refl      -> refl
+
+unused :: t
+unused = error "this is never used"
