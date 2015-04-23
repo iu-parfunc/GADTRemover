@@ -14,20 +14,20 @@ import qualified GADT2          as GADT
 -- Test cases that should result in type errors
 --
 f1 :: ADT.Exp
-f1 = ADT.B True                 -- Test harness expects integer expressions
+f1 = ADT.Const (ADT.BVal True)                -- Test harness expects integer expressions
 
 f2 :: ADT.Exp
-f2 = ADT.If (ADT.I 0)           -- incorrect type
-            (ADT.I 1)
-            (ADT.I 2)
+f2 = ADT.If (ADT.Const$ ADT.IVal 0)           -- incorrect type
+            (ADT.Const$ ADT.IVal 1)
+            (ADT.Const$ ADT.IVal 2)
 
 f3 :: ADT.Exp
-f3 = ADT.If (ADT.B True)
-            (ADT.B False)       -- alternatives don't match
-            (ADT.I 42)
+f3 = ADT.If (ADT.Const$ ADT.BVal True)
+            (ADT.Const$ ADT.BVal False)       -- alternatives don't match
+            (ADT.Const$ ADT.IVal 42)
 
 f4 :: ADT.Exp
-f4 = ADT.Let (ADT.B True)
+f4 = ADT.Let (ADT.Const$ ADT.BVal True)
    $ ADT.Var ADT.TInt 0         -- incorrect variable
 
 f5 :: ADT.Exp
@@ -44,9 +44,9 @@ roundtrip name gadt = do
   printf "Test %s:\n"     name
   printf "  Orig: %s\n"   (show gadt)
   printf "  Evaled: %s\n" (show (GADT.eval gadt))
-  printf "  Down: %s\n"   (show adt)
+  printf "  Upcast: %s\n"   (show adt)
   printf "  Evaled: %s\n" (show (ADT.eval adt))
-  printf "  BkUp: %s\n\n" (show gadt')
+  printf "  BkDown: %s\n\n" (show gadt')
 
 
 shouldFail :: String -> ADT.Exp -> IO ()

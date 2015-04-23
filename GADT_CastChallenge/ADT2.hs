@@ -19,8 +19,7 @@ import Prelude                                          hiding ( exp )
 import qualified GADT2 as GADT
 
 data Exp
-  = B Bool
-  | I Int
+  = Const Val
   | Add Exp Exp
   | If Exp Exp Exp
   | Let Exp Exp
@@ -45,8 +44,7 @@ eval :: Exp -> Val
 eval = fn []
  where
   fn :: [Val] -> Exp -> Val
-  fn env (B b) = BVal b
-  fn env (I i) = IVal i
+  fn env (Const v) = v
   fn env (Add a b) = plus (fn env a) (fn env b)
   fn env (If a b c) = case fn env a of
                         BVal True  -> fn env b
@@ -79,8 +77,8 @@ upcast exp =
     GADT.Add x y      -> Add (upcast x) (upcast y)
     GADT.If p t e     -> If (upcast p) (upcast t) (upcast e)
     GADT.Const c      -> case GADT.reify c of
-                           GADT.EltR_Int  -> I c
-                           GADT.EltR_Bool -> B c
+                           GADT.EltR_Int  -> Const (IVal c)
+                           GADT.EltR_Bool -> Const (BVal c)
                            -- TLM: ugh, this type reification method must be closed.
 
 upcastType :: GADT.Elt t => t -> Type
@@ -142,8 +140,8 @@ downcast exp = unseal (downcast' EmptyLayout exp)
     -- expression is ill-typed, this should be caught by the downcast process (??)
     --
     expType :: Exp -> Type
-    expType (B _)       = TBool
-    expType (I _)       = TInt
+    expType (Const (BVal _)) = TBool
+    expType (Const (IVal _)) = TInt
     expType (Add _ _)   = TInt
     expType (If _ x _)  = expType x
     expType (Let _ x)   = expType x
@@ -161,8 +159,8 @@ downcast' lyt exp = cvt exp
     cvt (Var ty ix)     = case ty of
                             TInt  -> Sealed (GADT.Var (downcastIdx ix lyt) :: GADT.Exp env Int)
                             TBool -> Sealed (GADT.Var (downcastIdx ix lyt) :: GADT.Exp env Bool)
-    cvt (I i)           = Sealed (GADT.Const i :: GADT.Exp env Int)
-    cvt (B b)           = Sealed (GADT.Const b :: GADT.Exp env Bool)
+    cvt (Const (IVal i)) = Sealed (GADT.Const i :: GADT.Exp env Int)
+    cvt (Const (BVal b)) = Sealed (GADT.Const b :: GADT.Exp env Bool)
     cvt (Add x y)
       | Sealed (x' :: GADT.Exp env x)   <- downcast' lyt x
       , Sealed (y' :: GADT.Exp env y)   <- downcast' lyt y
