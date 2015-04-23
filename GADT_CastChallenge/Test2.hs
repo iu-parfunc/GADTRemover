@@ -43,7 +43,9 @@ roundtrip name gadt = do
 
   printf "Test %s:\n"     name
   printf "  Orig: %s\n"   (show gadt)
+  printf "  Evaled: %s\n" (show (GADT.eval gadt))
   printf "  Down: %s\n"   (show adt)
+  printf "  Evaled: %s\n" (show (ADT.eval adt))
   printf "  BkUp: %s\n\n" (show gadt')
 
 

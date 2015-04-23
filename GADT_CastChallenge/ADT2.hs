@@ -36,10 +36,26 @@ instance Show Type where
   show TInt  = "Int"
   show TBool = "Bool"
 
+-- | Closed world of values
+data Val = BVal Bool
+         | IVal Int
+ deriving (Show,Read,Eq,Ord)
 
--- We can't write 'eval' for Exp because untyped languages are stupid.
---
--- eval :: Exp -> ??
+eval :: Exp -> Val
+eval = fn []
+ where
+  fn :: [Val] -> Exp -> Val
+  fn env (B b) = BVal b
+  fn env (I i) = IVal i
+  fn env (Add a b) = plus (fn env a) (fn env b)
+  fn env (If a b c) = case fn env a of
+                        BVal True  -> fn env b
+                        BVal False -> fn env c
+  fn env (Var _ ix) = env !! ix
+  fn env (Let e1 e2) = fn (fn env e1 : env) e2
+
+plus :: Val -> Val -> Val
+plus (IVal a) (IVal b) = IVal (a+b)
 
 
 --------------------------------------------------------------------------------
