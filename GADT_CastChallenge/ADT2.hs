@@ -18,6 +18,14 @@ import Prelude                                          hiding ( exp )
 
 import qualified GADT2 as GADT
 
+-- RRN: Algorithm: arguments are kept, in same positions.  Phantom
+-- type args are stripped.  Type class contexts - ignored?
+
+-- Except Var!  This is treated specially currently and should not be.
+-- Should each language form need to reify something about the
+-- stripped type parameters?  Or is that instead the job of the type
+-- system to (re)infer all such type parameters?
+
 data Exp
   = Const Val
   | Add Exp Exp
@@ -34,6 +42,10 @@ data Type = TInt | TBool
 instance Show Type where
   show TInt  = "Int"
   show TBool = "Bool"
+
+-- RRN: Given the open Elt class, how could a tool infer the closed
+-- set of values?  Should it just pretend Elt is closed and only count
+-- visible instances?
 
 -- | Closed world of values
 data Val = BVal Bool
@@ -87,6 +99,8 @@ upcastType x =
     GADT.EltR_Int  -> TInt
     GADT.EltR_Bool -> TBool
 
+
+-- RRN: Where did this come from?  How were Layout's synthesized?
 
 -- Layouts map environments to index projections into that environment
 --
@@ -145,7 +159,7 @@ downcast exp = unseal (downcast' EmptyLayout exp)
     expType (Add _ _)   = TInt
     expType (If _ x _)  = expType x
     expType (Let _ x)   = expType x
-    expType (Var t _)   = t
+    expType (Var t _)   = t           -- RRN: This looks irregular ...
 
     expTypeRep :: Type -> TypeRep
     expTypeRep TInt     = typeRep (Proxy :: Proxy Int)
