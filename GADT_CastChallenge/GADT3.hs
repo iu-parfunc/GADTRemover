@@ -266,7 +266,7 @@ eval :: Exp t -> t
 eval = evalOpenExp EmptyEnv
 
 evalOpenExp :: forall env t. Env env -> OpenExp env t -> t
-evalOpenExp env e = go e
+evalOpenExp env = go
   where
     go :: OpenExp env s -> s
     go (Let a b)        = evalOpenExp (PushEnv (go a) env) b
@@ -280,7 +280,7 @@ evalOpenExp env e = go e
       | otherwise       = go b
 
     prj :: ProdIdx p e -> p -> e
-    prj ZeroProdIdx      (_, v) = v
+    prj ZeroProdIdx      (_, e) = e
     prj (SuccProdIdx ix) (p, _) = prj ix p
 
     prod :: Prod (OpenExp env) p -> p
@@ -349,4 +349,11 @@ p9 = Let (constant (pi, 8, 4.86))
          (PrimApp (PrimAdd (FloatingNumType (TypeFloat FloatingDict)))
                   (Prod (EmptyProd `PushProd` Var ZeroIdx
                                    `PushProd` Prj (SuccProdIdx (SuccProdIdx ZeroProdIdx)) (Var (SuccIdx ZeroIdx)))))
+
+p10 :: Exp (Int, (Float, Int), Bool)
+p10 = constant (1, (4,2), True)
+
+p11 :: Exp (Float,Int)
+p11 = Let p10
+    $ Prj (SuccProdIdx ZeroProdIdx) (Var ZeroIdx)
 
