@@ -51,7 +51,13 @@ roundtrip name gadt = do
 
 shouldFail :: String -> ADT.Exp -> IO ()
 shouldFail name adt = do
-  let gadt      = ADT.downcast adt        :: GADT.Exp '[] Int
+  -- TLM: This identifies a possible pain point. In order to do the upcast, we
+  --      need to give the upcast function a concrete return type. This
+  --      (probably) means that when we get an ADT from the client (e.g. over
+  --      the FFI) we'll need to call a _monomorphic_ version of 'upcast'
+  --      specialised to the type we expect ):
+  --
+  let gadt      = ADT.downcast adt      :: GADT.Exp '[] Int
 
   printf "Test %s:\n" name
   printf "  Orig:    %s\n" (show adt)
