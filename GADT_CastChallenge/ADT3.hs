@@ -1,10 +1,15 @@
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE ViewPatterns        #-}
 
 module ADT3
   where
 
 import Prelude                                  hiding ( exp )
+import Data.Maybe
+import Data.Typeable
+import Text.Printf
 import qualified GADT3                          as GADT
 
 
@@ -40,6 +45,18 @@ instance Show Val where
       [a,b]   -> show (a,b)
       [a,b,c] -> show (a,b,c)
       _       -> error "VTup: only expected up to 3-tuple"
+
+
+-- TLM: We could also encode the full type hierarchy, and/or keep the binary
+--      tree encoding of tuples.
+--
+-- data Type         = TZero | TScalar ScalarType | TCons Type Type
+--
+-- data ScalarType   = NumType | NonNumType
+-- data NumType      = IntegralType | FloatingType
+-- data IntegralType = TInt
+-- data FloatingType = TFloat
+-- data NonNumType   = TUnit | TBool
 
 
 -- Language definition
@@ -112,87 +129,13 @@ evalOpenExp env = go
     toFloat _        = error "PrimToFloat: incorrect arguments"
 
 
-{--
--- Tests
--- -----
-
-class ToVal a where
-  toVal :: a -> Val
-
-instance ToVal () where
-  toVal () = VUnit
-
-instance ToVal Int where
-  toVal x = VInt x
-
-instance ToVal Float where
-  toVal x = VFloat x
-
-instance ToVal Bool where
-  toVal x = VBool x
-
-instance (ToVal a, ToVal b) => ToVal (a,b) where
-  toVal (a,b) = VTup [toVal b, toVal a]
-
-instance (ToVal a, ToVal b, ToVal c) => ToVal (a,b,c) where
-  toVal (a,b,c) = VTup [toVal c, toVal b, toVal a]
-
-
-constant :: forall a. ToVal a => a -> Exp
-constant x = Const TUnit (toVal x)      -- type error!
-
-p0 :: Exp
-p0 = If (constant True) (constant (3 :: Int)) (constant (4 :: Int))
-
-p1 :: Exp
-p1 = Let (constant (5::Int)) (Var TInt 0)
-
-p2 :: Exp
-p2 = If (constant True)
-        (constant (11 :: Int)) p1
-
-p3 :: Exp
-p3 = Let (constant (5 :: Int))
-   $ If (constant True) (Var TInt 0) (constant (4 :: Int))
-
-p4 :: Exp
-p4 = Let (constant (4 :: Int))
-   $ Let (constant (5 :: Int))
-   $ PrimApp (PrimAdd TInt) (Prod [Var TInt 0, Var TInt 1])
-
-p5 :: Exp
-p5 = constant True
-
-p6 :: Exp
-p6 = Let p5
-   $ If (Var TBool 0)
-        (constant False) (Var TBool 0)
-
-p7 :: Exp
-p7 = constant ((1,pi) :: (Int,Float))
-
-p8 :: Exp
-p8 = Let p7
-   $ Prj 0 (Var TUnit 0)        -- type error!
-
-p9 :: Exp
-p9 = Let (constant ((pi, 8, 4.86) :: (Float,Int,Float)))
-   $ Let (PrimApp (PrimMul TFloat) (Prod [ Prj 0 (Var TFloat 0)                         -- type error!
-                                         , PrimApp PrimToFloat (Prj 1 (Var TInt 0)) ])) -- type error!
-   $ PrimApp (PrimAdd TFloat) (Prod [ Var TFloat 0                                      -- type error!
-                                    , Prj 2 (Var TFloat 1) ])                           -- type error!
-
-p10 :: Exp
-p10 = constant ((1, (4,2), True) :: (Int, (Float, Int), Bool))
-
-p11 :: Exp
-p11 = Let p10
-    $ Prj 1 (Var TUnit 0)       -- type error!
---}
-
-
 -- Upcasting
 -- =========
+--
+-- So long as the untyped expression language has enough constructs to cover all
+-- features of the typed language, upcasting always succeeds: it only throws out
+-- information, or downgrades it from the type to value level.
+--
 
 -- Types
 
@@ -291,4 +234,141 @@ upcast exp =
     prim (GADT.PrimAdd t) = PrimAdd (upcastNumType t)
     prim (GADT.PrimMul t) = PrimMul (upcastNumType t)
     prim GADT.PrimToFloat = PrimToFloat
+
+
+-- Downcasting
+-- ===========
+--
+-- Downcasting can fail. It takes an untyped expression, or types only at the
+-- value level, and attempts to add type information to the type level.
+--
+downcast :: GADT.Elt t => Exp -> GADT.Exp t
+downcast exp = fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout exp)
+
+downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> Maybe (GADT.OpenExp env t)
+downcastOpenExp lyt = cvt
+  where
+    cvt :: Exp -> Maybe (GADT.OpenExp env t)
+    cvt (Var _ty ix)    = GADT.Var <$> gcast (downcastIdx ix lyt :: GADT.Idx env t)
+    cvt (Let a b)
+      | Just a' <- cvt a
+      , Just b' <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
+      = Just (GADT.Let a' b')
+
+    cvt (Const _ c)     = Just . GADT.Const $ downcastConstR (GADT.eltType (undefined::t)) c
+
+--    cvt (Prod p)        = GADT.Prod <$> downcastProd lyt (GADT.prodR (undefined::t)) p
+
+
+-- Utilities
+-- ---------
+
+typeError :: forall s t a. (Typeable s, Typeable t) => s -> t -> a
+typeError _ _
+  = error
+  $ printf "Couldn't match expected type `%s' with actual type `%s'"
+           (show (typeOf (undefined::s)))
+           (show (typeOf (undefined::t)))
+
+inconsistent :: String -> a
+inconsistent s = error (s ++ ": inconsistent valuation")
+
+-- Gain some type-level knowledge when two value-level types match
+--
+unify :: (Typeable s, Typeable t) => s -> t -> Maybe (s :~: t)
+unify s t =
+  case eqT of
+    Nothing   -> typeError s t
+    refl      -> refl
+
+
+-- Indices of let-bound variables
+-- ------------------------------
+
+-- Layouts map environments to indices projecting into that environment. The two
+-- separate environment types are required because the weakening step
+-- (incLayout) happens separately to adding a new term when we push under a
+-- binder.
+--
+data Layout env env' where
+  EmptyLayout :: Layout env ()
+  PushLayout  :: Typeable t
+              => Layout env env' -> GADT.Idx env t -> Layout env (env',t)
+
+-- Increment all the indices in the layout. This makes space at the head of the
+-- layout to add a new index, for when we push under a binder.
+--
+incLayout :: Layout env env' -> Layout (env, t) env'
+incLayout EmptyLayout         = EmptyLayout
+incLayout (PushLayout lyt ix) = PushLayout (incLayout lyt) (GADT.SuccIdx ix)
+
+-- Get an index out of the environment
+--
+downcastIdx :: forall t env env'. Typeable t => Int -> Layout env env' -> GADT.Idx env t
+downcastIdx 0 (PushLayout _ (ix :: GADT.Idx env t'))
+  | Just ix' <- gcast ix          = ix'
+  | otherwise                     = typeError (undefined::t) (undefined::t')
+downcastIdx n (PushLayout lyt _)  = downcastIdx (n-1) lyt
+downcastIdx _ _                   = error "unbound variable"
+
+
+-- Constant values
+-- ---------------
+
+-- TLM: ugh, this is difficult because we threw away some structure when we
+--      flattened tuple types into lists analogous to the surface
+--      representation, instead of keeping the binary tree encoding; see the
+--      final case of 'upcastConstR' which uses (++).
+--
+downcastConstR :: GADT.TypeR t -> Val -> t
+downcastConstR t = go t . untup
+  where
+    untup :: Val -> [Val]
+    untup (VTup vs) = vs
+    untup x         = [x]
+
+    go :: GADT.TypeR a -> [Val] -> a
+    go GADT.TypeRzero                                           []      = ()
+    go (GADT.TypeRscalar s)                                     [v]     = downcastScalar s v
+    go (GADT.TypeRsnoc GADT.TypeRzero b@GADT.TypeRsnoc{})       [v]     = ((), go b (untup v))
+    go (GADT.TypeRsnoc GADT.TypeRzero b@GADT.TypeRscalar{})     v       = ((), go b v)
+    go (GADT.TypeRsnoc a@GADT.TypeRsnoc{} b@GADT.TypeRscalar{}) xs      = (go a (init xs), go b [last xs])
+    go (GADT.TypeRsnoc a@GADT.TypeRsnoc{} b@GADT.TypeRsnoc{})   [x,y]   = (go a (untup x), go b (untup y))
+    go _                                                        _       = inconsistent "downcastConstR"
+
+downcastScalar :: GADT.ScalarType t -> Val -> t
+downcastScalar (GADT.NumScalarType t)    v = downcastNumScalar t v
+downcastScalar (GADT.NonNumScalarType t) v = downcastNonNumScalar t v
+
+downcastNumScalar :: GADT.NumType t -> Val -> t
+downcastNumScalar (GADT.IntegralNumType t) v = downcastIntegral t v
+downcastNumScalar (GADT.FloatingNumType t) v = downcastFloating t v
+
+downcastIntegral :: GADT.IntegralType t -> Val -> t
+downcastIntegral GADT.TypeInt{} (VInt x) = x
+downcastIntegral _ _ = inconsistent "downcastIntegral"
+
+downcastFloating :: GADT.FloatingType t -> Val -> t
+downcastFloating GADT.TypeFloat{} (VFloat x) = x
+downcastFloating _ _ = inconsistent "downcastFloating"
+
+downcastNonNumScalar :: GADT.NonNumType t -> Val -> t
+downcastNonNumScalar GADT.TypeUnit   VUnit     = ()
+downcastNonNumScalar GADT.TypeBool{} (VBool x) = x
+downcastNonNumScalar _ _ = inconsistent "downcastNonNumScalar"
+
+
+-- Products
+-- --------
+
+downcastProd :: forall env p. Layout env env -> GADT.ProdR p -> [Exp] -> Maybe (GADT.Prod (GADT.OpenExp env) p)
+downcastProd lyt prod = go prod . reverse
+  where
+    go :: GADT.ProdR s -> [Exp] -> Maybe (GADT.Prod (GADT.OpenExp env) s)
+    go GADT.ProdRzero     []     = Just GADT.EmptyProd
+    go (GADT.ProdRsnoc p) (e:es) = do
+      e'  <- downcastOpenExp lyt e
+      es' <- go p es
+      Just (GADT.PushProd es' e')
+    go _ _ = inconsistent "downcastProd"
 
