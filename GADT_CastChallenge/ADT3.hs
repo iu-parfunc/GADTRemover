@@ -46,13 +46,13 @@ instance Show Val where
 -- -------------------
 
 type Idx = Int
-type TupleIdx = Int
+type ProdIdx = Int
 
 data Exp
   = Let Exp Exp
-  | Var Type Idx                -- cons-indexing
+  | Var Type Idx                -- cons indexing!
   | Const Type Val
-  | Prj TupleIdx Exp            -- snoc-indexing
+  | Prj ProdIdx Exp             -- snoc indexing!
   | Prod [Exp]
   | If Exp Exp Exp
   | PrimApp PrimFun Exp
@@ -78,7 +78,7 @@ evalOpenExp env = go
   where
     go :: Exp -> Val
     go (Let a b)        = evalOpenExp (go a : env) b
-    go (Var _ ix)       = env !! ix             -- assert type!
+    go (Var _ ix)       = env !! ix             -- assert type! cons indexing!
     go (Const _ c)      = c                     -- assert type!
     go (Prod p)         = VTup $ map go p
     go (Prj ix p)       = prj ix (go p)
@@ -88,8 +88,8 @@ evalOpenExp env = go
                             PrimMul t   -> mul t (go x)
                             PrimToFloat -> toFloat (go x)
 
-    prj :: TupleIdx -> Val -> Val
-    prj ix (VTup vs) = reverse vs !! ix
+    prj :: ProdIdx -> Val -> Val
+    prj ix (VTup vs) = reverse vs !! ix         -- snoc indexing!
     prj _ _          = error "Prj: expected tuple"
 
     if_ :: Val -> Val -> Val -> Val
