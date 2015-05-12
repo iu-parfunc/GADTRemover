@@ -7,7 +7,6 @@
 module GADT3
   where
 
-import Data.Proxy
 import Text.PrettyPrint.Leijen
 
 
@@ -34,9 +33,20 @@ instance IsProduct (a, b, c) where
   fromProd (a, b, c) = (fromProd (a,b), c)
   toProd (ab, c)     = let (a, b) = toProd ab in (a, b, c)
 
+instance IsProduct (a, b, c, d) where
+  type ProdRepr (a, b, c, d) = (ProdRepr (a, b, c), d)
+  fromProd (a, b, c, d) = (fromProd (a,b,c), d)
+  toProd (abc, d)       = let (a, b, c) = toProd abc in (a, b, c, d)
+
 
 -- Type hierarchy
 -- ==============
+
+integralDict :: IntegralType a -> IntegralDict a
+integralDict (TypeInt d) = d
+
+floatingDict :: FloatingType a -> FloatingDict a
+floatingDict (TypeFloat d) = d
 
 data IntegralDict a where
   IntegralDict :: (Integral a, Num a, Show a, Eq a) => IntegralDict a
@@ -46,11 +56,6 @@ data FloatingDict a where
 
 data NonNumDict a where
   NonNumDict   :: (Show a, Eq a) => NonNumDict a
-
-data TupleType a where
-  UnitTuple   :: TupleType ()
-  SingleTuple :: ScalarType a -> TupleType a
-  PairTuple   :: TupleType a -> TupleType b -> TupleType (a, b)
 
 data ScalarType a where
   NumScalarType    :: NumType a -> ScalarType a
@@ -67,13 +72,26 @@ data FloatingType a where
   TypeFloat :: FloatingDict Float -> FloatingType Float
 
 data NonNumType a where
+  TypeUnit ::                    NonNumType ()
   TypeBool :: NonNumDict Bool -> NonNumType Bool
 
-integralDict :: IntegralType a -> IntegralDict a
-integralDict (TypeInt d) = d
+instance Show (ScalarType t) where
+  show (NumScalarType t)    = show t
+  show (NonNumScalarType t) = show t
 
-floatingDict :: FloatingType a -> FloatingDict a
-floatingDict (TypeFloat d) = d
+instance Show (NumType a) where
+  show (IntegralNumType t) = show t
+  show (FloatingNumType t) = show t
+
+instance Show (IntegralType a) where
+  show TypeInt{} = "Int"
+
+instance Show (FloatingType a) where
+  show TypeFloat{} = "Float"
+
+instance Show (NonNumType a) where
+  show TypeUnit   = "()"
+  show TypeBool{} = "Bool"
 
 
 -- Surface and representation types
@@ -86,44 +104,94 @@ type instance EltRepr Bool = Bool
 type instance EltRepr Float = Float
 type instance EltRepr (a, b) = ProdRepr (EltRepr a, EltRepr b)
 type instance EltRepr (a, b, c) = ProdRepr (EltRepr a, EltRepr b, EltRepr c)
+type instance EltRepr (a, b, c, d) = ProdRepr (EltRepr a, EltRepr b, EltRepr c, EltRepr d)
 
+-- type instance EltRepr Z              = ()
+-- type instance EltRepr (tail :. head) = ProdRepr (EltRepr tail, EltRepr head)
+--
+-- data Z            = Z
+-- data tail :. head = tail :. head
+
+data TypeR a where
+  TypeRzero      ::                       TypeR ()
+  TypeRscalar    :: ScalarType a ->       TypeR a
+  TypeRsnoc      :: TypeR a -> TypeR b -> TypeR (a, b)
 
 class Show a => Elt a where
   toElt   :: EltRepr a -> a
   fromElt :: a -> EltRepr a
-  eltType :: Proxy a -> TupleType (EltRepr a)
+  eltType :: {- dummy -} a -> TypeR (EltRepr a)
 
 instance Elt () where
   toElt     = id
   fromElt   = id
-  eltType _ = UnitTuple
+  eltType _ = TypeRscalar (NonNumScalarType TypeUnit)
 
 instance Elt Int where
   toElt     = id
   fromElt   = id
-  eltType _ = SingleTuple (NumScalarType (IntegralNumType (TypeInt IntegralDict)))
+  eltType _ = TypeRscalar (NumScalarType (IntegralNumType (TypeInt IntegralDict)))
 
 instance Elt Float where
   toElt     = id
   fromElt   = id
-  eltType _ = SingleTuple (NumScalarType (FloatingNumType (TypeFloat FloatingDict)))
+  eltType _ = TypeRscalar (NumScalarType (FloatingNumType (TypeFloat FloatingDict)))
 
 instance Elt Bool where
   toElt     = id
   fromElt   = id
-  eltType _ = SingleTuple (NonNumScalarType (TypeBool NonNumDict))
+  eltType _ = TypeRscalar (NonNumScalarType (TypeBool NonNumDict))
 
 instance (Elt a, Elt b) => Elt (a, b) where
   toElt p        = let (a, b) = toProd p in (toElt a, toElt b)
   fromElt (a, b) = fromProd (fromElt a, fromElt b)
-  eltType Proxy  = PairTuple (PairTuple UnitTuple (eltType (Proxy :: Proxy a)))
-                             (eltType (Proxy :: Proxy b))
+  eltType _      = TypeRzero `TypeRsnoc` eltType (undefined :: a)
+                             `TypeRsnoc` eltType (undefined :: b)
 
 instance (Elt a, Elt b, Elt c) => Elt (a, b, c) where
   toElt p           = let (a, b, c) = toProd p in (toElt a, toElt b, toElt c)
   fromElt (a, b, c) = fromProd (fromElt a, fromElt b, fromElt c)
-  eltType Proxy     = PairTuple (eltType (Proxy :: Proxy (a, b)))
-                                (eltType (Proxy :: Proxy c))
+  eltType _         = TypeRzero `TypeRsnoc` eltType (undefined :: a)
+                                `TypeRsnoc` eltType (undefined :: b)
+                                `TypeRsnoc` eltType (undefined :: c)
+
+instance (Elt a, Elt b, Elt c, Elt d) => Elt (a, b, c, d) where
+  toElt p              = let (a, b, c, d) = toProd p in (toElt a, toElt b, toElt c, toElt d)
+  fromElt (a, b, c, d) = fromProd (fromElt a, fromElt b, fromElt c, fromElt d)
+  eltType _            = TypeRzero `TypeRsnoc` eltType (undefined :: a)
+                                   `TypeRsnoc` eltType (undefined :: b)
+                                   `TypeRsnoc` eltType (undefined :: c)
+                                   `TypeRsnoc` eltType (undefined :: d)
+
+instance Show (TypeR a) where
+  show = show . ppTypeR'
+
+-- ppTypeR :: TypeR a -> Doc
+-- ppTypeR TypeRzero       = text "TypeRzero"
+-- ppTypeR (TypeRsnoc a b) = ppTypeR a <+> text "`TypeRsnoc`" <+> ppTypeR b
+-- ppTypeR (TypeRscalar t) = text (show t)
+
+ppTypeR' :: TypeR a -> Doc
+ppTypeR' = tupled . go
+  where
+    tup []  = empty
+    tup [x] = x
+    tup xs  = tupled xs
+
+    go :: TypeR a -> [Doc]
+    go TypeRzero                                = []
+    go (TypeRscalar t)                          = [ text (show t) ]
+    go (TypeRsnoc TypeRzero     b@TypeRsnoc{})  = [ tup (go b) ]                -- 'b' is terminated at this point
+    go (TypeRsnoc a@TypeRsnoc{} b@TypeRsnoc{})  = [ tup (go a), tup (go b) ]    -- meet point of a pair of tuples
+    go (TypeRsnoc a b)                          = go a ++ go b
+
+t1 = eltType (undefined :: ((Bool,Int), Float))
+t2 = eltType (undefined :: (Bool,Int,Float))
+t3 = eltType (undefined :: (Bool, (Int,Float)))
+t4 = eltType (undefined :: (Int,Int,Int,Float))
+t5 = eltType (undefined :: (Bool, (Int,Float), Int))
+t6 = eltType (undefined :: ((Int,Int),(Int,Float)))
+t7 = eltType (undefined :: (((Int,Int),(Int,Float)),Float))
 
 
 -- Language definition
