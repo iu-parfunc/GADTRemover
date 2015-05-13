@@ -201,6 +201,7 @@ data Any sh = Any
 instance Elt Z where
   toElt ()  = Z
   fromElt Z = ()
+--  eltType _ = TypeRscalar (NonNumScalarType TypeUnit)
   eltType _ = TypeRzero         -- doesn't need a value-level representation (??)
 
 instance Elt All where
@@ -303,7 +304,7 @@ idxToInt (SuccIdx ix) = 1 + idxToInt ix
 
 data Prod c p where
   EmptyProd ::                             Prod c ()
-  PushProd  :: Elt p => Prod c s -> c p -> Prod c (s, p)
+  PushProd  :: Elt e => Prod c p -> c e -> Prod c (p, e)
 
 data ProdIdx p e where
   ZeroProdIdx ::                ProdIdx (p, s) s
@@ -520,4 +521,12 @@ p15 = constant (True,1,2)
 
 p16 :: Exp (Bool, (Int,Float))
 p16 = constant (False, (12,42))
+
+p17 :: Exp Float
+p17 = Let p3
+    $ PrimApp PrimToFloat (Var ZeroIdx)
+
+p18 :: Exp DIM1
+p18 = Let (constant (4 :: Int, Z:.10 :: DIM1))
+    $ Prj ZeroProdIdx (Var ZeroIdx)
 
