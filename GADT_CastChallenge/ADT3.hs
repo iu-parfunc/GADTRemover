@@ -6,11 +6,13 @@
 module ADT3
   where
 
-import Prelude                                  hiding ( exp )
-import Data.Maybe
-import Data.Typeable
-import Text.Printf
-import qualified GADT3                          as GADT
+import           Prelude hiding ( exp )
+import           Data.Maybe
+import           Data.Typeable
+import           Text.Printf
+import qualified GADT3 as GADT
+
+import           Control.Applicative ((<$>))
 
 
 -- Untyped definition
@@ -371,4 +373,3 @@ downcastProd lyt prod = go prod . reverse
       es' <- go p es
       Just (GADT.PushProd es' e')
     go _ _ = inconsistent "downcastProd"
-

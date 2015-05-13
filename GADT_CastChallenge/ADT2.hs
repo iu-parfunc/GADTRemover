@@ -45,6 +45,12 @@ data Exp
 
 type Ix = Int
 
+{-
+
+data Idx = ZeroIdx | SuccIdx Idx
+
+-}
+
 data Type = TInt | TBool
   deriving (Eq, Typeable)
 
@@ -218,4 +224,3 @@ unify s t =
 
 unused :: t
 unused = error "this is never used"
-

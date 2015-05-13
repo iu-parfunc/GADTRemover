@@ -9,6 +9,9 @@ module GADT2 where
 import Data.Typeable
 import Prelude                                          hiding ( exp )
 
+-- env: checked
+-- t: synthesized
+-- Downcast will take a Typeable instance for 'env'.
 data Idx env t where
   ZeroIdx ::              Idx (t ': env) t
   SuccIdx :: Idx env t -> Idx (s ': env) t
@@ -17,6 +20,8 @@ data Env env where
   EmptyEnv ::                 Env '[]
   PushEnv  :: a -> Env env -> Env (a ': env)
 
+-- env: checked
+-- t: synthesized
 data Exp env t where
   Const :: Elt t => t -> Exp env t
   Add   :: Exp env Int -> Exp env Int -> Exp env Int
@@ -89,4 +94,3 @@ p6 :: Exp '[] Bool
 p6 = Let p5
    $ If (Var ZeroIdx) (Const False)
                       (Var ZeroIdx)
-
