@@ -249,17 +249,17 @@ downcast exp = fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout 
 downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> Maybe (GADT.OpenExp env t)
 downcastOpenExp lyt = cvt
   where
-    -- TLM: We could reduce the 'Elt' constraint here to 'Typeable' (which is
-    --      required to support 'unify'), and use 'eltType' to extract the class
-    --      constraint locally at each constructor.
+    -- We could reduce the 'Elt' constraint here to 'Typeable' (which is
+    -- required to support 'unify'), and use 'eltType' to extract the class
+    -- constraint locally at each constructor.
     --
     cvt :: forall s. GADT.Elt s => Exp -> Maybe (GADT.OpenExp env s)
-    cvt (Var _ ix)                      -- type check occurs in downcastIdx
+    cvt (Var _ ix)                                      -- type check occurs in downcastIdx
       = GADT.Var <$> gcast (downcastIdx ix lyt :: GADT.Idx env s)
 
     cvt (Let (t,a) b)
-      | Elt' (_ :: a)                   <- elt' t
-      , Just (a' :: GADT.OpenExp env a) <- cvt a
+      | Elt' (_ :: a)                   <- elt' t       -- In this case the type of the bound expression is existentially
+      , Just (a' :: GADT.OpenExp env a) <- cvt a        -- quantified, so we must encode its type in the untyped term tree.
       , Just b'                         <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
       = Just (GADT.Let a' b')
 
@@ -278,9 +278,9 @@ downcastOpenExp lyt = cvt
 --      = error "Prj"
 
     cvt (If p t e)
-      | Just p' <- cvt p
-      , Just t' <- cvt t
-      , Just e' <- cvt e
+      | Just p' <- cvt p                -- No extra (value-level) type witness is required for this case, as we rely
+      , Just t' <- cvt t                -- on the unification constraints imposed by GADT.If; i.e. p ~ Bool and t ~ e,
+      , Just e' <- cvt e                -- to guide the recursive calls to 'cvt'.
       = Just (GADT.If p' t' e')
 
 --    cvt (PrimApp f x)
