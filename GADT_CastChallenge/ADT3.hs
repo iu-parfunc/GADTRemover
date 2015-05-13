@@ -439,7 +439,7 @@ downcastConstR t = go t . untup
     go (GADT.TypeRsnoc GADT.TypeRzero b@GADT.TypeRsnoc{})       [v]     = ((), go b (untup v))
     go (GADT.TypeRsnoc GADT.TypeRzero b@GADT.TypeRscalar{})     v       = ((), go b v)
     go (GADT.TypeRsnoc a@GADT.TypeRsnoc{} b@GADT.TypeRscalar{}) xs      = (go a (init xs), go b [last xs])
-    go (GADT.TypeRsnoc a@GADT.TypeRsnoc{} b@GADT.TypeRsnoc{})   [x,y]   = (go a (untup x), go b (untup y))
+    go (GADT.TypeRsnoc a b)                                     [x,y]   = (go a (untup x), go b (untup y))
     go _                                                        _       = inconsistent "downcastConstR"
 
 downcastScalar :: GADT.ScalarType t -> Val -> t
