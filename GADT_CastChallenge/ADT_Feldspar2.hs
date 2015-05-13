@@ -57,14 +57,18 @@ downcastExp (App e1 e2)  =
   do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
      SealedExp (b::G.Exp e ta) <- (downcastExp e2)
 
+     let typ = typeOf (unused :: tarr)
+     trace (show typ) $ return ()
      -- let (e' :: G.Exp e tb) = G.App a b
-           -- Just Refl = unify (unused :: tarr) (unused:: ta -> tb)
+     -- let Just Refl = unify (unused :: tarr) (unused:: ta -> tb)
      -- return $ SealedExp e'
 
      -- splitTyConApp $ typeOf
 
      -- return $ SealedExp $ G.App undefined undefined
      undefined
+
+-- test = downcastExp (App (Abs ))
 
 downcastVar :: Typeable e => Var  -> Maybe (SealedVar e)
 downcastVar Zro = undefined
