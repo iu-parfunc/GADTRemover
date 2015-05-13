@@ -69,7 +69,7 @@ data Exp
   = Let (Type,Exp) Exp
   | Var Type Idx                -- cons indexing!
   | Const Type Val
-  | Prj ProdIdx Exp             -- snoc indexing!
+  | Prj Type ProdIdx Exp        -- snoc indexing!
   | Prod Type [Exp]
   | If Exp Exp Exp
   | PrimApp PrimFun Exp
@@ -98,7 +98,7 @@ evalOpenExp env = go
     go (Var _ ix)       = env !! ix             -- assert type! cons indexing!
     go (Const _ c)      = c                     -- assert type!
     go (Prod _ p)       = VTup $ map go p
-    go (Prj ix p)       = prj ix (go p)
+    go (Prj _ ix p)     = prj ix (go p)
     go (If p t e)       = if_ (go p) (go t) (go e)
     go (PrimApp f x)    = case f of
                             PrimAdd t   -> add t (go x)
@@ -218,9 +218,10 @@ upcast exp =
     GADT.Const c        -> let t = GADT.eltType (undefined::t)
                            in  Const (upcastTypeR t) (upcastConstR t c)
     GADT.Prod p         -> prod (upcastTypeR (GADT.eltType (undefined::t))) p
-    GADT.Prj ix p       -> Prj (GADT.prodIdxToInt ix) (upcast p)
     GADT.If p t e       -> If (upcast p) (upcast t) (upcast e)
     GADT.PrimApp f x    -> PrimApp (prim f) (upcast x)
+    GADT.Prj ix (p :: GADT.OpenExp env p)
+                        -> Prj (upcastTypeR (GADT.eltType (undefined::p))) (GADT.prodIdxToInt ix) (upcast p)
 
   where
     prod :: Type -> GADT.Prod (GADT.OpenExp env) p -> Exp
@@ -244,7 +245,8 @@ upcast exp =
 -- value level, and attempts to promote type information to the type level.
 --
 downcast :: GADT.Elt t => Exp -> GADT.Exp t
-downcast exp = fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout exp)
+downcast exp =
+  fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout exp)
 
 downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> Maybe (GADT.OpenExp env t)
 downcastOpenExp lyt = cvt
@@ -274,8 +276,11 @@ downcastOpenExp lyt = cvt
       , Just p'                         <- downcastProd lyt (GADT.prodR (undefined::s)) p
       = Just (GADT.Prod p')
 
---    cvt (Prj ix t)
---      = error "Prj"
+    cvt (Prj t ix p)
+      | Just (IsProduct' (_ :: p))      <- isProduct' t
+      , Just (p' :: GADT.OpenExp env p) <- cvt p        -- Here we can explicitly require the conversion result to be type 'p'
+      , ix'                             <- downcastProdIdx ix (GADT.prodR (undefined::p))
+      = Just (GADT.Prj ix' p')
 
     cvt (If p t e)
       | Just p' <- cvt p                -- No extra (value-level) type witness is required for this case, as we rely
@@ -283,14 +288,21 @@ downcastOpenExp lyt = cvt
       , Just e' <- cvt e                -- to guide the recursive calls to 'cvt'.
       = Just (GADT.If p' t' e')
 
---    cvt (PrimApp f x)
---      | 
+    cvt (PrimApp f x)
+      | Just (PrimFun' (f' :: GADT.PrimFun (a -> r)))   <- downcastPrimFun f
+      , Just Refl                                       <- unify (undefined::r) (undefined::s)
+      , Just x'                                         <- cvt x
+      = Just (GADT.PrimApp f' x')
+
+    cvt _
+      = Nothing
 
 
 -- Promoting types
 -- ---------------
 
--- Construct some proof that our value-level types imply class membership.
+-- Construct some _sealed_ proof that our value-level types imply class
+-- membership.
 --
 data Elt' where
   Elt' :: GADT.Elt t => {- dummy -} t -> Elt'
@@ -304,53 +316,54 @@ elt' TInt    = Elt' (undefined :: Int)
 elt' TFloat  = Elt' (undefined :: Float)
 elt' TBool   = Elt' (undefined :: Bool)
 elt' (TTup t)
-  | [ta,tb]        <- t
+  | [ta,tb]       <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   = Elt' (undefined :: (a,b))
-
-  | [ta,tb,tc]     <- t
+  --
+  | [ta,tb,tc]    <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   , Elt' (_ :: c) <- elt' tc
   = Elt' (undefined :: (a,b,c))
-
-  | [ta,tb,tc,td]  <- t
+  --
+  | [ta,tb,tc,td] <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   , Elt' (_ :: c) <- elt' tc
   , Elt' (_ :: d) <- elt' td
   = Elt' (undefined :: (a,b,c,d))
-
+  --
   | otherwise
   = error "elt': I only know how to handle up to 4-tuples"
 
 
 isProduct' :: Type -> Maybe IsProduct'
+isProduct' TUnit   = Nothing
+isProduct' TInt    = Nothing
+isProduct' TFloat  = Nothing
+isProduct' TBool   = Nothing
 isProduct' (TTup t)
   | [ta,tb]       <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   = Just $ IsProduct' (undefined :: (a,b))
-
+  --
   | [ta,tb,tc]    <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   , Elt' (_ :: c) <- elt' tc
   = Just $ IsProduct' (undefined :: (a,b,c))
-
+  --
   | [ta,tb,tc,td] <- t
   , Elt' (_ :: a) <- elt' ta
   , Elt' (_ :: b) <- elt' tb
   , Elt' (_ :: c) <- elt' tc
   , Elt' (_ :: d) <- elt' td
   = Just $ IsProduct' (undefined :: (a,b,c,d))
-
+  --
   | otherwise
   = error "isProduct': I only know how to handle up to 4-tuples"
-
-isProduct' _
-  = Nothing
 
 
 -- Utilities
@@ -464,4 +477,41 @@ downcastProd lyt prod = go prod . reverse
       es' <- go p es
       Just (GADT.PushProd es' e')
     go _ _ = inconsistent "downcastProd"
+
+
+downcastProdIdx :: forall p e. Typeable e => Int -> GADT.ProdR p -> GADT.ProdIdx p e
+downcastProdIdx 0 (GADT.ProdRsnoc _)
+  | Just ix <- gcast GADT.ZeroProdIdx   = ix
+downcastProdIdx n (GADT.ProdRsnoc p)    = GADT.SuccProdIdx (downcastProdIdx (n-1) p)
+downcastProdIdx _ _                     = error "invalid projection"
+
+
+-- Primitive functions
+-- -------------------
+
+data NumType' where
+  NumType' :: GADT.Elt a => GADT.NumType a -> NumType'
+
+data PrimFun' where
+  PrimFun' :: (GADT.Elt a, GADT.Elt r) => GADT.PrimFun (a -> r) -> PrimFun'
+
+numType' :: Type -> Maybe NumType'
+numType' TInt   = Just $ NumType' (GADT.IntegralNumType (GADT.TypeInt   GADT.IntegralDict))
+numType' TFloat = Just $ NumType' (GADT.FloatingNumType (GADT.TypeFloat GADT.FloatingDict))
+numType' _      = Nothing
+
+downcastPrimFun :: PrimFun -> Maybe PrimFun'
+downcastPrimFun (PrimAdd t)
+  | Just (NumType' dict) <- numType' t
+  = Just (PrimFun' (GADT.PrimAdd dict))
+
+downcastPrimFun (PrimMul t)
+  | Just (NumType' dict) <- numType' t
+  = Just (PrimFun' (GADT.PrimMul dict))
+
+downcastPrimFun PrimToFloat
+  = Just (PrimFun' GADT.PrimToFloat)
+
+downcastPrimFun _
+  = Nothing
 

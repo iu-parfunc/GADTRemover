@@ -303,7 +303,7 @@ idxToInt (SuccIdx ix) = 1 + idxToInt ix
 
 data Prod c p where
   EmptyProd ::                             Prod c ()
-  PushProd  :: Elt p => Prod c s -> c p -> Prod c (s, p)
+  PushProd  :: Elt e => Prod c p -> c e -> Prod c (p, e)
 
 data ProdIdx p e where
   ZeroProdIdx ::                ProdIdx (p, s) s
@@ -520,4 +520,8 @@ p15 = constant (True,1,2)
 
 p16 :: Exp (Bool, (Int,Float))
 p16 = constant (False, (12,42))
+
+p17 :: Exp Float
+p17 = Let p3
+    $ PrimApp PrimToFloat (Var ZeroIdx)
 
