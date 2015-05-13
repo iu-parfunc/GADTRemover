@@ -1,14 +1,17 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RoleAnnotations #-}
-module GADT where
+module GADT_Feldspar where
 
 -- GADT representation.
 -- Simply-typed lambda calculus with de Bruijn indices,
 -- with integer constants, and addition.
 -- Philip Wadler and Shayan Najd, November 2013
 
--- type role Exp phantom nominal
+-- ERASER: Exp, e: checked, a: synthesized
+-- ERASER: Var, e: checked, a: synthesized
+-- ERASER: Typ, a: synthesized
+
 type role Exp nominal nominal
 data Exp e a where
   Con :: Int -> Exp e Int
