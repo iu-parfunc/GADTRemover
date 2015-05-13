@@ -66,11 +66,11 @@ type Idx = Int
 type ProdIdx = Int
 
 data Exp
-  = Let Exp Exp
+  = Let (Type,Exp) Exp
   | Var Type Idx                -- cons indexing!
   | Const Type Val
   | Prj ProdIdx Exp             -- snoc indexing!
-  | Prod [Exp]
+  | Prod Type [Exp]
   | If Exp Exp Exp
   | PrimApp PrimFun Exp
   deriving (Eq, Show)
@@ -94,10 +94,10 @@ evalOpenExp :: Env -> Exp -> Val
 evalOpenExp env = go
   where
     go :: Exp -> Val
-    go (Let a b)        = evalOpenExp (go a : env) b
+    go (Let (_,a) b)    = evalOpenExp (go a : env) b
     go (Var _ ix)       = env !! ix             -- assert type! cons indexing!
     go (Const _ c)      = c                     -- assert type!
-    go (Prod p)         = VTup $ map go p
+    go (Prod _ p)       = VTup $ map go p
     go (Prj ix p)       = prj ix (go p)
     go (If p t e)       = if_ (go p) (go t) (go e)
     go (PrimApp f x)    = case f of
@@ -212,23 +212,24 @@ upcastConstR ty = tup . go ty
 upcast :: forall env t. GADT.OpenExp env t -> Exp
 upcast exp =
   case exp of
+    GADT.Let (a :: GADT.OpenExp env s) b
+                        -> Let (upcastTypeR (GADT.eltType (undefined::s)), upcast a) (upcast b)
     GADT.Var ix         -> Var (upcastTypeR (GADT.eltType (undefined::t))) (GADT.idxToInt ix)
-    GADT.Let a b        -> Let (upcast a) (upcast b)
     GADT.Const c        -> let t = GADT.eltType (undefined::t)
                            in  Const (upcastTypeR t) (upcastConstR t c)
-    GADT.Prod p         -> prod p
+    GADT.Prod p         -> prod (upcastTypeR (GADT.eltType (undefined::t))) p
     GADT.Prj ix p       -> Prj (GADT.prodIdxToInt ix) (upcast p)
     GADT.If p t e       -> If (upcast p) (upcast t) (upcast e)
     GADT.PrimApp f x    -> PrimApp (prim f) (upcast x)
 
   where
-    prod :: GADT.Prod (GADT.OpenExp env) p -> Exp
-    prod =
+    prod :: Type -> GADT.Prod (GADT.OpenExp env) p -> Exp
+    prod t =
       let go :: GADT.Prod (GADT.OpenExp env) p -> [Exp]
           go GADT.EmptyProd      = []
           go (GADT.PushProd p e) = upcast e : go p
       in
-      Prod . reverse . go
+      Prod t . reverse . go
 
     prim :: GADT.PrimFun f -> PrimFun
     prim (GADT.PrimAdd t) = PrimAdd (upcastNumType t)
@@ -240,7 +241,7 @@ upcast exp =
 -- ===========
 --
 -- Downcasting can fail. It takes an untyped expression, or types only at the
--- value level, and attempts to add type information to the type level.
+-- value level, and attempts to promote type information to the type level.
 --
 downcast :: GADT.Elt t => Exp -> GADT.Exp t
 downcast exp = fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout exp)
@@ -248,16 +249,108 @@ downcast exp = fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout 
 downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> Maybe (GADT.OpenExp env t)
 downcastOpenExp lyt = cvt
   where
-    cvt :: Exp -> Maybe (GADT.OpenExp env t)
-    cvt (Var _ty ix)    = GADT.Var <$> gcast (downcastIdx ix lyt :: GADT.Idx env t)
-    cvt (Let a b)
-      | Just a' <- cvt a
-      , Just b' <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
+    -- TLM: We could reduce the 'Elt' constraint here to 'Typeable' (which is
+    --      required to support 'unify'), and use 'eltType' to extract the class
+    --      constraint locally at each constructor.
+    --
+    cvt :: forall s. GADT.Elt s => Exp -> Maybe (GADT.OpenExp env s)
+    cvt (Var _ ix)                      -- type check occurs in downcastIdx
+      = GADT.Var <$> gcast (downcastIdx ix lyt :: GADT.Idx env s)
+
+    cvt (Let (t,a) b)
+      | Elt' (_ :: a)                   <- elt' t
+      , Just (a' :: GADT.OpenExp env a) <- cvt a
+      , Just b'                         <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
       = Just (GADT.Let a' b')
 
-    cvt (Const _ c)     = Just . GADT.Const $ downcastConstR (GADT.eltType (undefined::t)) c
+    cvt (Const t c)
+      | Elt' (_ :: s')                  <- elt' t                               -- We could assume that 's' is correct, but this
+      , Just Refl                       <- unify (undefined::s) (undefined::s') -- way we get a type error message instead of a
+      = Just . GADT.Const $ downcastConstR (GADT.eltType (undefined::s)) c      -- pattern match failure in 'downcastConst'
 
---    cvt (Prod p)        = GADT.Prod <$> downcastProd lyt (GADT.prodR (undefined::t)) p
+    cvt (Prod t p)
+      | Just (IsProduct' (_ :: s'))     <- isProduct' t
+      , Just Refl                       <- unify (undefined::s) (undefined::s')
+      , Just p'                         <- downcastProd lyt (GADT.prodR (undefined::s)) p
+      = Just (GADT.Prod p')
+
+--    cvt (Prj ix t)
+--      = error "Prj"
+
+    cvt (If p t e)
+      | Just p' <- cvt p
+      , Just t' <- cvt t
+      , Just e' <- cvt e
+      = Just (GADT.If p' t' e')
+
+--    cvt (PrimApp f x)
+--      | 
+
+
+-- Promoting types
+-- ---------------
+
+-- Construct some proof that our value-level types imply class membership.
+--
+data Elt' where
+  Elt' :: GADT.Elt t => {- dummy -} t -> Elt'
+
+data IsProduct' where
+  IsProduct' :: (GADT.Elt p, GADT.IsProduct p) => {- dummy -} p -> IsProduct'
+
+elt' :: Type -> Elt'
+elt' TUnit   = Elt' ()
+elt' TInt    = Elt' (undefined :: Int)
+elt' TFloat  = Elt' (undefined :: Float)
+elt' TBool   = Elt' (undefined :: Bool)
+elt' (TTup t)
+  | [ta,tb]        <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  = Elt' (undefined :: (a,b))
+
+  | [ta,tb,tc]     <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  , Elt' (_ :: c) <- elt' tc
+  = Elt' (undefined :: (a,b,c))
+
+  | [ta,tb,tc,td]  <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  , Elt' (_ :: c) <- elt' tc
+  , Elt' (_ :: d) <- elt' td
+  = Elt' (undefined :: (a,b,c,d))
+
+  | otherwise
+  = error "elt': I only know how to handle up to 4-tuples"
+
+
+isProduct' :: Type -> Maybe IsProduct'
+isProduct' (TTup t)
+  | [ta,tb]       <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  = Just $ IsProduct' (undefined :: (a,b))
+
+  | [ta,tb,tc]    <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  , Elt' (_ :: c) <- elt' tc
+  = Just $ IsProduct' (undefined :: (a,b,c))
+
+  | [ta,tb,tc,td] <- t
+  , Elt' (_ :: a) <- elt' ta
+  , Elt' (_ :: b) <- elt' tb
+  , Elt' (_ :: c) <- elt' tc
+  , Elt' (_ :: d) <- elt' td
+  = Just $ IsProduct' (undefined :: (a,b,c,d))
+
+  | otherwise
+  = error "isProduct': I only know how to handle up to 4-tuples"
+
+isProduct' _
+  = Nothing
 
 
 -- Utilities
