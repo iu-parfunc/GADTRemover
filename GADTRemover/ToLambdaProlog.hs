@@ -11,15 +11,16 @@ toLambdaPrologIO :: TypeSystem -> IO ()
 toLambdaPrologIO ts = putStrLn (toLambdaProlog_ ts)
 
 toLambdaProlog_ :: TypeSystem -> String
-toLambdaProlog_ (Ts rules) = unlines (map toLambdaPrologR rules)
+toLambdaProlog_ (Ts sig rules) = unlines (map toLambdaPrologR rules)
 						
 toLambdaPrologR :: Rule -> String 
-toLambdaPrologR (Rule premises term typ) = 
-			typeOf ++ " " ++ toLambdaPrologTerm term ++ " " ++ toLambdaPrologTerm typ ++ premisesIfAny ++ "."
+toLambdaPrologR (Rule premises conclusion) = 
+			conclusionIO ++ premisesIfAny ++ "."
 			where 
 			premisesIfAny = if (premisesWithComma == "") then "" else  " :- " ++ premisesWithComma
 			premises' = (map toLambdaPrologPr premises)
 			premisesWithComma = intercalate ", " premises'
+			conclusionIO = toLambdaPrologPr conclusion
 			 
 toLambdaPrologPr :: Premise -> String
 toLambdaPrologPr (Formula pred info interms outterms) = pred ++ (concat info) ++ displayInputs ++ displayOutputs

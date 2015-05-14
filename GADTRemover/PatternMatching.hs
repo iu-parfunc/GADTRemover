@@ -11,10 +11,10 @@ gensymPM = do
 			return (pmTypePrefix ++ show (hashUnique sym))
 			
 patternMatches :: TypeSystem -> TypeSystem
-patternMatches (Ts rules) = (Ts (map patternMatchesR rules))
+patternMatches (Ts sig rules) = (Ts sig (map patternMatchesR rules))
 
 patternMatchesR :: Rule -> Rule 
-patternMatchesR (Rule premises term typ) = (Rule (concat (map patternMatchesPr premises)) term typ) 
+patternMatchesR (Rule premises conclusion) = (Rule (concat (map patternMatchesPr premises)) conclusion) 
 {-											where 
 												([term'], fromConclusion) = patternMatchesTrms [term]
 -}	
