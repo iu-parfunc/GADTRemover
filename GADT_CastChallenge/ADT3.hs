@@ -6,13 +6,12 @@
 module ADT3
   where
 
-import           Prelude hiding ( exp )
-import           Data.Maybe
-import           Data.Typeable
-import           Text.Printf
-import qualified GADT3 as GADT
+import Prelude                                  hiding ( exp )
+import Control.Applicative                      ( (<$>) )
+import Data.Typeable
+import Text.Printf
 
-import           Control.Applicative ((<$>))
+import qualified GADT3                          as GADT
 
 
 -- Untyped definition
@@ -247,57 +246,55 @@ upcast exp =
 -- value level, and attempts to promote type information to the type level.
 --
 downcast :: GADT.Elt t => Exp -> GADT.Exp t
-downcast exp =
-  fromMaybe (inconsistent "downcast") (downcastOpenExp EmptyLayout exp)
+downcast exp = downcastOpenExp EmptyLayout exp
 
-downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> Maybe (GADT.OpenExp env t)
+downcastOpenExp :: forall env t. GADT.Elt t => Layout env env -> Exp -> GADT.OpenExp env t
 downcastOpenExp lyt = cvt
   where
     -- We could reduce the 'Elt' constraint here to 'Typeable' (which is
     -- required to support 'unify'), and use 'eltType' to extract the class
     -- constraint locally at each constructor.
     --
-    cvt :: forall s. GADT.Elt s => Exp -> Maybe (GADT.OpenExp env s)
+    cvt :: forall s. GADT.Elt s => Exp -> GADT.OpenExp env s
     cvt (Var _ ix)                                      -- type check occurs in downcastIdx
-      = GADT.Var <$> gcast (downcastIdx ix lyt :: GADT.Idx env s)
+      = GADT.Var $ downcastIdx ix lyt
 
     cvt (Let (t,a) b)
       | Elt' (_ :: a)                   <- elt' t       -- In this case the type of the bound expression is existentially
-      , Just (a' :: GADT.OpenExp env a) <- cvt a        -- quantified, so we must encode its type in the untyped term tree.
-      , Just b'                         <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
-      = Just (GADT.Let a' b')
+      , a' :: GADT.OpenExp env a        <- cvt a        -- quantified, so we must encode its type in the untyped term tree.
+      , b'                              <- downcastOpenExp (incLayout lyt `PushLayout` GADT.ZeroIdx) b
+      = GADT.Let a' b'
 
     cvt (Const t c)
       | Elt' (_ :: s')                  <- elt' t                               -- We could assume that 's' is correct, but this
       , Just Refl                       <- unify (undefined::s) (undefined::s') -- way we get a type error message instead of a
-      = Just . GADT.Const $ downcastConstR (GADT.eltType (undefined::s)) c      -- pattern match failure in 'downcastConst'
+      = GADT.Const $ downcastConstR (GADT.eltType (undefined::s)) c             -- pattern match failure in 'downcastConst'
 
     cvt (Prod t p)
       | Just (IsProduct' (_ :: s'))     <- isProduct' t
       , Just Refl                       <- unify (undefined::s) (undefined::s')
-      , Just p'                         <- downcastProd lyt (GADT.prodR (undefined::s)) p
-      = Just (GADT.Prod p')
+      = GADT.Prod (downcastProd lyt (GADT.prodR (undefined::s)) p)
 
     cvt (Prj t ix p)
       | Just (IsProduct' (_ :: p))      <- isProduct' t
-      , Just (p' :: GADT.OpenExp env p) <- cvt p        -- Here we can explicitly require the conversion result to be type 'p'
+      , p' :: GADT.OpenExp env p        <- cvt p        -- Here we can explicitly require the conversion result to be type 'p'
       , ix'                             <- downcastProdIdx ix (GADT.prodR (undefined::p))
-      = Just (GADT.Prj ix' p')
+      = GADT.Prj ix' p'
 
     cvt (If p t e)
-      | Just p' <- cvt p                -- No extra (value-level) type witness is required for this case, as we rely
-      , Just t' <- cvt t                -- on the unification constraints imposed by GADT.If; i.e. p ~ Bool and t ~ e,
-      , Just e' <- cvt e                -- to guide the recursive calls to 'cvt'.
-      = Just (GADT.If p' t' e')
+      | p' <- cvt p             -- No extra (value-level) type witness is required for this case, as we rely
+      , t' <- cvt t             -- on the unification constraints imposed by GADT.If; i.e. p ~ Bool and t ~ e,
+      , e' <- cvt e             -- to guide the recursive calls to 'cvt'.
+      = GADT.If p' t' e'
 
     cvt (PrimApp f x)
       | Just (PrimFun' (f' :: GADT.PrimFun (a -> r)))   <- downcastPrimFun f
       , Just Refl                                       <- unify (undefined::r) (undefined::s)
-      , Just x'                                         <- cvt x
-      = Just (GADT.PrimApp f' x')
+      , x'                                              <- cvt x
+      = GADT.PrimApp f' x'
 
     cvt _
-      = Nothing
+      = error "downcast failed"
 
 
 -- Promoting types
@@ -469,16 +466,13 @@ downcastNonNumScalar _ _ = inconsistent "downcastNonNumScalar"
 -- Products
 -- --------
 
-downcastProd :: forall env p. Layout env env -> GADT.ProdR p -> [Exp] -> Maybe (GADT.Prod (GADT.OpenExp env) p)
+downcastProd :: forall env p. Layout env env -> GADT.ProdR p -> [Exp] -> GADT.Prod (GADT.OpenExp env) p
 downcastProd lyt prod = go prod . reverse
   where
-    go :: GADT.ProdR s -> [Exp] -> Maybe (GADT.Prod (GADT.OpenExp env) s)
-    go GADT.ProdRzero     []     = Just GADT.EmptyProd
-    go (GADT.ProdRsnoc p) (e:es) = do
-      e'  <- downcastOpenExp lyt e
-      es' <- go p es
-      Just (GADT.PushProd es' e')
-    go _ _ = inconsistent "downcastProd"
+    go :: GADT.ProdR s -> [Exp] -> GADT.Prod (GADT.OpenExp env) s
+    go GADT.ProdRzero     []     = GADT.EmptyProd
+    go (GADT.ProdRsnoc p) (e:es) = GADT.PushProd (go p es) (downcastOpenExp lyt e)
+    go _                  _      = inconsistent "downcastProd"
 
 
 downcastProdIdx :: forall p e. Typeable e => Int -> GADT.ProdR p -> GADT.ProdIdx p e
