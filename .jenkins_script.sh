@@ -7,5 +7,7 @@ if [ "$CABAL" == ""  ]; then CABAL=cabal; fi
 
 $CABAL sandbox init
 
+OPTS=" -j --ghc-options=-j3 --run-tests "
+
 # For now just make sure everything installs:
-$CABAL install ./GADTRemover ./GADT_CastChallenge
+$CABAL install ./GADTRemover ./GADT_CastChallenge $OPTS
