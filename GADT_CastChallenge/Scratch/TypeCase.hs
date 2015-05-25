@@ -37,13 +37,3 @@ newtype Voodoo = Voodoo (forall a. Proxy# a -> TypeRep)
 
 unsafeTypeable :: TypeRep -> (forall a. (Typeable a) => Proxy a -> ans) -> ans
 unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
-
-
-
-
-
-
--- Add :: Exp e Int -> Exp e Int -> Exp e Int
--- Sum :: [Exp e Int] -> Exp e Int
--- Lit :: Integer -> Exp e Int
--- HO  :: (Exp e Int -> Exp e Int) -> Exp e Int

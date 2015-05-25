@@ -22,21 +22,24 @@ fromGDTAtoCasts :: DataType -> CastsToDo
 fromGDTAtoCasts gadt = thd3 (fromGDTAtoAll gadt)
 
 fromGDTAtoAll :: DataType -> (DataType, TypeSystem, CastsToDo)
-fromGDTAtoAll (DataType cdef clauses) = 
+fromGDTAtoAll (DataType cdef signature clauses) = 
 						(case cdef of 
 						 (Constructor c args) -> (adt, ts, trackOfCasts)
 						 	where
-						 	adt = (DataType (Constructor c []) clauses')
+						 	adt = (DataType (Constructor c []) signature clauses')
 						 	clauses' = map (stripArgs c) clauses
 						 	allMappings = getCasts c clauses
 							trackOfCasts = onlyCastsIn allMappings
-						 	ts = createTypeSystem clauses allMappings)
+						 	rules = createRules (typecheckPrefix ++ c) clauses allMappings
+							ts = (Ts [signatureTS] rules)
+							signatureTS = createSignature cdef signature) 
 						
 stripArgs :: String -> Clause -> Clause
 stripArgs cdef (Clause c texprs) = (Clause c (map (stripArgs_TE cdef) texprs))
 
 stripArgs_TE :: String -> TypeExpr -> TypeExpr
-stripArgs_TE cdef (Constructor c texpr) = if c == cdef then (Constructor c []) else (Constructor c texpr)
+stripArgs_TE cdef (Constructor c texpr) = (Constructor c [])
+{- if c == cdef then (Constructor c []) else (Constructor c texpr) -}
 
 getCasts :: String -> [Clause] -> CastsToDo
 getCasts cdef [] = HM.empty
@@ -57,49 +60,39 @@ onlyCastsIn trackOfCasts = HM.map (filter onlyComplexFilter) trackOfCasts
 								(Constructor cdef' otherTexprs) -> True
 								otherwise -> False)
 
-createTypeSystem :: [Clause] -> CastsToDo -> TypeSystem
-createTypeSystem clauses trackOfCasts = (Ts (map (createRule trackOfCasts) clauses))
+createRules :: String -> [Clause] -> CastsToDo -> [Rule]
+createRules pred clauses trackOfCasts = (map (createRule pred trackOfCasts) clauses)
 
-createRule :: CastsToDo -> Clause -> Rule 
-createRule trackOfCasts (Clause c texprs) = (Rule (map (createPremise trackOfCasts c) numOfArguments) (Term c newvars) (extractType (last texprs)))
+createRule :: String -> CastsToDo -> Clause -> Rule 
+createRule pred trackOfCasts (Clause c texprs) = (Rule (map (createPremise pred trackOfCasts c) numOfArguments) (Formula pred [] ((Term (map toLower c) newvars):conclInps) conclOut))
 					where 
 					numOfArguments = [1 .. ((length texprs) -1)]
 					newvars = map (\n -> (VarT ("E" ++ (show n)))) numOfArguments
+					concltypes = (extractType (last texprs))
+					(conclInps, conclOut) = splitAt ((length concltypes) -1) concltypes
 
-createPremise :: CastsToDo -> String -> Int -> Premise
-createPremise trackOfCasts c n = let tmp = HM.lookup c trackOfCasts in 
+createPremise :: String -> CastsToDo -> String -> Int -> Premise
+createPremise pred trackOfCasts c n = let tmp = HM.lookup c trackOfCasts in 
 								case tmp of 
 									Just pairs -> (let tmp2 = HM.lookup n (HM.fromList pairs) in 
 											case tmp2 of
-												Just realtype -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [(extractType realtype)])
-												Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [newvar]))
-									Nothing -> (Formula "typeOf" [] [(VarT ("E" ++ (show n)))] [newvar])
+												Just realtype -> let concltypes = (extractType realtype) in 
+													let (conclInps, conclOut) = splitAt ((length concltypes) -1) concltypes in 
+														(Formula pred [] ((VarT ("E" ++ (show n))):conclInps) conclOut)
+												Nothing -> (Formula pred [] [(VarT ("E" ++ (show n)))] [newvar]))
+									Nothing -> (Formula pred [] [(VarT ("E" ++ (show n)))] [newvar])
 								where 
 								newvar = (VarT (unsafePerformIO gensymTT))
-								
 
 convertType :: TypeExpr -> Term
-convertType (Var string) = (VarT (map toUpper string))
+convertType (Var variable) = (VarT (toUpLowFirst "up" variable))
 convertType (Constructor c tss) = (Term (map toLower c) (map convertType tss))
 
-extractType :: TypeExpr -> Term
-extractType (Var string) = (VarT (map toUpper string))
-extractType (Constructor c tss) = convertType (last tss)
+extractType :: TypeExpr -> [Term]
+extractType (Var variable) = [(convertType (Var variable))]
+extractType (Constructor c tss) = map convertType (tss)
 
-
-{-
-getCasts_TE c cdef texprs)
-
-getCasts_TE :: String -> String -> [TypeExpr] -> CastsToDo
-getCasts_TE c cdef [] = HM.empty
-getCasts_TE c cdef (texpr:rest) = (case texpr of
-(Constructor f texprs) -> HM.unionWith (++) currentCast (getCasts_TE c cdef rest)
-where
-currentCast = if (f == cdef) then (HM.insert c castsByPositon HM.empty) else HM.empty
-onlyComplexTExprs = filter onlyComplexFilter texprs
-castsByPositon = zip [1 .. (length onlyComplexTExprs)] onlyComplexTExprs
-onlyComplexFilter = \entry -> case entry of
-(Var string) -> False
-(Constructor string otherTexpr) -> True)
-
-					-}
+createSignature :: TypeExpr -> [String] -> SignatureEntry
+createSignature cdef signature = (Decl (typecheckPrefix ++ expre) "o" (expre:signature))
+								where
+								expre = (principalType cdef)

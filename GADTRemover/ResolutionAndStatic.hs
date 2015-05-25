@@ -6,27 +6,33 @@ import qualified Data.Map as HM
 import Data.List
 import TypeSystem
 import PatternMatching 
+
+{- 
 import UpToConsistency 
 
-suffixGr :: String
-suffixGr = "Gr"
 
 toGradual :: TypeSystem -> TypeSystem
-toGradual ts = (Ts rules') 
+toGradual ts = (Ts sig rules') 
 				where
-					((Ts rulesUP), equatedByRules) = (upToConsistencyEqualities (patternMatches ts))
+					((Ts sig rulesUP), equatedByRules) = (upToConsistencyEqualities (patternMatches ts))
 					rules' = zipWith toGradualR rulesUP equatedByRules
 
 toGradualR :: Rule -> TrackOfVars -> Rule
-toGradualR (Rule premises term typ) outputs = (Rule premises term (toGradualTrOne outputs typ))
+toGradualR (Rule premises conclusion) outputs = (Rule premises conclusion')
+				where
+				typ = extractTypeFromConcl conclusion
+				conclusion' = injectTypeInConcl (toGradualTrOne outputs typ) conclusion
 
 toGradualPr :: TrackOfVars -> Premise -> Premise
 toGradualPr outputs (Formula pred strings interms outterms) = (Formula pred strings (map (toGradualTrOne outputs) interms) outterms)
 
+
 toGradualTrOne :: TrackOfVars -> Term -> Term
 toGradualTrOne outputs (VarT variable) = let tmp = (HM.lookup (VarT variable) outputs) in
 											case tmp of 
-												Just values -> (head values)
+												Just values -> (head (tail values))
 										  		Nothing -> (VarT variable)
 toGradualTrOne outputs (Term c terms) = (Term c (map (toGradualTrOne outputs) terms))
+
+-}
 
