@@ -1,6 +1,10 @@
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RoleAnnotations #-}
+
+-- | Mini feldspar GADT, copied from:
+--     https://github.com/shayan-najd/MiniFeldspar/
+
 module GADT_Feldspar where
 
 -- GADT representation.

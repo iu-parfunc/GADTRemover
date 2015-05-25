@@ -1,12 +1,18 @@
 {-# OPTIONS_GHC -Wall #-}
+
+-- | Handwritten version of the feldspar ADT, copied from:
+--     https://github.com/shayan-najd/MiniFeldspar/
+
 module ADT_Feldspar where
+
+import Control.Applicative
 
 -- ADT representation.
 -- Simply-typed lambda calculus with de Bruijn indices,
 -- with integer constants, and addition.
 -- Philip Wadler and Shayan Najd, November 2013
 
-import ErrorMonad
+-- import ErrorMonad
 
 data Exp =
     Con Int
@@ -118,3 +124,27 @@ test =  (chk four [] == Just Int)
         (case run four [] of
             Rgt (Num 4) -> True
             _           -> False)
+
+
+--------------------------------------------------------------------------------
+-- From ErrorMonad.hs:
+
+data ErrM t = Rgt t
+            | Lft String
+              deriving (Eq , Show)
+
+instance Functor ErrM where
+  fmap f (Rgt x) = Rgt (f x)
+  fmap _ (Lft x) = Lft x
+
+instance Applicative ErrM where
+  pure      = return
+  e1 <*> e2 = do v1 <- e1
+                 v2 <- e2
+                 return (v1 v2)
+
+instance Monad ErrM where
+  return      = Rgt
+  Lft l >>= _ = Lft l
+  Rgt r >>= k = k r
+  fail x      = Lft x

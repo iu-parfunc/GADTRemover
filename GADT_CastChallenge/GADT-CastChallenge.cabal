@@ -10,6 +10,7 @@ executable GADT-CastChallenge
   main-is:              Main.hs
   other-modules:        GADT2 ADT2 Test2
                         GADT3 ADT3 Test3
+                        ADT_Feldspar ADT_Feldspar2 GADT_Feldspar
 
   build-depends:
       base              >=4.7 && < 4.9

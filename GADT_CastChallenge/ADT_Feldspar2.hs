@@ -1,7 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
-                              -- |
+
+-- | An attempt to simulate the ghostbuster algorithm by hand,
+-- mechanically translating from the GADT to this version.
+--   (written during a meeting w/ Ken, Matteo, & Ryan)
 
 module ADT_Feldspar2 where
 
