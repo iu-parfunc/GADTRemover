@@ -1,4 +1,17 @@
-module Examples where
+module Examples
+(
+  module DataType,
+  module TypeSystem,
+  module GADTRemover,
+  module GADTCreator,
+  module ToHaskell,
+  module RetrieveCasts,
+  module ToLambdaProlog,
+  module FromTypeSystemToHaskell,
+--  module UpToConsistency,
+  int, bool, arrowWithVars, gadt_exp
+ )
+ where
 
 import DataType
 import TypeSystem
@@ -10,7 +23,6 @@ import ToLambdaProlog
 import FromTypeSystemToHaskell
 import UpToConsistency
 
-
 int :: TypeExpr
 int = Constructor "Int" []
 
@@ -21,7 +33,7 @@ arrowWithVars :: String -> String -> TypeExpr
 arrowWithVars a b = Constructor "Arrow" [(Var a), (Var b)]
 
 expSignature :: TypeExpr
-expSignature = Constructor "Exp" [(Var "a")] 
+expSignature = Constructor "Exp" [(Var "a")]
 
 gadt_exp :: DataType
 gadt_exp = (DataType expSignature [plusClause, ifClause, appClause])
