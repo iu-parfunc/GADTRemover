@@ -70,3 +70,6 @@ toUpLowFirst mode (cc:rest) = cc':rest
 							where 
 							cc' = if mode == "up" then (toUpper cc) else (toLower cc)
 
+eliminateDuplicatePremises :: Rule -> Rule
+eliminateDuplicatePremises (Rule premises conclusion) = (Rule (nub premises) conclusion)
+

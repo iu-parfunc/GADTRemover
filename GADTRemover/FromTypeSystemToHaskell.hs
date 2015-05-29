@@ -41,9 +41,10 @@ fromTStoHaskellIO :: TypeSystem -> IO ()
 fromTStoHaskellIO ts = putStrLn (fromTStoHaskell ts)
 
 fromTStoHaskellIO_ :: TypeSystem -> IO ()
-fromTStoHaskellIO_ ts = putStrLn (fromTStoHaskell (Ts sig rulesUP))
+fromTStoHaskellIO_ ts = putStrLn (fromTStoHaskell (Ts sig rules))
 						where
 						((Ts sig rulesUP), equatedByRules) = (upToConsistency (patternMatches ts))
+                                                rules = map eliminateDuplicatePremises rulesUP
 						{- rules' = zipWith toGradualR rulesUP equatedByRules -}
 						
 fromTStoHaskell :: TypeSystem -> String
@@ -82,16 +83,19 @@ fromTStoHaskell_Rule nameOfMainType inputarguments (Rule premises conclusion) = 
 							where
 							term = extractTermFromConcl conclusion
                                                         instructionsFromPremises = intercalate "\n" (map (fromPremisesToHaskell nameOfMainType inputarguments) premises)
-                                                        returnInstruction = "return " ++ (sealedType nameOfMainType) ++ " " ++ (returnType typ)
+                                                        returnInstruction = "return $ " ++ (sealedType nameOfMainType) ++ " $ " ++ (returnType term premises)
                                                         typ = extractTypeFromConcl conclusion
-                                                        returnType = \typ -> (toHaskell_Trm typ) -- to be changed. 
+                                                        returnType = \term -> \premises -> case term of (Term c terms) -> encodingClassOfG ++ "." ++ (toUpLowFirst "up" c) ++ " " ++ (intercalate " " (map toHaskell_Trm (map (lookupTheVarForTerm premises) terms)))
 
+lookupTheVarForTerm :: [Premise] -> Term -> Term
+lookupTheVarForTerm [] term = error "Not all the arguments of an operator are typed-checked."
+lookupTheVarForTerm (premise:rest) term = case premise of (Formula pred strings interms outterms) -> if (startswith typecheckPrefix pred) && ((interms !! 0) == term) then (outterms !! 0) else lookupTheVarForTerm rest term
 
 fromPremisesToHaskell :: String -> [String] -> Premise -> String
 fromPremisesToHaskell nameOfMainType inputarguments (Formula pred strings interms outterms) = "\t" ++ instruction
                                                         where
-                                                        input = drop 1 (toHaskell_Trm (interms !! 0))   -- drop the first " " 
-                                                        output = drop 1 (toHaskell_Trm (outterms !! 0))
+                                                        input = toHaskell_Trm (interms !! 0)   -- notice: it uses the _ version for dropping the beginning " " 
+                                                        output = toHaskell_Trm (outterms !! 0)  -- drop the beginning " " 
                                                         instruction = if (startswith typecheckPrefix pred) then downcastInstruction else other
                                                         whichTypeForRecursiveCall = drop (length typecheckPrefix) pred 
                                                         downcastInstruction = (sealedType whichTypeForRecursiveCall) ++ " (" ++ feedFromG ++ ")" ++ " <- " ++ recursiveCall
@@ -102,10 +106,14 @@ fromPremisesToHaskell nameOfMainType inputarguments (Formula pred strings interm
                                                         recursiveCall = (downcastFunction whichTypeForRecursiveCall) ++ " " ++ input
                                                         other = case pred of
                                                               "match" -> "Refl <- unify (unused :: " ++ internalIntput ++ " ) (unused::" ++ (strings !! 0) ++ ")"
-                                                              "equal" -> "equal, to be defined"
+                                                              "equal" -> let internalIntput2 = "t" ++ (toHaskell_Trm (interms !! 1)) in
+                                                                      "Refl <- unify (unused :: " ++ internalIntput ++ " ) (unused::" ++ internalIntput2 ++ ")"
                                                               otherwise -> "some other call, like constraint (Num a) "
                                                         
 {-
+
+let internalIntput2 = "t" ++ (drop 1 (toHaskell_Trm (interms !! 1))) in 
+
 case pred of 
                                                              "match" ->
                                                              "equal" -> 
@@ -132,7 +140,7 @@ toCaseForPatternMatching :: Premise -> String
 toCaseForPatternMatching (Formula pred strings interms outterms) = "case" ++ (toHaskell_Trm (head interms)) ++ " of" ++ (toHaskell_Trm (Term (head strings) (outterms))) ++ " -> \n\t\t"
 
 toHaskell_Trm :: Term -> String 
-toHaskell_Trm term = toHaskell_TE (termTOtexpr term)
+toHaskell_Trm term = drop 1 (toHaskell_TE (termTOtexpr term))
 
 {-
 termTOhaskellTerm :: Term -> Term 

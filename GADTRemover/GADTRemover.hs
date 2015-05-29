@@ -86,8 +86,7 @@ createPremise pred trackOfCasts c n = let tmp = HM.lookup c trackOfCasts in
 
 convertType :: TypeExpr -> Term
 convertType (Var variable) = (VarT (toUpLowFirst "up" variable))
-convertType (Constructor c tss) = (Term (map toLower c) (map convertType tss))
-
+convertType (Constructor c tss) = (Term c (map convertType tss)) -- it was (map toLower c) instead of c when you targeted lambda-prolog
 extractType :: TypeExpr -> [Term]
 extractType (Var variable) = [(convertType (Var variable))]
 extractType (Constructor c tss) = map convertType (tss)

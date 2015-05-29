@@ -41,7 +41,7 @@ equalityPremise equated = concat (map snd (HM.toList addedPremises)) where
 
 wrappingEquation :: TrackOfVars -> [Term] -> [Premise]
 wrappingEquation equated [] = []
-wrappingEquation equated (type1:rest) = if (null rest) then [] else (Formula "equal" [] [] [type1, (head rest)]):(wrappingEquation equated rest)
+wrappingEquation equated (type1:rest) = if (null rest) then [] else (Formula "equal" [] [type1, (head rest)]) []:(wrappingEquation equated rest)
 
 upToConsistencyEqualities :: TypeSystem -> (TypeSystem, [TrackOfVars])
 upToConsistencyEqualities (Ts sig rules) = ((Ts sig rules'), outputs)
