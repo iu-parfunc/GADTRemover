@@ -11,9 +11,12 @@ executable GADT-CastChallenge
   other-modules:        GADT2 ADT2 Test2
                         GADT3 ADT3 Test3
                         Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
+                        Typecase, TypeableMagic
+                        List_Examples
 
   build-depends:
       base              >= 4.7 && < 4.9
     , wl-pprint         >= 1.2
+    , ghc-prim
 
 -- vim: nospell
