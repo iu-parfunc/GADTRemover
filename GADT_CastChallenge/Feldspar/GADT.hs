@@ -5,7 +5,7 @@
 -- | Mini feldspar GADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
 
-module GADT_Feldspar where
+module Feldspar.GADT where
 
 -- GADT representation.
 -- Simply-typed lambda calculus with de Bruijn indices,
@@ -64,7 +64,7 @@ chk (Con _)     _ = Int
 chk (Var x)     r = gets x r
 chk (Abs ta eb) r = ta `Arr` chk eb (r `Ext` ta)
 chk (App ef _ ) r = case chk ef r of
-  Arr _ tr -> tr
+                      Arr _ tr -> tr
 chk (Add _  _ ) _ = Int
 
 -- An example expression doubling the input number
