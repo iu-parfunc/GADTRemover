@@ -4,9 +4,10 @@
 -- | Handwritten version of the feldspar ADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
 
-module ADT_Feldspar where
+module Feldspar.ADT1 where
 
 import Control.Applicative
+import Prelude
 
 -- ADT representation.
 -- Simply-typed lambda calculus with de Bruijn indices,

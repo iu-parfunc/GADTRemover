@@ -6,11 +6,11 @@
 -- mechanically translating from the GADT to this version.
 --   (written during a meeting w/ Ken, Matteo, & Ryan)
 
-module ADT_Feldspar2 where
+module Feldspar.ADT2 where
 
 import           Data.Typeable
 import           Debug.Trace
-import qualified GADT_Feldspar as G
+import qualified Feldspar.GADT as G
 import           Text.Printf
 
 
@@ -45,8 +45,8 @@ data SealedTyp where
 
 -- Because "e" is checked, it is a "parameter" here:
 downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
-downcastExp (Con e)  = undefined
-downcastExp (Add e1 e2)  =
+downcastExp (Con e)     = error $ "downcastExp (Con " ++ show e ++ ")"
+downcastExp (Add e1 e2) =
   -- We know the "e" in the output is the same as the inputs.
   -- That lets us know what "e" to ask for in our recursive calls here.
   do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
@@ -54,14 +54,14 @@ downcastExp (Add e1 e2)  =
      Refl <- unify (unused :: ta) (unused::Int)
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Add a b
-downcastExp (Var e)  = undefined
-downcastExp (Abs t e)  =
+downcastExp (Var e)     = error "downcastExp/Var"
+downcastExp (Abs t e)   =
   do SealedTyp (t' :: G.Typ tt) <- downcastTyp t
      SealedExp (e' :: G.Exp (e,tt) b) <- downcastExp e
      return $ SealedExp $ G.Abs t' e'
 downcastExp (App e1 e2)  =
   do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
-     SealedExp (b::G.Exp e ta) <- (downcastExp e2)
+     SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
 
      let typ = typeOf (unused :: tarr)
      trace (show typ) $ return ()
@@ -72,7 +72,7 @@ downcastExp (App e1 e2)  =
      -- splitTyConApp $ typeOf
 
      -- return $ SealedExp $ G.App undefined undefined
-     undefined
+     error "downcastExp/App"
 
 -- test = downcastExp (App (Abs ))
 
