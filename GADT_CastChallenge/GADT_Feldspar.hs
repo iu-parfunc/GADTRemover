@@ -1,3 +1,5 @@
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE KindSignatures #-}
 {-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RoleAnnotations #-}
@@ -16,18 +18,19 @@ module GADT_Feldspar where
 -- ERASER: Var, e: checked, a: synthesized
 -- ERASER: Typ, a: synthesized
 
+-- Variables
+type role Var nominal nominal
+data Var e a where
+  Zro :: Var (e,a) a  -- This requires role nominal for the environment param.
+  Suc :: Var e a -> Var (e,b) a -- So does this
+
 type role Exp nominal nominal
-data Exp e a where
+data Exp (e :: *) (a :: *) where
   Con :: Int -> Exp e Int
   Add :: Exp e Int -> Exp e Int -> Exp e Int
   Var :: Var e a -> Exp e a
   Abs :: Typ a -> Exp (e,a) b -> Exp e (a -> b)
   App :: Exp e (a -> b) -> Exp e a -> Exp e b
-
--- Variables
-data Var e a where
-  Zro :: Var (e,a) a
-  Suc :: Var e a -> Var (e,b) a
 
 -- Types (Singleton)
 data Typ a where

@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
+{-# LANGUAGE GADTs #-}
 
 -- | Handwritten version of the feldspar ADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
@@ -14,13 +15,23 @@ import Control.Applicative
 
 -- import ErrorMonad
 
+{-
 data Exp =
-    Con Int
-  | Var Var
-  | Abs Typ Exp
-  | App Exp Exp
-  | Add Exp Exp
-  deriving Eq
+  Con Int
+| Var Var
+| Abs Typ Exp
+| App Exp Exp
+| Add Exp Exp
+deriving Eq  -}
+
+data Exp where
+  Con :: Int -> Exp
+  Var :: Var -> Exp
+  Abs :: Typ -> Exp -> Exp
+  App :: Exp -> Exp -> Exp
+  Add :: Exp -> Exp -> Exp
+ deriving Eq
+
   -- Equality on expressions is always up to alpha equivalence
   -- (thanks to Debruijn indices)
 

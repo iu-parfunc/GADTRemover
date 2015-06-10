@@ -20,16 +20,19 @@ data Exp where
   Var :: Var -> Exp
   Abs :: Typ -> Exp -> Exp
   App :: Exp -> Exp -> Exp
+ deriving Show
 
 data Var where
   Zro :: Var
   Suc :: Var -> Var
+  deriving Show
 
 data Typ where
   Int :: Typ
   Arr :: Typ -> Typ -> Typ
+ deriving Show
 
--- Because I was told to synthesize "a", I must hide it in the sealed
+ -- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
 data SealedExp e where
   SealedExp :: Typeable a => G.Exp e a -> SealedExp e
@@ -77,6 +80,7 @@ downcastVar :: Typeable e => Var  -> Maybe (SealedVar e)
 downcastVar Zro = undefined
 downcastVar (Suc v) = undefined
 
+-- Synthesized version:
 downcastTyp :: Typ -> Maybe (SealedTyp)
 downcastTyp Int = Just (SealedTyp G.Int)
 downcastTyp (Arr x1 x2) =
@@ -87,6 +91,14 @@ downcastTyp (Arr x1 x2) =
      -- Reasoning: why do we not need a cast?
      return $ SealedTyp $ G.Arr a b
 
+
+-- Checking version:
+downcastTyp' :: Typ -> Maybe (G.Typ a)
+downcastTyp' Int  = undefined
+-- Can't directly do this:
+--  typecase a
+--   "Int" -> Just G.Int
+downcastTyp' (Arr x1 x2)  = undefined
 
 --------------------------------------------------------------------------------
 
@@ -106,3 +118,22 @@ typeError _ _
   $ printf "Couldn't match expected type `%s' with actual type `%s'"
            (show (typeOf (unused::s)))
            (show (typeOf (unused::t)))
+
+--------------------------------------------------------------------------------
+
+t0 :: Typ
+t0 = Arr Int Int
+
+t1 :: Maybe SealedTyp
+t1 = downcastTyp t0
+
+x :: String
+x = case t1 of
+      Nothing -> "nada"
+      Just (SealedTyp (_ :: G.Typ a)) -> "uhh"
+
+y :: Typ -> G.Typ a
+y t = case downcastTyp t of
+        Nothing ->  undefined
+        Just (SealedTyp (_ :: G.Typ a)) ->
+          undefined
