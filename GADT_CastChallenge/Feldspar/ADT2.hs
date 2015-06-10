@@ -22,6 +22,9 @@ data Exp where
   App :: Exp -> Exp -> Exp
  deriving Show
 
+-- This one is subtle.  Why is the "a" param not ambiguous?  We're
+-- deleting it with "synthesized" mode, but the synthesized param is
+-- __determined__ by the checked param, so this should pass muster.
 data Var where
   Zro :: Var
   Suc :: Var -> Var
