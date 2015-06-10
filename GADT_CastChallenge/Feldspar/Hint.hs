@@ -2,6 +2,7 @@
 module Feldspar.Hint
   where
 
+import qualified Feldspar.GADT                  as GADT
 import Language.Haskell.Interpreter
 
 
@@ -38,7 +39,10 @@ test = do
   say =<< typeOf quadruple
 
   say "Try to evaluate the interpreter:"
-  say . show =<< interpret ("run " ++ parens quadruple ++ " ()") (as :: Int)
+  run <- interpret ("flip run ()") (as :: GADT.Exp () Int -> Int)       -- must be monomorphic
+  q   <- interpret quadruple       infer                                -- we can just infer this type
+
+  say . show $ run q
 
 
 main :: IO ()
