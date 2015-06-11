@@ -22,9 +22,6 @@ import           GHC.Prim (Proxy#)
 
 ------------------------------ From Ken's Example -------------------------
 
--- TODO: We need to make this so that we can use this with polymorphic
--- function types. e.g., (Int -> a), (a -> Int), (a -> b)
-
 data TypeCaseArrow a where
   TypeCaseArrow :: (Typeable b, Typeable c) =>
                    (a :~: (b -> c)) -> TypeCaseArrow a
@@ -43,25 +40,7 @@ newtype Voodoo = Voodoo (forall a. Proxy# a -> TypeRep)
 unsafeTypeable :: TypeRep -> (forall a. (Typeable a) => Proxy a -> ans) -> ans
 unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
 
-getArrowRetType :: forall arr a. (Typeable arr, Typeable a) => arr -> a -> Maybe Int
-getArrowRetType arr a = do
-  -- Check that "arr" is a function from the type of "a" to Int
-  TypeCaseArrow (Refl :: arr :~: (b -> c)) <- typeCaseArrow
-  Refl                :: b   :~: a         <- gcast Refl
-  Refl                :: c   :~: Int       <- gcast Refl
-  return (arr a)
-
-{-getArrowRetType2 :: forall arr a b. (Typeable arr, Typeable a, Typeable b) => arr -> a -> Maybe b-}
-{-getArrowRetType2 arr a = do-}
-  {--- Check that "arr" is a function from the type of "a" to Int-}
-  {-TypeCaseArrow (Refl :: arr :~: (b -> c)) <- typeCaseArrow-}
-  {-Refl                :: b   :~: a         <- gcast Refl-}
-  {-[>Refl                :: c   :~: Int       <- gcast Refl<]-}
-  {-return (arr a)-}
-
-
 ---------------------------------------------------------------------------
-
 
 data Exp where
   Con :: Int -> Exp
@@ -95,6 +74,8 @@ data SealedVar e where
 data SealedTyp where
   SealedTyp :: Typeable a => G.Typ a -> SealedTyp
 
+--------------------------- Downcasting -----------------------------------
+
 -- Because "e" is checked, it is a "parameter" here:
 downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
 downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
@@ -106,7 +87,9 @@ downcastExp (Add e1 e2) =
      Refl <- unify (unused :: ta) (unused::Int)
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Add a b
-downcastExp (Var e)     = error "downcastExp/Var"
+downcastExp (Var e)     =
+  do SealedVar (v :: G.Var e a) <- (downcastVar e)
+     return $ SealedExp $ G.Var v
 downcastExp (Abs t e)   =
   do SealedTyp (t' :: G.Typ tt) <- downcastTyp t
      SealedExp (e' :: G.Exp (e,tt) b) <- downcastExp e
@@ -149,8 +132,33 @@ downcastTyp (Arr x1 x2) =
      -- Reasoning: why do we not need a cast?
      return $ SealedTyp $ G.Arr a b
 
+--------------------------- Upcasting ------------------------------------------
 
---------------------------------------------------------------------------------
+upcastExp :: G.Exp e a -> Exp
+upcastExp (G.Con i) = Con i
+upcastExp (G.Var e) = Var $ upcastVar e
+upcastExp (G.Add e1 e2) = let e1' = upcastExp e1
+                              e2' = upcastExp e2
+                          in Add e1' e2'
+upcastExp (G.Abs typ e) = let typ' = upcastTyp typ
+                              e'   = upcastExp e
+                          in Abs typ' e'
+upcastExp (G.App e1 e2) = let e1' = upcastExp e1
+                              e2' = upcastExp e2
+                          in App e1' e2'
+
+upcastTyp :: G.Typ a -> Typ
+upcastTyp G.Int = Int
+upcastTyp (G.Arr t1 t2) = let t1' = upcastTyp t1
+                              t2' = upcastTyp t2
+                          in Arr t1' t2'
+
+upcastVar :: G.Var e a -> Var
+upcastVar G.Zro = Zro
+upcastVar (G.Suc v) = let v'= upcastVar v
+                      in Suc v'
+
+---------------------------------------------------------------------------
 
 unify :: (Typeable s, Typeable t) => s -> t -> Maybe (s :~: t)
 unify s t =
