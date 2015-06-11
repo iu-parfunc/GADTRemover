@@ -51,7 +51,7 @@ typeCaseArrow = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
 -- | Ditto for tuples.
 typeCaseTuple :: forall arr. (Typeable arr) => Maybe (TypeCaseTuple arr)
 typeCaseTuple = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
-  (op, [b,c]) | op == typeRepTyCon (typeRep (Proxy :: Proxy (->)))
+  (op, [b,c]) | op == typeRepTyCon (typeRep (Proxy :: Proxy (,)))
               -> recoverTypeable b (\(_ :: Proxy b) ->
                  recoverTypeable c (\(_ :: Proxy c) ->
                  fmap TypeCaseTuple (gcast Refl :: Maybe (arr :~: (b,c)))))

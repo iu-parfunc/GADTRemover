@@ -15,8 +15,10 @@ import           Debug.Trace
 import qualified Feldspar.GADT as G
 import           Text.Printf
 
-import Unsafe.Coerce (unsafeCoerce)
-import GHC.Prim (Proxy#)
+import           TypeCase (typeCaseTuple, TypeCaseTuple(..))
+
+import           Unsafe.Coerce (unsafeCoerce)
+import           GHC.Prim (Proxy#)
 
 ------------------------------ From Ken's Example -------------------------
 
@@ -121,13 +123,21 @@ downcastExp (App e1 e2) =
 -- test = downcastvarstExp (App (Abs ))
 
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
-downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
-downcastVar Zro =  Just $ SealedVar (G.Zro :: G.Var (a,b) b)
-downcastVar (Suc v) = undefined
+-- downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 
+downcastVar :: forall e . (Typeable e) => Var  -> Maybe (SealedVar e)
+downcastVar Zro =
+  case typeCaseTuple :: Maybe (TypeCaseTuple e) of
+    Nothing -> Nothing
+    Just (TypeCaseTuple (Refl :: e :~: (x,y))) ->
+      return $ SealedVar (G.Zro :: G.Var (x,y) y)
+downcastVar (Suc v) =
   -- problems with unification of types here
--- do SealedVar (foo :: G.Var e a) <- (downcastVar v)
---    return $ SealedVar ((G.Suc foo) :: G.Var (e,b) a)
+  case typeCaseTuple :: Maybe (TypeCaseTuple e) of
+    Nothing -> Nothing
+    Just (TypeCaseTuple (Refl :: e :~: (e1,b))) ->
+     do SealedVar (v' :: G.Var e1 a) <- (downcastVar v)
+        return $ SealedVar ((G.Suc v') :: G.Var e a)
 
 downcastTyp :: Typ -> Maybe (SealedTyp)
 downcastTyp Int = Just (SealedTyp G.Int)
