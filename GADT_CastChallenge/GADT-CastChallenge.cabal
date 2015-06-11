@@ -5,15 +5,22 @@ maintainer:             tmcdonell@cse.unsw.edu.au
 build-type:             Simple
 cabal-version:          >=1.10
 
+library
+  default-language:     Haskell2010
+  exposed-modules:      GADT2 ADT2 Test2
+                        GADT3 ADT3 Test3
+                        Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
+                        Typecase TypeableMagic
+                        List_Examples
+  build-depends:
+      base              >= 4.7 && < 4.9
+    , wl-pprint         >= 1.2
+    , ghc-prim
+
 executable GADT-CastChallenge
   default-language:     Haskell2010
   main-is:              Main.hs
-  other-modules:        GADT2 ADT2 Test2
-                        GADT3 ADT3 Test3
-                        Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
-                        Typecase, TypeableMagic
-                        List_Examples
-
+  build-depends:        GADT-CastChallenge
   build-depends:
       base              >= 4.7 && < 4.9
     , wl-pprint         >= 1.2
