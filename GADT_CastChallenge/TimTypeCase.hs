@@ -7,15 +7,21 @@ import Unsafe.Coerce (unsafeCoerce)
 import Debug.Trace
 import GHC.Prim (Proxy#)
 
-pr :: (Int,Int)
-pr = (1,2)
+pr1 :: (Int,Int)
+pr1 = (1,2)
+
+pr2 :: (String, String)
+pr2 = ("hello","world")
 
 main :: IO ()
 main = do
-  print (example1 (length :: String -> Int) "abc") -- Just 3
-  print (example1 (length :: [Int]  -> Int) ([1,2,3] :: [Int])) -- Just 3
-  print (example1 (length :: [Int]  -> Int) "abc") -- Nothing
-  {-print (example2 (foo    ::  String -> a) "abc") -- Nothing-}
+  print (example1 (length :: String -> Int)    "abc")         -- Just 3
+  print (example1 (length :: [Int]  -> Int)    "abc")         -- Nothing
+  print (example1 (length :: [Int]  -> Int)    ([] :: [Int])) -- Just 0
+  print (example2 pr1 (1  :: Int)    (2   :: Int))            -- Just (1,2)
+  print (example2 pr1 ("" :: String) (2   :: Int))            -- Nothing
+  print (example2 pr2 (4  :: Int)    (2   :: Int))            -- Nothing
+  print (example2 pr2 ("" :: String) (""  :: String))         -- Just ("hello", "world")
 
 example1 :: forall arr a. (Typeable arr, Typeable a) => arr -> a -> Maybe Int
 example1 arr a = do
@@ -37,17 +43,17 @@ typeCaseArrow = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
                  fmap TypeCaseArrow (gcast Refl :: Maybe (arr :~: (b -> c)))))
   _ -> Nothing
 
--- FIXME: Haskell doesn't seem to like this for some reason. Maybe I'm missing something?
-{-
 -- Pairs
-example2 :: forall arr a. (Typeable arr, Typeable a) => arr -> a -> Maybe (Int , Int)
-example2 arr a = do
-  -- Check that "arr" pair
-  TypeCasePair (Refl :: arr :~: (b , c)) <- typeCasePair
-  Refl                :: b   :~: a       <- gcast Refl
-  Refl                :: c   :~: Int     <- gcast Refl
+example2 :: forall arr a b. (Typeable arr, Typeable a, Typeable b) => arr -> a -> b -> Maybe (a , b)
+example2 arr a b = do
+  -- Check that "arr" is a pair
+  -- TZ: The kinding here is kinda weird: arr needs to be of kind * but we
+  -- really want to say that arr :~: (,) which would mean that arr has kind
+  -- * -> * -> *. I don't see a way (currently) to get around this, so we can't actually apply 'arr' to anything in the end
+  TypeCasePair (Refl :: arr :~: (c1 , c2)) <- typeCasePair -- Would seem to be that we would like to do:
+  Refl                :: c1   :~: a        <- gcast Refl
+  Refl                :: c2   :~: b        <- gcast Refl
   return arr
-
 
 data TypeCasePair a where
   TypeCasePair :: (Typeable b, Typeable c) =>
@@ -60,7 +66,6 @@ typeCasePair = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
                  unsafeTypeable c (\(_ :: Proxy c) ->
                  fmap TypeCasePair (gcast Refl :: Maybe (arr :~: (b , c)))))
   _ -> Nothing
--}
 
 newtype Magic ans = Magic (forall a. (Typeable a) => Proxy a -> ans)
 newtype Voodoo = Voodoo (forall a. Proxy# a -> TypeRep)
