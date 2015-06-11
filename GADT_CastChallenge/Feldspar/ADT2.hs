@@ -49,6 +49,15 @@ getArrowRetType arr a = do
   Refl                :: c   :~: Int       <- gcast Refl
   return (arr a)
 
+{-getArrowRetType2 :: forall arr a b. (Typeable arr, Typeable a, Typeable b) => arr -> a -> Maybe b-}
+{-getArrowRetType2 arr a = do-}
+  {--- Check that "arr" is a function from the type of "a" to Int-}
+  {-TypeCaseArrow (Refl :: arr :~: (b -> c)) <- typeCaseArrow-}
+  {-Refl                :: b   :~: a         <- gcast Refl-}
+  {-[>Refl                :: c   :~: Int       <- gcast Refl<]-}
+  {-return (arr a)-}
+
+
 ---------------------------------------------------------------------------
 
 
@@ -86,12 +95,7 @@ data SealedTyp where
 
 -- Because "e" is checked, it is a "parameter" here:
 downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
--- This works, but I feel as though we're cheating here since we
--- instantiate with Int and we can't deduce that e ~ Int
-downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp i Int)
--- Why was this here before?
--- Question (TZ): How do we recover e?
--- error $ "downcastExp (Con " ++ show e ++ ")"
+downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
 downcastExp (Add e1 e2) =
   -- We know the "e" in the output is the same as the inputs.
   -- That lets us know what "e" to ask for in our recursive calls here.
@@ -108,25 +112,11 @@ downcastExp (Abs t e)   =
 downcastExp (App e1 e2) =
   do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
      SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
-     {-retTyp <- getArrowRetType (unused :: tarr) (unused :: ta)-}
-
-     let typ = typeOf (unused :: tarr)
-     trace (show typ) $ return ()
-
--- Algorithm:
--- 1. get type of a (t1)
--- 2. get type of b (t2)
--- 3. Ensure that t1 unifies with (t2 -> t')
---    where t' is determined by ??
-
-     -- let (e' :: G.Exp e tb) = G.App a b
-     -- let Just Refl = unify (unused :: tarr) (unused:: ta -> tb)
-     -- return $ SealedExp e'
-
-     -- splitTyConApp $ typeOf
-
-     -- return $ SealedExp $ G.App undefined undefined
-     error "downcastExp/App"
+     case typeCaseArrow :: Maybe (TypeCaseArrow tarr) of
+       Nothing -> Nothing
+       Just (TypeCaseArrow (Refl :: tarr :~: (ta' -> tb))) -> 
+         do Refl <- unify (unused :: ta') (unused :: ta)
+            return $ SealedExp $ G.App a b
 
 -- test = downcastvarstExp (App (Abs ))
 
