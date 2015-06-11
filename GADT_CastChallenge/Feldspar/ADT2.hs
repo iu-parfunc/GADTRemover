@@ -114,7 +114,7 @@ downcastExp (App e1 e2) =
      SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
      case typeCaseArrow :: Maybe (TypeCaseArrow tarr) of
        Nothing -> Nothing
-       Just (TypeCaseArrow (Refl :: tarr :~: (ta' -> tb))) -> 
+       Just (TypeCaseArrow (Refl :: tarr :~: (ta' -> tb))) ->
          do Refl <- unify (unused :: ta') (unused :: ta)
             return $ SealedExp $ G.App a b
 
@@ -123,10 +123,11 @@ downcastExp (App e1 e2) =
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
 downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 downcastVar Zro =  Just $ SealedVar (G.Zro :: G.Var (a,b) b)
-downcastVar (Suc v) = -- problems with unification of types here
-  do SealedVar (foo :: G.Var e a) <- (downcastVar v)
-     return $ SealedVar ((G.Suc foo) :: G.Var (e,b) a)
+downcastVar (Suc v) = undefined
 
+  -- problems with unification of types here
+-- do SealedVar (foo :: G.Var e a) <- (downcastVar v)
+--    return $ SealedVar ((G.Suc foo) :: G.Var (e,b) a)
 
 downcastTyp :: Typ -> Maybe (SealedTyp)
 downcastTyp Int = Just (SealedTyp G.Int)

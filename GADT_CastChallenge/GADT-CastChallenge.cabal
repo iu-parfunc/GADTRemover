@@ -10,15 +10,17 @@ library
   exposed-modules:      GADT2 ADT2 Test2
                         GADT3 ADT3 Test3
                         Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
-                        Typecase TypeableMagic
+                        TypeCase TypeableMagic
+                        TimTypeCase
                         List_Examples
   build-depends:
       base              >= 4.7 && < 4.9
     , wl-pprint         >= 1.2
     , ghc-prim
 
-executable GADT-CastChallenge
+test-suite test-GADT-CastChallenge
   default-language:     Haskell2010
+  type:	    exitcode-stdio-1.0
   main-is:              Main.hs
   build-depends:        GADT-CastChallenge
   build-depends:

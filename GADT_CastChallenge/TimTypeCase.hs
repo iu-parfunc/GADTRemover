@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, ScopedTypeVariables, TypeOperators, Rank2Types, MagicHash #-}
 
-module TypeCase where
+module TimTypeCase where
 
 import Data.Typeable
 import Unsafe.Coerce (unsafeCoerce)
@@ -82,4 +82,3 @@ unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
 -- Sum :: [Exp e Int] -> Exp e Int
 -- Lit :: Integer -> Exp e Int
 -- HO  :: (Exp e Int -> Exp e Int) -> Exp e Int
-
