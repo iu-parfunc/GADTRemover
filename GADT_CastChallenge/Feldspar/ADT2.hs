@@ -1,6 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE MagicHash #-}
 
 -- | An attempt to simulate the ghostbuster algorithm by hand,
 -- mechanically translating from the GADT to this version.
@@ -12,6 +14,34 @@ import           Data.Typeable
 import           Debug.Trace
 import qualified Feldspar.GADT as G
 import           Text.Printf
+
+import Unsafe.Coerce (unsafeCoerce)
+import GHC.Prim (Proxy#)
+
+------------------------------ From Ken's Example -------------------------
+
+-- TODO: We need to make this so that we can use this with polymorphic
+-- function types. e.g., (Int -> a), (a -> Int), (a -> b)
+
+data TypeCaseArrow a where
+  TypeCaseArrow :: (Typeable b, Typeable c) =>
+                   (a :~: (b -> c)) -> TypeCaseArrow a
+
+typeCaseArrow :: forall arr. (Typeable arr) => Maybe (TypeCaseArrow arr)
+typeCaseArrow = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
+  (op, [b,c]) | op == typeRepTyCon (typeRep (Proxy :: Proxy (->)))
+              -> unsafeTypeable b (\(_ :: Proxy b) ->
+                 unsafeTypeable c (\(_ :: Proxy c) ->
+                 fmap TypeCaseArrow (gcast Refl :: Maybe (arr :~: (b -> c)))))
+  _ -> Nothing
+
+newtype Magic ans = Magic (forall a. (Typeable a) => Proxy a -> ans)
+newtype Voodoo = Voodoo (forall a. Proxy# a -> TypeRep)
+
+unsafeTypeable :: TypeRep -> (forall a. (Typeable a) => Proxy a -> ans) -> ans
+unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
+
+---------------------------------------------------------------------------
 
 
 data Exp where
@@ -35,7 +65,7 @@ data Typ where
   Arr :: Typ -> Typ -> Typ
  deriving Show
 
- -- Because I was told to synthesize "a", I must hide it in the sealed
+-- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
 data SealedExp e where
   SealedExp :: Typeable a => G.Exp e a -> SealedExp e
@@ -48,7 +78,12 @@ data SealedTyp where
 
 -- Because "e" is checked, it is a "parameter" here:
 downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
-downcastExp (Con e)     = error $ "downcastExp (Con " ++ show e ++ ")"
+-- This works, but I feel as though we're cheating here since we
+-- instantiate with Int and we can't deduce that e ~ Int
+downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp i Int)
+-- Why was this here before?
+-- Question (TZ): How do we recover e?
+-- error $ "downcastExp (Con " ++ show e ++ ")"
 downcastExp (Add e1 e2) =
   -- We know the "e" in the output is the same as the inputs.
   -- That lets us know what "e" to ask for in our recursive calls here.
@@ -62,12 +97,19 @@ downcastExp (Abs t e)   =
   do SealedTyp (t' :: G.Typ tt) <- downcastTyp t
      SealedExp (e' :: G.Exp (e,tt) b) <- downcastExp e
      return $ SealedExp $ G.Abs t' e'
-downcastExp (App e1 e2)  =
+downcastExp (App e1 e2) =
   do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
      SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
 
      let typ = typeOf (unused :: tarr)
      trace (show typ) $ return ()
+
+-- Algorithm:
+-- 1. get type of a (t1)
+-- 2. get type of b (t2)
+-- 3. Ensure that t1 unifies with (t2 -> t')
+--    where t' is determined by ??
+
      -- let (e' :: G.Exp e tb) = G.App a b
      -- let Just Refl = unify (unused :: tarr) (unused:: ta -> tb)
      -- return $ SealedExp e'
@@ -77,13 +119,18 @@ downcastExp (App e1 e2)  =
      -- return $ SealedExp $ G.App undefined undefined
      error "downcastExp/App"
 
--- test = downcastExp (App (Abs ))
+-- test = downcastvarstExp (App (Abs ))
 
-downcastVar :: Typeable e => Var  -> Maybe (SealedVar e)
-downcastVar Zro = undefined
-downcastVar (Suc v) = undefined
+-- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
+downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
+downcastVar Zro =  Just $ SealedVar (G.Zro :: G.Var (a,b) b)
+-- Why do we get that a and b are out of scope here?!? Shouldn't they be in
+-- scope since we are using ScopedTypeVariables?
+downcastVar (Suc v) =
+  do SealedVar (foo :: G.Var a a') <- (downcastVar v)
+     return $ SealedVar ((G.Suc foo b) :: G.Var (a,b) a)
 
--- Synthesized version:
+
 downcastTyp :: Typ -> Maybe (SealedTyp)
 downcastTyp Int = Just (SealedTyp G.Int)
 downcastTyp (Arr x1 x2) =
@@ -94,14 +141,6 @@ downcastTyp (Arr x1 x2) =
      -- Reasoning: why do we not need a cast?
      return $ SealedTyp $ G.Arr a b
 
-
--- Checking version:
-downcastTyp' :: Typ -> Maybe (G.Typ a)
-downcastTyp' Int  = undefined
--- Can't directly do this:
---  typecase a
---   "Int" -> Just G.Int
-downcastTyp' (Arr x1 x2)  = undefined
 
 --------------------------------------------------------------------------------
 
@@ -121,22 +160,3 @@ typeError _ _
   $ printf "Couldn't match expected type `%s' with actual type `%s'"
            (show (typeOf (unused::s)))
            (show (typeOf (unused::t)))
-
---------------------------------------------------------------------------------
-
-t0 :: Typ
-t0 = Arr Int Int
-
-t1 :: Maybe SealedTyp
-t1 = downcastTyp t0
-
-x :: String
-x = case t1 of
-      Nothing -> "nada"
-      Just (SealedTyp (_ :: G.Typ a)) -> "uhh"
-
-y :: Typ -> G.Typ a
-y t = case downcastTyp t of
-        Nothing ->  undefined
-        Just (SealedTyp (_ :: G.Typ a)) ->
-          undefined
