@@ -41,6 +41,14 @@ newtype Voodoo = Voodoo (forall a. Proxy# a -> TypeRep)
 unsafeTypeable :: TypeRep -> (forall a. (Typeable a) => Proxy a -> ans) -> ans
 unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
 
+getArrowRetType :: forall arr a. (Typeable arr, Typeable a) => arr -> a -> Maybe Int
+getArrowRetType arr a = do
+  -- Check that "arr" is a function from the type of "a" to Int
+  TypeCaseArrow (Refl :: arr :~: (b -> c)) <- typeCaseArrow
+  Refl                :: b   :~: a         <- gcast Refl
+  Refl                :: c   :~: Int       <- gcast Refl
+  return (arr a)
+
 ---------------------------------------------------------------------------
 
 
@@ -100,6 +108,7 @@ downcastExp (Abs t e)   =
 downcastExp (App e1 e2) =
   do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
      SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
+     {-retTyp <- getArrowRetType (unused :: tarr) (unused :: ta)-}
 
      let typ = typeOf (unused :: tarr)
      trace (show typ) $ return ()
@@ -124,11 +133,9 @@ downcastExp (App e1 e2) =
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
 downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 downcastVar Zro =  Just $ SealedVar (G.Zro :: G.Var (a,b) b)
--- Why do we get that a and b are out of scope here?!? Shouldn't they be in
--- scope since we are using ScopedTypeVariables?
-downcastVar (Suc v) =
-  do SealedVar (foo :: G.Var a a') <- (downcastVar v)
-     return $ SealedVar ((G.Suc foo b) :: G.Var (a,b) a)
+downcastVar (Suc v) = -- problems with unification of types here
+  do SealedVar (foo :: G.Var e a) <- (downcastVar v)
+     return $ SealedVar ((G.Suc foo) :: G.Var (e,b) a)
 
 
 downcastTyp :: Typ -> Maybe (SealedTyp)
