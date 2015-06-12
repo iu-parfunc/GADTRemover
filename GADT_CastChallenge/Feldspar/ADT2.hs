@@ -155,8 +155,7 @@ upcastTyp (G.Arr t1 t2) = let t1' = upcastTyp t1
 
 upcastVar :: G.Var e a -> Var
 upcastVar G.Zro = Zro
-upcastVar (G.Suc v) = let v'= upcastVar v
-                      in Suc v'
+upcastVar (G.Suc v) = Suc $ upcastVar v
 
 ---------------------------------------------------------------------------
 
