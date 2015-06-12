@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -xe
+
 # This is specific to our testing setup at IU:
 ENVSCRIPT=$HOME/rn_jenkins_scripts/acquire_ghc.sh
 if [ -f "$ENVSCRIPT" ]; then source "$ENVSCRIPT"; fi
