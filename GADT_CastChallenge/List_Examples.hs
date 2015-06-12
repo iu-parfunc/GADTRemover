@@ -23,16 +23,20 @@ data List' = Nil' | Cons' Dynamic List'
 deriving instance Show List'
 
 strip :: Typeable a => List a -> List'
-strip Nil = Nil'
+strip Nil        = Nil'
 strip (Cons a l) = Cons' (toDyn a) (strip l)
 
-restore :: forall a . Typeable a => List' -> Maybe (List a)
-restore Nil' = Just (Nil :: List a)
-restore (Cons' d l) =
-  case fromDynamic d :: Maybe a of
-    Nothing -> Nothing
-    Just x  -> do l' <- restore l
-                  return $ Cons x l'
+restore :: Typeable a => List' -> Maybe (List a)
+restore Nil'           = return Nil
+restore (Cons' x' xs') = do
+  x  <- fromDynamic x'
+  xs <- restore xs'
+  return (Cons x xs)
+
+toList :: [a] -> List a
+toList []     = Nil
+toList (x:xs) = x `Cons` toList xs
+
 
 -- Version 2:  What about kinds other than '*'
 --------------------------------------------------------------------------------
@@ -45,16 +49,16 @@ deriving instance Show (f Int) => Show (List2 f)
 data List2' = Nil2' | Cons2' Dynamic List2'
 
 strip2 :: Typeable f => List2 f -> List2'
-strip2 Nil2 = Nil2'
+strip2 Nil2        = Nil2'
 strip2 (Cons2 a l) = Cons2' (toDyn a) (strip2 l)
 
-restore2 :: forall f . Typeable f => List2' -> Maybe (List2 f)
-restore2 Nil2' = Just (Nil2 :: List2 f)
-restore2 (Cons2' d l) =
-  case fromDynamic d :: Maybe (f Int) of
-    Nothing -> Nothing
-    Just x  -> do l' <- restore2 l
-                  return $ Cons2 x l'
+restore2 :: Typeable f => List2' -> Maybe (List2 f)
+restore2 Nil2'           = return Nil2
+restore2 (Cons2' x' xs') = do
+  x  <- fromDynamic x'
+  xs <- restore2 xs'
+  return (Cons2 x xs)
+
 
 data Tup2 x = Tup2 x x
  deriving (Typeable, Show)
