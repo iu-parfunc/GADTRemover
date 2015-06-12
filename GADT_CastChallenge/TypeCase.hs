@@ -1,4 +1,5 @@
 {-# LANGUAGE GADTs, ScopedTypeVariables, TypeOperators, Rank2Types, MagicHash #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 
 -- | Exposes a safe interface for deconstructing typeable *instances*.
 --   This module only performs this trick for arrows and 2-tuples, but
@@ -55,4 +56,38 @@ typeCaseTuple = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
               -> recoverTypeable b (\(_ :: Proxy b) ->
                  recoverTypeable c (\(_ :: Proxy c) ->
                  fmap TypeCaseTuple (gcast Refl :: Maybe (arr :~: (b,c)))))
+  _ -> Nothing
+
+---------------------------- Typecase on user defined data type -----------
+
+data Times t1 t2 = Times t1 t2 deriving (Typeable)
+
+data TypeCaseTimes a where
+  TypeCaseTimes :: (Typeable b, Typeable c) =>
+                   (a :~: (Times b c)) -> TypeCaseTimes a
+
+typeCaseTimes :: forall arr. (Typeable arr) => Maybe (TypeCaseTimes arr)
+typeCaseTimes = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
+  (op, [b,c]) | op == typeRepTyCon (typeRep (Proxy :: Proxy (Times)))
+              -> recoverTypeable b (\(_ :: Proxy b) ->
+                 recoverTypeable c (\(_ :: Proxy c) ->
+                 fmap TypeCaseTimes (gcast Refl :: Maybe (arr :~: (Times b c)))))
+  _ -> Nothing
+
+--------------------------- Typecase on user defined GADT -----------------
+
+data Timess t1 t2 where
+  Timess :: t1 ->  t2 -> Int -> Timess t1 t2
+  deriving (Typeable)
+
+data TypeCaseTimess a where
+  TypeCaseTimess :: (Typeable b, Typeable c) =>
+                   (a :~: (Timess b c)) -> TypeCaseTimess a
+
+typeCaseTimess :: forall arr. (Typeable arr) => Maybe (TypeCaseTimess arr)
+typeCaseTimess = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
+  (op, [b,c]) | op == typeRepTyCon (typeRep (Proxy :: Proxy (Timess)))
+              -> recoverTypeable b (\(_ :: Proxy b) ->
+                 recoverTypeable c (\(_ :: Proxy c) ->
+                 fmap TypeCaseTimess (gcast Refl :: Maybe (arr :~: (Timess b c)))))
   _ -> Nothing
