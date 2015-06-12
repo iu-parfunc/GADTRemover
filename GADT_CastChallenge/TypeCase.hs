@@ -11,6 +11,10 @@ module TypeCase
   , TypeCaseArrow(..)
   , typeCaseTuple
   , TypeCaseTuple(..)
+  , typeCaseTimes
+  , TypeCaseTimes(..)
+  , typeCaseTimess
+  , TypeCaseTimess(..)
   ) where
 
 import Data.Typeable
