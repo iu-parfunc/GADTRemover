@@ -18,8 +18,8 @@ ppExp = show . ppE
     ppE (ADT.App f x) = PP.parens (text "App" <+> ppE f <+> ppE x)
     ppE (ADT.Add x y) = PP.parens (text "Add" <+> ppE x <+> ppE y)
 
-    ppV ADT.Zro     = text "Zro"
-    ppV (ADT.Suc v) = PP.parens (text "Suc" <+> ppV v)
+    ppV ADT.Zro       = text "Zro"
+    ppV (ADT.Suc v)   = PP.parens (text "Suc" <+> ppV v)
 
     ppT ADT.Int       = text "Int"
     ppT (ADT.Arr a b) = PP.parens (text "Arr" <+> ppT a <+> ppT b)
