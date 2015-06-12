@@ -12,6 +12,7 @@ library
                         Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
                         TypeCase TypeableMagic
                         TimTypeCase
+                        MinimalTypeRep
                         List_Examples
   build-depends:
       base              >= 4.7 && < 4.9
