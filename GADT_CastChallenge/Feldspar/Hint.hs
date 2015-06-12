@@ -2,8 +2,27 @@
 module Feldspar.Hint
   where
 
+import Text.PrettyPrint.Leijen                  as PP
+import Language.Haskell.Interpreter             as Hint
+
+import qualified Feldspar.ADT1                  as ADT
 import qualified Feldspar.GADT                  as GADT
-import Language.Haskell.Interpreter
+
+
+ppExp :: ADT.Exp -> String
+ppExp = show . ppE
+  where
+    ppE (ADT.Con i)   = PP.parens (text "Con" <+> int i)
+    ppE (ADT.Var v)   = PP.parens (text "Var" <+> ppV v)
+    ppE (ADT.Abs t e) = PP.parens (text "Abs" <+> ppT t <+> ppE e)
+    ppE (ADT.App f x) = PP.parens (text "App" <+> ppE f <+> ppE x)
+    ppE (ADT.Add x y) = PP.parens (text "Add" <+> ppE x <+> ppE y)
+
+    ppV ADT.Zro     = text "Zro"
+    ppV (ADT.Suc v) = PP.parens (text "Suc" <+> ppV v)
+
+    ppT ADT.Int       = text "Int"
+    ppT (ADT.Arr a b) = PP.parens (text "Arr" <+> ppT a <+> ppT b)
 
 
 say :: String -> Interpreter ()
@@ -20,8 +39,9 @@ printInterpreterError err =
 
 _let :: String -> String -> String -> String
 _let var bnd body
-  = parens
-  $ concat [ "let ", var, " = ", parens bnd, " in ", parens body ]
+  = Hint.parens
+  $ concat [ "let ", var, " = ", Hint.parens bnd
+           , " in ", Hint.parens body ]
 
 test :: Interpreter ()
 test = do
@@ -41,8 +61,17 @@ test = do
   say "Try to evaluate the interpreter:"
   run <- interpret ("flip run ()") (as :: GADT.Exp () Int -> Int)       -- must be monomorphic
   q   <- interpret quadruple       infer                                -- we can just infer this type
-
   say . show $ run q
+
+  say "Try using the pretty-printer:"
+  let four' = ppExp ADT.four
+  say four'
+  r    <- interpret four' infer
+  say . show $ run r
+
+  gadt <- interpret four' (as :: GADT.Exp () Int)
+  say . show $ GADT.run gadt ()
+
 
 
 main :: IO ()
