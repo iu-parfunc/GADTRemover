@@ -61,7 +61,7 @@ data Var where
 data Typ where
   Int :: Typ
   Arr :: Typ -> Typ -> Typ
- deriving Show
+ deriving (Show, Eq)
 
 -- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
@@ -175,3 +175,14 @@ typeError _ _
   $ printf "Couldn't match expected type `%s' with actual type `%s'"
            (show (typeOf (unused::s)))
            (show (typeOf (unused::t)))
+
+----------------------------- Tests ---------------------------------------
+
+test1 :: G.Exp () (Int -> Int -> Int)
+test1 = G.Abs G.Int (G.Abs G.Int (G.Var G.Zro `G.Add` G.Var (G.Suc G.Zro)))
+
+test2 :: G.Exp () Int
+test2 = (G.App (G.Abs G.Int (G.App (G.Abs G.Int (G.Var G.Zro `G.Add` G.Var (G.Suc G.Zro))) (G.Con 1))) (G.Con 2))
+
+
+
