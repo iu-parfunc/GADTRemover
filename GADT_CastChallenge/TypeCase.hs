@@ -1,6 +1,6 @@
 {-# LANGUAGE GADTs, ScopedTypeVariables, TypeOperators, Rank2Types, MagicHash #-}
 
--- | Exposes a safe interface for deconstructing typeable *instances*.
+-- | Exposes an interface for deconstructing typeable *instances*.
 --   This module only performs this trick for arrows and 2-tuples, but
 --   the Ghostbuster tool will need to generate these for all
 --   non-nullary type constructors mentioned in erased types.
@@ -47,7 +47,6 @@ typeCaseArrow = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
                  recoverTypeable c (\(_ :: Proxy c) ->
                  fmap TypeCaseArrow (gcast Refl :: Maybe (arr :~: (b -> c)))))
   _ -> Nothing
-
 -- | Ditto for tuples.
 typeCaseTuple :: forall arr. (Typeable arr) => Maybe (TypeCaseTuple arr)
 typeCaseTuple = case splitTyConApp (typeRep (Proxy :: Proxy arr)) of
