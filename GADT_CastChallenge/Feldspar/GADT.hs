@@ -1,13 +1,14 @@
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE GADTs             #-}
+{-# LANGUAGE KindSignatures    #-}
+{-# LANGUAGE RoleAnnotations   #-}
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE RoleAnnotations #-}
 
 -- | Mini feldspar GADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
 
 module Feldspar.GADT where
+
+import Text.PrettyPrint.Leijen
 
 -- GADT representation.
 -- Simply-typed lambda calculus with de Bruijn indices,
@@ -89,3 +90,39 @@ test = (case chk four Emp of
           Int -> True)
        &&
        (run four () == 4)
+
+
+-- Pretty printer
+-- --------------
+
+idxToInt :: Var env t -> Int
+idxToInt Zro      = 0
+idxToInt (Suc ix) = idxToInt ix + 1
+
+prettyOpenExp :: (Doc -> Doc) -> Int -> Exp env a -> Doc
+prettyOpenExp wrap lvl = pp
+  where
+    ppE :: Exp env a -> Doc
+    ppE = prettyOpenExp parens lvl
+
+    ppF :: Exp env a -> Doc
+    ppF fun =
+      let
+          (n, body) = count n fun
+
+          count :: Int -> Exp env f -> (Int, Doc)
+          count l (Abs _ f) = let (i,b) = count l f in (i+1, b)
+          count l other     = (lvl-1, prettyOpenExp id (l+1) other)
+      in
+      parens $ char 'λ' <> hsep [ char 'x' <> int idx | idx <- [lvl .. n] ] <+> char '→' <+> body
+
+    pp :: Exp env a -> Doc
+    pp (Con i)          = int i
+    pp (Var ix)         = char 'x' <> int (lvl - idxToInt ix - 1)
+    pp (Add x y)        = wrap $ ppE x <+> char '+' <+> ppE y
+    pp (App f x)        = wrap $ ppE f <+> ppE x
+    pp f@Abs{}          = ppF f
+
+instance Show (Exp env a) where
+  show = show . prettyOpenExp id 0
+
