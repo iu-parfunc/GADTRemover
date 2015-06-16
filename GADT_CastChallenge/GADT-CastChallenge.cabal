@@ -19,6 +19,8 @@ library
     , wl-pprint         >= 1.2
     , ghc-prim
 
+  ghc-options:          -Wall
+
 test-suite test-GADT-CastChallenge
   default-language:     Haskell2010
   type:	    exitcode-stdio-1.0

@@ -1,7 +1,6 @@
 {-# LANGUAGE GADTs           #-}
 {-# LANGUAGE KindSignatures  #-}
 {-# LANGUAGE RoleAnnotations #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module Feldspar.InterpGADT where
 

@@ -2,7 +2,6 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE RoleAnnotations   #-}
-{-# OPTIONS_GHC -Wall #-}
 
 -- | Mini feldspar GADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/

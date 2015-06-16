@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
 {-# LANGUAGE GADTs #-}
 
 -- | Handwritten version of the feldspar ADT, copied from:
