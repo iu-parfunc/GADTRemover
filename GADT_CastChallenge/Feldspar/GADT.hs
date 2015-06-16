@@ -114,13 +114,15 @@ prettyOpenExp wrap lvl = pp
           count l (Abs _ f) = let (i,b) = count l f in (i+1, b)
           count l other     = (lvl-1, prettyOpenExp id (l+1) other)
       in
-      parens $ char 'λ' <> hsep [ char 'x' <> int idx | idx <- [lvl .. n] ] <+> char '→' <+> body
+      parens $ sep [ char 'λ' <> hsep [ char 'x' <> int idx | idx <- [lvl .. n] ] <+> char '→'
+                   , hang 2 body ]
 
     pp :: Exp env a -> Doc
     pp (Con i)          = int i
     pp (Var ix)         = char 'x' <> int (lvl - idxToInt ix - 1)
     pp (Add x y)        = wrap $ ppE x <+> char '+' <+> ppE y
-    pp (App f x)        = wrap $ ppE f <+> ppE x
+    pp (Mul x y)        = wrap $ ppE x <+> char '*' <+> ppE y
+    pp (App f x)        = wrap $ sep [ ppE f, hang 2 (ppE x) ]
     pp f@Abs{}          = ppF f
 
 instance Show (Exp env a) where
