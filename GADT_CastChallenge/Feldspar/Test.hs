@@ -18,6 +18,13 @@ test1 = GADT.Abs GADT.Int (GADT.Abs GADT.Int (GADT.Var GADT.Zro `GADT.Add` GADT.
 test2 :: GADT.Exp () Int
 test2 = (GADT.App (GADT.Abs GADT.Int (GADT.App (GADT.Abs GADT.Int (GADT.Var GADT.Zro `GADT.Add` GADT.Var (GADT.Suc GADT.Zro))) (GADT.Con 1))) (GADT.Con 2))
 
+testADT :: ADT.Exp -> Int
+testADT adt =
+  case ADT.downcastExp adt of
+    Just (ADT.SealedExp e)
+      | Just gadt <- gcast e -> GADTInterp.run gadt ()
+    _                        -> error "downcast failed"
+
 -- TODO: We have problems unpacking from a SealedExp since we don't have
 -- enough inherent constraints to make Haskell happy unifing the various
 -- types that it needs to. We need to probably do the same business here
@@ -26,11 +33,8 @@ test2 = (GADT.App (GADT.Abs GADT.Int (GADT.App (GADT.Abs GADT.Int (GADT.Var GADT
 roundtrip :: forall e a. (Typeable e) => String -> GADT.Exp e a -> IO ()
 roundtrip name gadt = do
   let adt         = ADT.upcastExp gadt
-      Just  gadt' = ADT.downcastExp adt :: Maybe (ADT.SealedExp e) --(GADT.Exp e a)
-
   printf "Test %s:\n"     name
-  {-case gadt' of-}
-    {-ADT.SealedExp exp -> printf "  Evaled: %s\n" (show (GADT.run (exp :: GADT.Exp e a) ()))-}
+  printf "  Evaled: %s\n" (show (testADT adt))
   printf "  Upcast: %s\n"   (show adt)
   case (ADTInterp.run adt []) of
     ADTInterp.Rgt a -> printf "  Evaled: %s\n" (show a)
