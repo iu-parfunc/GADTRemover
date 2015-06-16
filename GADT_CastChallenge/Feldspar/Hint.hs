@@ -2,9 +2,11 @@
 module Feldspar.Hint
   where
 
+import System.Environment
 import Data.Typeable
 import Text.PrettyPrint.Leijen                  as PP
 import Language.Haskell.Interpreter             as Hint
+import Language.Haskell.Interpreter.Unsafe      as Hint
 
 import qualified Feldspar.ADT2                  as ADT
 import qualified Feldspar.GADT                  as GADT
@@ -39,13 +41,15 @@ interpreterError e
 downcastExp :: (Typeable env, Typeable a) => ADT.Exp -> IO (GADT.Exp env a)
 downcastExp adt
   = fmap (either interpreterError id)
-  $ runInterpreter
   $ do
-        loadModules ["Feldspar.GADT"]
-        setImportsQ [ ("Prelude",             Nothing)
-                    , ("Feldspar.GADT",       Nothing) ]
-        --
-        interpret (ppExp adt) infer
+        args <- lookupEnv "HINT_ARGS"
+
+        unsafeRunInterpreterWithArgs (maybe [] read args) $ do
+          loadModules ["Feldspar.GADT"]
+          setImportsQ [ ("Prelude",             Nothing)
+                      , ("Feldspar.GADT",       Nothing) ]
+          --
+          interpret (ppExp adt) infer
 
 
 {--
