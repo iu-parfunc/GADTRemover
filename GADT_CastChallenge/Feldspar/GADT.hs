@@ -73,11 +73,11 @@ chk (App ef _ ) r = case chk ef r of
 chk (Add _  _ ) _ = Int
 
 -- An example expression doubling the input number
-dbl :: Exp () (Int -> Int)
+dbl :: Exp env (Int -> Int)
 dbl = Abs Int (Var Zro `Add` Var Zro)
 
 -- An example expression composing two types
-compose :: Typ a -> Typ b -> Typ c -> Exp () ((b -> c) -> (a -> b) -> (a -> c))
+compose :: Typ a -> Typ b -> Typ c -> Exp env ((b -> c) -> (a -> b) -> (a -> c))
 compose s t u = Abs (t `Arr` u) (Abs (s `Arr` t) (Abs s
                   (Var (Suc (Suc Zro)) `App` (Var (Suc Zro) `App` Var Zro))))
 
@@ -91,6 +91,16 @@ test = (case chk four Emp of
           Int -> True)
        &&
        (run four () == 4)
+
+
+let_ :: Exp env a -> Exp (env,a) b -> Exp env b
+let_ bnd body = (Abs (expType bnd) body) `App` bnd
+
+constant :: Int -> Exp env Int
+constant = Con
+
+expType :: Exp env a -> Typ a
+expType = error "expType: are we missing some information in the term tree?"
 
 
 -- Pretty printer
