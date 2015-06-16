@@ -24,6 +24,7 @@ run (Var x)     r = get x r
 run (Abs _  eb) r = \v -> run eb (r,v)
 run (App ef ea) r = run ef r $ run ea r
 run (Add el er) r = run el r + run er r
+run (Mul el er) r = run el r * run er r
 
 -- Typechecking and returning the type, if successful
 chk :: Exp e a -> Env e -> Typ a
@@ -33,6 +34,7 @@ chk (Abs ta eb) r = ta `Arr` chk eb (r `Ext` ta)
 chk (App ef _ ) r = case chk ef r of
                       Arr _ tr -> tr
 chk (Add _  _ ) _ = Int
+chk (Mul _  _ ) _ = Int
 
 -- An example expression doubling the input number
 dbl :: Exp env (Int -> Int)
