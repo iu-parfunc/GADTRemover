@@ -36,6 +36,23 @@ chk (App ef _ ) r = case chk ef r of
 chk (Add _  _ ) _ = Int
 chk (Mul _  _ ) _ = Int
 
+
+-- Count the number of terms in an expression
+numberOfTerms :: Exp env a -> Int
+numberOfTerms = cnt
+  where
+    cnt :: Exp env a -> Int
+    cnt Con{}           = 1
+    cnt (Var ix)        = 1 + idxToInt ix + 1   -- indices start from zero
+    cnt (Abs _ e)       = 1 + cnt e             -- include terms making up the type?
+    cnt (App f x)       = 1 + cnt f + cnt x
+    cnt (Add x y)       = 1 + cnt x + cnt y
+    cnt (Mul x y)       = 1 + cnt x + cnt y
+
+
+-- Examples
+-- --------
+
 -- An example expression doubling the input number
 dbl :: Exp env (Int -> Int)
 dbl = Abs Int (Var Zro `Add` Var Zro)
