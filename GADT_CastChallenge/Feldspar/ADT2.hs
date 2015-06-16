@@ -1,24 +1,27 @@
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE MagicHash           #-}
+{-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE TypeOperators       #-}
 
 -- | An attempt to simulate the ghostbuster algorithm by hand,
 -- mechanically translating from the GADT to this version.
 --   (written during a meeting w/ Ken, Matteo, & Ryan)
-
+--
 module Feldspar.ADT2 where
 
-import           Data.Typeable
-import           Debug.Trace
-import qualified Feldspar.GADT as G
-import           Text.Printf
 
-import           TypeCase (typeCaseTuple, TypeCaseTuple(..))
+import Data.Typeable
+import Control.DeepSeq
+import Text.Printf
 
-import           Unsafe.Coerce (unsafeCoerce)
-import           GHC.Prim (Proxy#)
+import Unsafe.Coerce                    ( unsafeCoerce )
+import GHC.Generics                     ( Generic )
+import GHC.Prim                         ( Proxy# )
+
+import TypeCase                         ( typeCaseTuple, TypeCaseTuple(..) )
+import qualified Feldspar.GADT          as G
 
 ------------------------------ From Ken's Example -------------------------
 
@@ -45,10 +48,11 @@ unsafeTypeable rep f = unsafeCoerce (Magic f) (Voodoo (\_ -> rep)) Proxy
 data Exp where
   Con :: Int -> Exp
   Add :: Exp -> Exp -> Exp
+  Mul :: Exp -> Exp -> Exp
   Var :: Var -> Exp
   Abs :: Typ -> Exp -> Exp
   App :: Exp -> Exp -> Exp
- deriving Show
+ deriving (Show, Generic)
 
 -- This one is subtle.  Why is the "a" param not ambiguous?  We're
 -- deleting it with "synthesized" mode, but the synthesized param is
@@ -56,12 +60,12 @@ data Exp where
 data Var where
   Zro :: Var
   Suc :: Var -> Var
-  deriving Show
+  deriving (Show, Generic)
 
 data Typ where
   Int :: Typ
   Arr :: Typ -> Typ -> Typ
- deriving (Show, Eq)
+ deriving (Eq, Show, Generic)
 
 -- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
@@ -73,6 +77,10 @@ data SealedVar e where
 
 data SealedTyp where
   SealedTyp :: Typeable a => G.Typ a -> SealedTyp
+
+instance NFData Exp
+instance NFData Var
+instance NFData Typ
 
 --------------------------- Downcasting -----------------------------------
 
@@ -87,6 +95,12 @@ downcastExp (Add e1 e2) =
      Refl <- unify (unused :: ta) (unused::Int)
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Add a b
+downcastExp (Mul e1 e2) =       -- exactly same as Add case
+  do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
+     SealedExp (b::G.Exp e tb) <- (downcastExp e2)
+     Refl <- unify (unused :: ta) (unused::Int)
+     Refl <- unify (unused :: tb) (unused::Int)
+     return $ SealedExp $ G.Mul a b
 downcastExp (Var e)     =
   do SealedVar (v :: G.Var e a) <- (downcastVar e)
      return $ SealedExp $ G.Var v
@@ -140,6 +154,9 @@ upcastExp (G.Var e) = Var $ upcastVar e
 upcastExp (G.Add e1 e2) = let e1' = upcastExp e1
                               e2' = upcastExp e2
                           in Add e1' e2'
+upcastExp (G.Mul e1 e2) = let e1' = upcastExp e1
+                              e2' = upcastExp e2
+                          in Mul e1' e2'
 upcastExp (G.Abs typ e) = let typ' = upcastTyp typ
                               e'   = upcastExp e
                           in Abs typ' e'
