@@ -30,6 +30,7 @@ type role Exp nominal nominal
 data Exp (e :: *) (a :: *) where
   Con :: Int -> Exp e Int
   Add :: Exp e Int -> Exp e Int -> Exp e Int
+  Mul :: Exp e Int -> Exp e Int -> Exp e Int
   Var :: Var e a -> Exp e a
   Abs :: Typ a -> Exp (e,a) b -> Exp e (a -> b)
   App :: Exp e (a -> b) -> Exp e a -> Exp e b
@@ -62,6 +63,7 @@ run (Var x)     r = get x r
 run (Abs _  eb) r = \v -> run eb (r,v)
 run (App ef ea) r = run ef r $ run ea r
 run (Add el er) r = run el r + run er r
+run (Mul el er) r = run el r * run er r
 
 -- Typechecking and returning the type, if successful
 chk :: Exp e a -> Env e -> Typ a
@@ -71,6 +73,7 @@ chk (Abs ta eb) r = ta `Arr` chk eb (r `Ext` ta)
 chk (App ef _ ) r = case chk ef r of
                       Arr _ tr -> tr
 chk (Add _  _ ) _ = Int
+chk (Mul _  _ ) _ = Int
 
 -- An example expression doubling the input number
 dbl :: Exp env (Int -> Int)
@@ -108,9 +111,9 @@ expType = error "expType: are we missing some information in the term tree?"
 
 instance Num (Exp env Int) where
   x + y         = Add x y
+  x * y         = Mul x y
   fromInteger   = Con . fromInteger
   --
-  (*)           = error "Exp.(*)"
   (-)           = error "Exp.(-)"
   abs           = error "Exp.abs"
   signum        = error "Exp.signum"
