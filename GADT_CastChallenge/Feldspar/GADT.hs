@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE RoleAnnotations   #-}
@@ -94,6 +95,15 @@ test = (case chk four Emp of
 
 -- Pretty printer
 -- --------------
+
+instance Num (Exp env Int) where
+  x + y         = Add x y
+  fromInteger   = Con . fromInteger
+  --
+  (*)           = error "Exp.(*)"
+  (-)           = error "Exp.(-)"
+  abs           = error "Exp.abs"
+  signum        = error "Exp.signum"
 
 idxToInt :: Var env t -> Int
 idxToInt Zro      = 0
