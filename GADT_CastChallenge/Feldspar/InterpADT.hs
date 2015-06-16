@@ -1,4 +1,4 @@
-module InterpADT where
+module Feldspar.InterpADT where
 
 import Feldspar.ADT2
 import Control.Applicative
@@ -11,7 +11,6 @@ data Val =
 instance Show Val where
   show (Num i) = "(Num " ++ show i ++ ")"
   show (Fun _) = "Function"
-
 
 natToInt :: Var -> Int
 natToInt Zro     = 0

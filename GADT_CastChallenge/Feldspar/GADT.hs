@@ -45,65 +45,6 @@ data Env e where
   Emp :: Env ()
   Ext :: Env e -> Typ a -> Env (e,a)
 
--- Extraction of values form environment
-get :: Var e a -> e -> a
-get Zro     (_ ,x)      = x
-get (Suc n) (xs,_)      = get n xs
-
--- Extraction of values form environment with singletons
-gets :: Var e a -> Env e -> Typ a
-gets Zro     (Ext _  x) = x
-gets (Suc n) (Ext xs _) = gets n xs
-gets _       Emp        = error "Impossible!"
-
--- Evaluation of expressions under specific environment of values
-run :: Exp e a -> e -> a
-run (Con i)     _ = i
-run (Var x)     r = get x r
-run (Abs _  eb) r = \v -> run eb (r,v)
-run (App ef ea) r = run ef r $ run ea r
-run (Add el er) r = run el r + run er r
-run (Mul el er) r = run el r * run er r
-
--- Typechecking and returning the type, if successful
-chk :: Exp e a -> Env e -> Typ a
-chk (Con _)     _ = Int
-chk (Var x)     r = gets x r
-chk (Abs ta eb) r = ta `Arr` chk eb (r `Ext` ta)
-chk (App ef _ ) r = case chk ef r of
-                      Arr _ tr -> tr
-chk (Add _  _ ) _ = Int
-chk (Mul _  _ ) _ = Int
-
--- An example expression doubling the input number
-dbl :: Exp env (Int -> Int)
-dbl = Abs Int (Var Zro `Add` Var Zro)
-
--- An example expression composing two types
-compose :: (Elt a, Elt b, Elt c) => Exp env ((b -> c) -> (a -> b) -> (a -> c))
-compose
-  = Abs eltType
-  $ Abs eltType
-  $ Abs eltType (Var (Suc (Suc Zro)) `App` (Var (Suc Zro) `App` Var Zro))
-
--- An example expression representing the Integer 4
-four :: Exp () Int
-four = (compose `App` dbl `App` dbl) `App` Con 1
-
--- Two test cases
-test :: Bool
-test = (case chk four Emp of
-          Int -> True)
-       &&
-       (run four () == 4)
-
-
-let_ :: Elt a => Exp env a -> Exp (env,a) b -> Exp env b
-let_ bnd body = (Abs eltType body) `App` bnd
-
-constant :: Int -> Exp env Int
-constant = Con
-
 class Elt a where
   eltType :: Typ a
 
@@ -114,9 +55,6 @@ instance (Elt a, Elt b) => Elt (a -> b) where
   eltType = Arr eltType eltType
 
 
--- Pretty printer
--- --------------
-
 instance Num (Exp env Int) where
   x + y         = Add x y
   x * y         = Mul x y
@@ -125,6 +63,20 @@ instance Num (Exp env Int) where
   (-)           = error "Exp.(-)"
   abs           = error "Exp.abs"
   signum        = error "Exp.signum"
+
+
+-- Helpers
+-- -------
+
+let_ :: Elt a => Exp env a -> Exp (env,a) b -> Exp env b
+let_ bnd body = (Abs eltType body) `App` bnd
+
+constant :: Int -> Exp env Int
+constant = Con
+
+
+-- Pretty printer
+-- --------------
 
 idxToInt :: Var env t -> Int
 idxToInt Zro      = 0
