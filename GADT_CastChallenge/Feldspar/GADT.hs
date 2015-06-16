@@ -80,13 +80,15 @@ dbl :: Exp env (Int -> Int)
 dbl = Abs Int (Var Zro `Add` Var Zro)
 
 -- An example expression composing two types
-compose :: Typ a -> Typ b -> Typ c -> Exp env ((b -> c) -> (a -> b) -> (a -> c))
-compose s t u = Abs (t `Arr` u) (Abs (s `Arr` t) (Abs s
-                  (Var (Suc (Suc Zro)) `App` (Var (Suc Zro) `App` Var Zro))))
+compose :: (Elt a, Elt b, Elt c) => Exp env ((b -> c) -> (a -> b) -> (a -> c))
+compose
+  = Abs eltType
+  $ Abs eltType
+  $ Abs eltType (Var (Suc (Suc Zro)) `App` (Var (Suc Zro) `App` Var Zro))
 
 -- An example expression representing the Integer 4
 four :: Exp () Int
-four = (compose Int Int Int `App` dbl `App` dbl) `App` (Con 1)
+four = (compose `App` dbl `App` dbl) `App` Con 1
 
 -- Two test cases
 test :: Bool
@@ -96,14 +98,20 @@ test = (case chk four Emp of
        (run four () == 4)
 
 
-let_ :: Exp env a -> Exp (env,a) b -> Exp env b
-let_ bnd body = (Abs (expType bnd) body) `App` bnd
+let_ :: Elt a => Exp env a -> Exp (env,a) b -> Exp env b
+let_ bnd body = (Abs eltType body) `App` bnd
 
 constant :: Int -> Exp env Int
 constant = Con
 
-expType :: Exp env a -> Typ a
-expType = error "expType: are we missing some information in the term tree?"
+class Elt a where
+  eltType :: Typ a
+
+instance Elt Int where
+  eltType = Int
+
+instance (Elt a, Elt b) => Elt (a -> b) where
+  eltType = Arr eltType eltType
 
 
 -- Pretty printer
@@ -148,6 +156,14 @@ prettyOpenExp wrap lvl = pp
     pp (App f x)        = wrap $ sep [ ppE f, hang 2 (ppE x) ]
     pp f@Abs{}          = ppF f
 
+
+prettyType :: Typ a -> Doc
+prettyType Int       = text "Int"
+prettyType (Arr a b) = parens (prettyType a <+> char '→' <+> prettyType b)
+
 instance Show (Exp env a) where
   show = show . prettyOpenExp id 0
+
+instance Show (Typ a) where
+  show = show . prettyType
 
