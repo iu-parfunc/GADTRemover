@@ -84,19 +84,25 @@ Just r = teq ex1 ex1
 -- The above formulation of Dyn would allow us to do the basic list
 -- example with SYNTHESIZED rather than CHECKED erasure:
 
-data List a = Nil | Cons a (List a)
+-- But... for List this is well beyond what Ghostbuster can/should do
+-- because the Nil constructor fails the ambiguity check for
+-- synthesized vars.
+
+-- For non-empty lists...
+
+data List a = One a | Cons a (List a)
   deriving (Show,Eq,Read,Ord)
 
-data List' = Nil' | Cons' Dyn List'
+data List' = One' Dyn | Cons' Dyn List'
 deriving instance Show List'
 
 strip :: TypeDict a -> List a -> List'
-strip _ Nil        = Nil'
+strip d (One x)    = One' (Dyn d x)
 strip d (Cons a l) = Cons' (Dyn d a) (strip d l)
 
 -- Checked version:
 restore1 :: TypeDict a -> List' -> Maybe (List a)
-restore1 _ Nil'           = return Nil
+restore1 d (One' x)       = (fmap One (fromDyn d x))
 restore1 d (Cons' x' xs') = do
   x  <- fromDyn d x'
   xs <- restore1 d xs'
@@ -108,11 +114,13 @@ data SealedList = forall a . SealedList (TypeDict a) (List a)
 -- Synthesized version.  Doesn't work for empty lists!
 restore2 :: List' -> Maybe SealedList
 -- restore2 Nil'  = Just $ SealedList (error) Nil
-restore2 Nil' = error "restore2: ambiguous type!  Cannot restore empty list."
+restore2 (One' (Dyn d x)) = Just $ SealedList d (One x)
 restore2 (Cons' (Dyn d x) rest) = loop d x rest
   where
   loop :: TypeDict a -> a -> List' -> Maybe SealedList
-  loop d0 hd Nil' = Just $ SealedList d0 (Cons hd Nil)
+  loop d0 hd (One' (Dyn d1 y)) =
+    do Refl <- teq d1 d0
+       return $ SealedList d0 (Cons hd (One y))
   loop d1 hd (Cons' (Dyn d2 x2) rst) =
     do Refl <- teq d1 d2
        SealedList d3 ls <- loop d2 x2 rst
@@ -128,11 +136,12 @@ showD (TupDict d1 d2) (a,b) =
          ++showD d2 b++")"
 
 toList :: [a] -> List a
-toList []     = Nil
+toList []     = error "Can't make non-empty list from list"
+toList [x]    = One x
 toList (x:xs) = x `Cons` toList xs
 
 fromList :: List a -> [a]
-fromList Nil = []
+fromList (One x) = [x]
 fromList (Cons x y) = x : fromList y
 
 test :: Maybe (List Int)
@@ -149,3 +158,6 @@ test2 =
   x = restore2 $
       strip (IntDict) $
       toList [1..5]
+
+
+--------------------------------------------------------------------------------
