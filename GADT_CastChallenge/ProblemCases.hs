@@ -1,5 +1,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | A collection of small casses that may pose problems.
 
@@ -57,3 +58,54 @@ up_A (A' (B i))  =
 
 t2 :: Maybe (A Char)
 t2 = up_A (A' (B 3))
+
+-----------------------------------------------
+-- And with existentials ...
+
+data C a where
+  C :: forall a b . (D b a) -> C a
+
+deriving instance Show (C a)
+-- deriving instance Eq (C a) -- Gets a type error
+instance Eq (C a) where
+  C D == C D = True
+
+data D b a = D
+ deriving (Show,Eq)
+
+data C' where
+  C' :: forall b . (D b Dynamic) -> C'
+
+deriving instance Show C'
+
+castD1 :: D a b -> D c b
+castD1 D = D
+
+-- In general castD will have to be replaced with something that
+-- actually copies the value.  Dynamic is not
+-- representation-equivalent to the types it replaces.
+castD :: D a b -> D c d
+castD D = D
+
+upC :: forall x . Typeable x => C' -> Maybe (C x)
+upC (C' d) = Just $ C d'
+  where
+  -- Problem: we have no idea what the existential type `b` was!
+  -- How can we rebuild it without some kind of TypeRep?
+  --
+  -- But... by parametricity, we can say that this doesn't matter
+  -- and concern ourselves only with constraints on existential vars, right?
+  d' :: D Empty x
+  d' = (castD d)
+
+downC :: Typeable a => C a -> C'
+downC (C d) = C' (castD d)
+
+c :: C Float
+c = C (D :: D Int Float)
+
+c' :: C'
+c' = downC c
+
+c'' :: Maybe (C Float)
+c'' = upC c'
