@@ -36,7 +36,11 @@ data Foo' where
 
 data A x = A (B x) deriving Show
 
-data B a = B Int deriving Show
+-- This clearly fails the ambiguity check for "synthesize".
+-- But, because we're not erasing the var in this case, it's fine.
+data B a where
+  B :: Int -> B x
+  deriving Show
 
 -- Ghostbust A.x, checked:
 data A' = A' (B Empty)
