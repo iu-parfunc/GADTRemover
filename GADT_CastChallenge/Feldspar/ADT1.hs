@@ -1,12 +1,13 @@
-{-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE GADTs #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GADTs         #-}
 
 -- | Handwritten version of the feldspar ADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
 
 module Feldspar.ADT1 where
 
-import Control.Applicative
+import Control.DeepSeq
+import GHC.Generics
 import Prelude
 
 -- ADT representation.
@@ -16,14 +17,15 @@ import Prelude
 
 -- import ErrorMonad
 
-{-
-data Exp =
-  Con Int
-| Var Var
-| Abs Typ Exp
-| App Exp Exp
-| Add Exp Exp
-deriving Eq  -}
+{--
+data Exp
+  = Con Int
+  | Var Var
+  | Abs Typ Exp
+  | App Exp Exp
+  | Add Exp Exp
+  deriving (Eq, Generic)
+--}
 
 data Exp where
   Con :: Int -> Exp
@@ -31,19 +33,25 @@ data Exp where
   Abs :: Typ -> Exp -> Exp
   App :: Exp -> Exp -> Exp
   Add :: Exp -> Exp -> Exp
- deriving Eq
+  Mul :: Exp -> Exp -> Exp
+  deriving (Eq, Generic)
 
-  -- Equality on expressions is always up to alpha equivalence
-  -- (thanks to Debruijn indices)
+instance NFData Exp
+
+
+-- Equality on expressions is always up to alpha equivalence
+-- (thanks to Debruijn indices)
 
 -- Variables are represented as natural numbers
-data Var =
-    Zro
+data Var
+  = Zro
   | Suc Var
-  deriving Eq
+  deriving (Eq, Generic)
 
 instance Show Var where
   show = show . natToInt
+
+instance NFData Var
 
 natToInt :: Var -> Int
 natToInt Zro     = 0
@@ -51,68 +59,86 @@ natToInt (Suc n) = (natToInt n) + 1
 
 
 -- Types
-data Typ =
-    Int
+data Typ
+  = Int
   | Arr Typ Typ
-  deriving Eq
+  deriving (Eq, Generic)
+
+instance NFData Typ
 
 -- Equality between types
-(===) :: Monad m => Typ -> Typ -> m ()
+(===) :: Typ -> Typ -> Eval ()
 Int         === Int           = return ()
 (Arr t1 t2) === (Arr t1' t2') = do t1 === t1'
                                    t2 === t2'
-_           === _             = fail "Type Error!"
+_           === _             = throwError "Type Error!"
 
 -- Extraction of values form environment
-get :: Monad m => Var -> [a] -> m a
+get :: Var -> [a] -> Eval a
 get Zro     (x:_)  = return x
 get (Suc n) (_:xs) = get n xs
-get _       []     = fail "Scope Error!"
+get _       []     = throwError "Scope Error!"
 
 -- Values
-data Val =
-    Num Int
+data Val
+  = Num Int
   | Fun (Val -> Val)
 
+instance Eq Val where
+  Num i == Num j = i == j
+  _     == _     = False
+
+
 -- Application of two values
-app :: Monad m => Val -> Val -> m Val
+app :: Val -> Val -> Eval Val
 app (Fun f) v  = return (f v)
-app _       _  = fail "Type Error!"
+app _       _  = throwError "Type Error!"
 
 -- Addition of two values
-add :: Monad m => Val -> Val -> m Val
+add :: Val -> Val -> Eval Val
 add (Num i) (Num j) = return (Num (i + j))
-add _       (_    ) = fail "Type Error!"
+add _       (_    ) = throwError "Type Error!"
+
+-- Multiplication of two values
+mul :: Val -> Val -> Eval Val
+mul (Num x) (Num y) = return $ Num (x * y)
+mul _       _       = throwError "Type Error!"
 
 -- Evaluation of expressions under specific environment of values
-run :: Exp -> [Val] -> ErrM Val
-run (Con i)     _ = return (Num i)
-run (Var x)     r = get x r
-run (Abs _  eb) r = return (Fun (\ v -> case run eb (v : r) of
-                                    Rgt vr -> vr
-                                    Lft s  -> error s))
-run (App ef ea) r = do vf <- run ef r
-                       va <- run ea r
-                       vf `app` va
-run (Add el er) r = do vl <- run el r
-                       vr <- run er r
-                       vl `add` vr
+run :: Exp -> [Val] -> Eval Val
+run (Var x)     env     = get x env
+run (Con i)     _       = return $ Num i
+run (Abs _ f)   env     = return $ Fun (\v -> either error id (run f (v : env)))
+run (App ef ea) env = do vf <- run ef env
+                         va <- run ea env
+                         vf `app` va
+run (Add el er) env = do vl <- run el env
+                         vr <- run er env
+                         vl `add` vr
+run (Mul el er) env = do vl <- run el env
+                         vr <- run er env
+                         vl `mul` vr
 
 -- Typechecking and returning the type, if successful
-chk :: Monad m => Exp -> [Typ] -> m Typ
+chk :: Exp -> [Typ] -> Eval Typ
 chk (Con _)     _ = return Int
-chk (Var x)     r = get x r
-chk (Abs ta eb) r = do tr <- chk eb (ta : r)
-                       return (ta `Arr` tr)
-chk (App ef ea) r = do ta `Arr` tr <- chk ef r
-                       ta'         <- chk ea r
-                       ta === ta'
-                       return tr
-chk (Add el er) r = do tl <- chk el r
-                       tr <- chk er r
-                       tl === Int
-                       tr === Int
-                       return Int
+chk (Var x)     env = get x env
+chk (Abs ta eb) env = do tr <- chk eb (ta : env)
+                         return (ta `Arr` tr)
+chk (App ef ea) env = do ta `Arr` tr <- chk ef env
+                         ta'         <- chk ea env
+                         ta === ta'
+                         return tr
+chk (Add el er) env = do tl <- chk el env
+                         tr <- chk er env
+                         tl === Int
+                         tr === Int
+                         return Int
+chk (Mul el er) env = do tl <- chk el env
+                         tr <- chk er env
+                         tl === Int
+                         tr === Int
+                         return Int
 
 -- An example expression doubling the input number
 dbl :: Exp
@@ -129,34 +155,24 @@ compose s t u = Abs (Arr t u)
 four :: Exp
 four = (compose Int Int Int `App` dbl `App` dbl) `App` (Con 1)
 
+
 -- Two test cases
 test :: Bool
-test =  (chk four [] == Just Int)
-        &&
-        (case run four [] of
-            Rgt (Num 4) -> True
-            _           -> False)
+test =
+  return Int     == chk four [] `catchError` error
+  &&
+  return (Num 4) == run four [] `catchError` error
 
 
 --------------------------------------------------------------------------------
--- From ErrorMonad.hs:
+-- Helpers for basic error monad
 
-data ErrM t = Rgt t
-            | Lft String
-              deriving (Eq , Show)
+type Eval = Either String
 
-instance Functor ErrM where
-  fmap f (Rgt x) = Rgt (f x)
-  fmap _ (Lft x) = Lft x
+throwError :: String -> Eval a
+throwError = Left
 
-instance Applicative ErrM where
-  pure      = return
-  e1 <*> e2 = do v1 <- e1
-                 v2 <- e2
-                 return (v1 v2)
+catchError :: Eval a -> (String -> Eval a) -> Eval a
+catchError (Left err)  handle = handle err
+catchError (Right val) _      = Right val
 
-instance Monad ErrM where
-  return      = Rgt
-  Lft l >>= _ = Lft l
-  Rgt r >>= k = k r
-  fail x      = Lft x

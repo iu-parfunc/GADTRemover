@@ -64,5 +64,11 @@ dyn2 = Dyn BoolDict True
 ex1 :: TypeDict (Int, Bool)
 ex1 = TupDict IntDict BoolDict
 
+ex2 :: TypeDict (Int -> Bool)
+ex2 = ArrDict IntDict BoolDict
+
+ex2Dyn :: Dyn
+ex2Dyn = Dyn ex2 (undefined :: Int -> Bool)
+
 r :: (Int, Bool) :~: (Int, Bool)
 Just r = teq ex1 ex1
