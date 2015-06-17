@@ -23,7 +23,6 @@ data TypeDict a where
   BoolDict :: TypeDict Bool
   ArrDict  :: TypeDict a -> TypeDict b -> TypeDict (a -> b)
   TupDict  :: TypeDict a -> TypeDict b -> TypeDict (a,b)
-
 deriving instance Show (TypeDict a)
 
 cast :: TypeDict a -> TypeDict b -> a -> Maybe b
@@ -163,4 +162,44 @@ test2 =
       toList [1..5]
 
 
---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+-- Here's something else that's fun:
+-- TypeRep should be basically the ghostbusted TypeDict:
+-----------------------------------------------------------------------------------
+
+data TypeDict' where
+  IntDict'  :: TypeDict'
+  BoolDict' :: TypeDict'
+  ArrDict'  :: TypeDict' -> TypeDict' -> TypeDict'
+  TupDict'  :: TypeDict' -> TypeDict' -> TypeDict'
+
+downDict :: TypeDict a -> TypeDict'
+downDict x =
+  case x of
+   IntDict  -> IntDict'
+   BoolDict -> BoolDict'
+   (ArrDict y1 y2) -> ArrDict' (downDict y1) (downDict y2)
+   (TupDict y1 y2) -> TupDict' (downDict y1) (downDict y2)
+
+-- It supports synthesized or checked.  Here's the synth one:
+data SealedDict = forall a . SealedDict (TypeDict a)
+
+upDict :: TypeDict' -> Maybe SealedDict
+upDict x =
+ case x of
+   IntDict'  -> Just $ SealedDict IntDict
+   BoolDict' -> Just $ SealedDict BoolDict
+   (ArrDict' y1 y2) ->
+     do SealedDict d1 <- upDict y1
+        SealedDict d2 <- upDict y2
+        return $ SealedDict $ ArrDict d1 d2
+   (TupDict' y1 y2) ->
+     do SealedDict d1 <- upDict y1
+        SealedDict d2 <- upDict y2
+        return $ SealedDict $ TupDict d1 d2
+
+ex1' :: String
+ex1' =
+  case upDict (downDict ex1) of
+   Just (SealedDict d) -> show d
+   Nothing -> ""
