@@ -88,9 +88,12 @@ Just r = teq ex1 ex1
 -- because the Nil constructor fails the ambiguity check for
 -- synthesized vars.
 
--- For non-empty lists...
+-- For non-empty lists, however, things work out fine.
 
-data List a = One a | Cons a (List a)
+data List a where
+  -- Both these constructors are non-ambiguous both for checked mode and synthesized:
+  One  :: a -> List a
+  Cons :: a -> (List a) -> List a
   deriving (Show,Eq,Read,Ord)
 
 data List' = One' Dyn | Cons' Dyn List'
