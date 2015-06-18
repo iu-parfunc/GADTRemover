@@ -7,10 +7,11 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module RedBlackTree where
 
-import Data.Typeable
+-- import Data.Typeable
 import GHC.Prim (Constraint)
 
 -- Original, simple version:
@@ -29,11 +30,15 @@ data SColor (c :: Color) where
   R :: SColor Red
   B :: SColor Black
 
+deriving instance Show (SColor c)
+
 data CT (n :: Nat) (c :: Color) a where
   E  :: CT (S Z) Black a
   N  :: Valid c c1 c2 => SColor c
      -> (CT n c1 a) -> a -> (CT n c2 a)
      -> CT (Incr c n) c a
+
+deriving instance Show a => Show (CT n c a)
 
 class Valid (c :: Color)
             (c1 :: Color)
@@ -66,6 +71,7 @@ type instance Incr Red   n = n
 data SColor'  where
   R' :: SColor'
   B' :: SColor'
+ deriving Show
 
 -- data RBT' where Root :: (CT n Black a) -> RBT'
 
@@ -75,6 +81,7 @@ data CT' a where
          SColor'
       -> (CT' a) -> a -> (CT' a)
       -> CT' a
+ deriving Show
 
 data Valid' -- ??
 
@@ -88,7 +95,9 @@ downCT (N c l a r) =
   N' (downSColor c) (downCT l) a (downCT r)
 
 data SealedCT a =
-     forall n c . SealedCT (NatDict n) (CT n c a)
+     forall n c . SealedCT (NatDict n) (SColor c) (CT n c a)
+
+deriving instance Show a => Show (SealedCT a)
 
 data SealedSColor =
      forall c . SealedSColor (SColor c)
@@ -99,27 +108,22 @@ upSColor R' = Just $ SealedSColor R
 upSColor B' = Just $ SealedSColor B
 
 upCT :: forall a . CT' a -> Maybe (SealedCT a)
-upCT E' = Just $ SealedCT (SD ZD) E
+upCT E' = Just $ SealedCT (SD ZD) B E
 upCT (N' c l a r) =
   do SealedSColor (c' :: SColor c') <- upSColor c
-     SealedCT lndict (l' :: CT ln lc a) <- upCT l
-     SealedCT rndict (r' :: CT rn rc a) <- upCT r
+     SealedCT lndict c1 (l' :: CT ln lc a) <- upCT l
+     SealedCT rndict c2 (r' :: CT rn rc a) <- upCT r
 
      -- We need an eqT analog for the new kinds:
      ReflNat <- eqNat lndict rndict
 
      -- Finally must prove that Valid c c1 c2:
-     let x :: SColor lc
-         x = undefined
-         y :: SColor rc
-         y = undefined
-
-     case testValid c' x y of
+     case testValid c' c1 c2 of
        Nothing -> Nothing
        Just ReifyDict ->
          do let n :: CT (Incr c' ln) c' a
                 n = (N c' l' a r')
-            return $ SealedCT (incrDict c' lndict) n
+            return $ SealedCT (incrDict c' lndict) c' n
 
 unused :: t
 unused = error "this is never used"
@@ -131,6 +135,8 @@ data NatEq :: Nat -> Nat -> * where
 data NatDict (m :: Nat) where
   ZD :: NatDict Z
   SD :: NatDict n -> NatDict (S n)
+
+deriving instance Show (NatDict m)
 
 incrDict :: SColor c -> NatDict n -> NatDict (Incr c n)
 incrDict B nd = SD nd
@@ -165,3 +171,23 @@ data CT2 (n :: Nat) (c :: Color) a where
   NB2 :: SColor Black
       -> (CT2 n c1 a) -> a -> (CT2 n c2 a)
       -> CT2 (Incr c n) c a
+
+--------------------------------------------------------------------------------
+
+ct1 :: CT (S Z) Black Int
+ct1 = E
+
+ct2 :: CT (S Z) Red Int
+ct2 = N R ct1 33 ct1
+
+ct2' :: CT' Int
+ct2' = downCT ct2
+
+ct3 :: CT (S (S Z)) Black Int
+ct3 = N B ct2 44 ct1
+
+ct3' :: CT' Int
+ct3' = downCT ct3
+
+ct3'' :: Maybe (SealedCT Int)
+ct3'' = upCT ct3'
