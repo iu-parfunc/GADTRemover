@@ -6,10 +6,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ConstraintKinds #-}
 
 module RedBlackTree where
 
 import Data.Typeable
+import GHC.Prim (Constraint)
 
 -- Original, simple version:
 -- data RBT a = E | N Color (RBT a) a (RBT a)
@@ -104,8 +106,58 @@ upCT (N' c l a r) =
 
      -- FINISHME: we need eqT for the new kinds:
      -- Refl <- eqT (unused::ln) (unused::rn)
-     let n :: CT (Incr c' ln) c' a
-         n = undefined -- (N c' l' a r')
-     return $ SealedCT undefined
+     ReflNat <- eqNat (unused::NatDict ln) (unused::NatDict rn)
 
+     -- Finally must prove that Valid c c1 c2:
+     let x :: SColor lc
+         x = undefined
+         y :: SColor rc
+         y = undefined
+
+     case testValid c' x y of
+       Nothing -> Nothing
+       Just ReifyDict ->
+         do let n :: CT (Incr c' ln) c' a
+                n = (N c' l' a r')
+            return $ SealedCT n
+
+unused :: t
 unused = error "this is never used"
+
+data NatEq :: Nat -> Nat -> * where
+ ReflNat :: NatEq a a
+
+-- Singleton:
+data NatDict (m :: Nat) where
+  ZD :: NatDict Z
+  SD :: NatDict n -> NatDict (S n)
+
+eqNat :: NatDict m -> NatDict n -> Maybe (NatEq m n)
+eqNat ZD ZD = Just ReflNat
+eqNat (SD n) (SD m) =
+  case eqNat n m of
+    Nothing -> Nothing
+    Just ReflNat -> Just ReflNat
+eqNat _ _ = Nothing
+
+testValid :: SColor c -> SColor c1 -> SColor c2 ->
+             Maybe (ReifyDict (Valid c c1 c2))
+testValid R B B = Just $ ReifyDict
+testValid B _ _ = Just $ ReifyDict
+testValid _ _ _ = Nothing
+
+data ReifyDict (c::Constraint) where
+   ReifyDict :: c => ReifyDict c
+
+--------------------------------------------------------------------------------
+-- A version without the Valid type class:
+
+-- Hopefully the ghostbuster approach will work directly on this one:
+data CT2 (n :: Nat) (c :: Color) a where
+  E2  :: CT2 (S Z) Black a
+  NR2 :: SColor Red
+      -> (CT2 n Black a) -> a -> (CT2 n Black a)
+      -> CT2 (Incr c n) c a
+  NB2 :: SColor Black
+      -> (CT2 n c1 a) -> a -> (CT2 n c2 a)
+      -> CT2 (Incr c n) c a
