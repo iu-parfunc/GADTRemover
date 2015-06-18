@@ -9,27 +9,69 @@ import Data.Dynamic
 import Data.Typeable
 import Text.Printf
 
+import MinimalTypeRep2
+
 --------------------------------------------------------------------------------
 -- Ambiguity examples.
 --------------------------------------------------------------------------------
 
 -- Fails the ambiguity check:
 data Foo a where
-  Foo :: x -> Foo x
-  Bar :: Foo x -> Foo y
+  Foo :: forall x . x -> Foo x
+  -- Here x is an existential variable:
+  Bar :: forall x y . Foo x -> Foo y
 
+-- Errors:
 -- deriving instance Show x => Show (Foo x)
+instance Show (Foo x) where
+  show (Foo _x) = "Foo"
+  show (Bar x) = "Bar ("++ show x ++")"
 
 t0 :: Foo Int
 t0 = Bar (Foo 'a')
 
+copy :: Foo a -> Foo a
+copy (Foo x) = Foo x
+copy (Bar x) = Bar (copy x)
+
+t1 :: Foo'
 t1 = Bar' (Foo' (toDyn 'a'))
+
+t2 :: Foo y
+t2 = Bar (Bar (Foo 'a'))
 
 -- Nothing can recover a type for Bar's argument here:
 data Foo' where
   Foo' :: Dynamic -> Foo'
   Bar' :: Foo' -> Foo'
  deriving Show
+
+upFoo :: Typeable a => Foo' -> Maybe (Foo a)
+upFoo (Foo' d) = do a <- fromDynamic d
+                    return $ Foo a
+upFoo (Bar' x) =
+      do -- x' <- upFoo x -- Impossibl, ambiguity error.
+         error "impossible"
+
+-- Here's an alternative algorithm, where we deal with *any*
+-- ambiguity, whether already present or introduced by erasure, by
+-- introducing dictionaries:
+data Foo'' where
+  Foo'' :: TypeDict a -> a -> Foo''
+  Bar'' :: TypeDict a -> Foo'' -> Foo''
+
+-- But this approach runs into an impossibility too.  There's no way
+-- for us to recover a dictionary for the existing existential.
+downFoo2 :: TypeDict a -> Foo a -> Foo''
+downFoo2 d (Foo a) = Foo'' d a
+downFoo2 d (Bar a) =
+  undefined
+  -- Bar'' (error "impossible") (downFoo2 d a)
+
+-- Should ghostbuster therefore disallow existentials in its input programs?
+-- Or should it require that they have a TypeDict / Typeable instance?
+
+
 
 --------------------------------------------------------------------------------
 -- How about erased variables flowing to kept phantom positions?
@@ -56,8 +98,8 @@ up_A :: Typeable x => A' -> Maybe (A x)
 up_A (A' (B i))  =
   Just $ A (B i)
 
-t2 :: Maybe (A Char)
-t2 = up_A (A' (B 3))
+t3 :: Maybe (A Char)
+t3 = up_A (A' (B 3))
 
 -----------------------------------------------
 -- And with existentials ...
