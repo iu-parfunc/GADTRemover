@@ -38,8 +38,8 @@ interpreterError e
     GhcException s      -> s
     WontCompile ss      -> unlines $ map errMsg ss
 
-downcastExp :: (Typeable env, Typeable a) => ADT.Exp -> IO (GADT.Exp env a)
-downcastExp adt
+upExp :: (Typeable env, Typeable a) => ADT.Exp -> IO (GADT.Exp env a)
+upExp adt
   = fmap (either interpreterError id)
   $ do
         args <- lookupEnv "HINT_ARGS"
@@ -100,4 +100,3 @@ main = do
     Left err -> printInterpreterError err
     Right () -> putStrLn "Ok!"
 --}
-

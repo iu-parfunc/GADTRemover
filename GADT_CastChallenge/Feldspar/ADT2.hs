@@ -82,97 +82,96 @@ instance NFData Exp
 instance NFData Var
 instance NFData Typ
 
---------------------------- Downcasting -----------------------------------
+--------------------------- Restoring types -----------------------------------
 
 -- Because "e" is checked, it is a "parameter" here:
-downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
-downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
-downcastExp (Add e1 e2) =
+upExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
+upExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
+upExp (Add e1 e2) =
   -- We know the "e" in the output is the same as the inputs.
   -- That lets us know what "e" to ask for in our recursive calls here.
-  do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
-     SealedExp (b::G.Exp e tb) <- (downcastExp e2)
+  do SealedExp (a::G.Exp e ta) <- (upExp e1)
+     SealedExp (b::G.Exp e tb) <- (upExp e2)
      Refl <- unify (unused :: ta) (unused::Int)
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Add a b
-downcastExp (Mul e1 e2) =       -- exactly same as Add case
-  do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
-     SealedExp (b::G.Exp e tb) <- (downcastExp e2)
+upExp (Mul e1 e2) =       -- exactly same as Add case
+  do SealedExp (a::G.Exp e ta) <- (upExp e1)
+     SealedExp (b::G.Exp e tb) <- (upExp e2)
      Refl <- unify (unused :: ta) (unused::Int)
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Mul a b
-downcastExp (Var e)     =
-  do SealedVar (v :: G.Var e a) <- (downcastVar e)
+upExp (Var e)     =
+  do SealedVar (v :: G.Var e a) <- (upVar e)
      return $ SealedExp $ G.Var v
-downcastExp (Abs t e)   =
-  do SealedTyp (t' :: G.Typ tt) <- downcastTyp t
-     SealedExp (e' :: G.Exp (e,tt) b) <- downcastExp e
+upExp (Abs t e)   =
+  do SealedTyp (t' :: G.Typ tt) <- upTyp t
+     SealedExp (e' :: G.Exp (e,tt) b) <- upExp e
      return $ SealedExp $ G.Abs t' e'
-downcastExp (App e1 e2) =
-  do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
-     SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
+upExp (App e1 e2) =
+  do SealedExp (a::G.Exp e tarr) <- (upExp e1)
+     SealedExp (b::G.Exp e ta)   <- (upExp e2)
      case typeCaseArrow :: Maybe (TypeCaseArrow tarr) of
        Nothing -> Nothing
        Just (TypeCaseArrow (Refl :: tarr :~: (ta' -> tb))) ->
          do Refl <- unify (unused :: ta') (unused :: ta)
             return $ SealedExp $ G.App a b
 
--- test = downcastvarstExp (App (Abs ))
 
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
--- downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
+-- upVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 
-downcastVar :: forall e . (Typeable e) => Var  -> Maybe (SealedVar e)
-downcastVar Zro =
+upVar :: forall e . (Typeable e) => Var  -> Maybe (SealedVar e)
+upVar Zro =
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
     Nothing -> Nothing
     Just (TypeCaseTuple (Refl :: e :~: (x,y))) ->
       return $ SealedVar (G.Zro :: G.Var (x,y) y)
-downcastVar (Suc v) =
+upVar (Suc v) =
   -- problems with unification of types here
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
     Nothing -> Nothing
     Just (TypeCaseTuple (Refl :: e :~: (e1,b))) ->
-     do SealedVar (v' :: G.Var e1 a) <- (downcastVar v)
+     do SealedVar (v' :: G.Var e1 a) <- (upVar v)
         return $ SealedVar ((G.Suc v') :: G.Var e a)
 
-downcastTyp :: Typ -> Maybe (SealedTyp)
-downcastTyp Int = Just (SealedTyp G.Int)
-downcastTyp (Arr x1 x2) =
-  do SealedTyp a <- downcastTyp x1
-     SealedTyp b <- downcastTyp x2
+upTyp :: Typ -> Maybe (SealedTyp)
+upTyp Int = Just (SealedTyp G.Int)
+upTyp (Arr x1 x2) =
+  do SealedTyp a <- upTyp x1
+     SealedTyp b <- upTyp x2
      -- No constraints on a/b.  How do we ensure (a->b) on the result though?
      -- Goal: call G.Arr
      -- Reasoning: why do we not need a cast?
      return $ SealedTyp $ G.Arr a b
 
---------------------------- Upcasting ------------------------------------------
+--------------------------- Stripping ------------------------------------------
 
-upcastExp :: G.Exp e a -> Exp
-upcastExp (G.Con i) = Con i
-upcastExp (G.Var e) = Var $ upcastVar e
-upcastExp (G.Add e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in Add e1' e2'
-upcastExp (G.Mul e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in Mul e1' e2'
-upcastExp (G.Abs typ e) = let typ' = upcastTyp typ
-                              e'   = upcastExp e
-                          in Abs typ' e'
-upcastExp (G.App e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in App e1' e2'
+downExp :: G.Exp e a -> Exp
+downExp (G.Con i) = Con i
+downExp (G.Var e) = Var $ downVar e
+downExp (G.Add e1 e2) = let e1' = downExp e1
+                            e2' = downExp e2
+                        in Add e1' e2'
+downExp (G.Mul e1 e2) = let e1' = downExp e1
+                            e2' = downExp e2
+                        in Mul e1' e2'
+downExp (G.Abs typ e) = let typ' = downTyp typ
+                            e'   = downExp e
+                        in Abs typ' e'
+downExp (G.App e1 e2) = let e1' = downExp e1
+                            e2' = downExp e2
+                        in App e1' e2'
 
-upcastTyp :: G.Typ a -> Typ
-upcastTyp G.Int = Int
-upcastTyp (G.Arr t1 t2) = let t1' = upcastTyp t1
-                              t2' = upcastTyp t2
-                          in Arr t1' t2'
+downTyp :: G.Typ a -> Typ
+downTyp G.Int = Int
+downTyp (G.Arr t1 t2) = let t1' = downTyp t1
+                            t2' = downTyp t2
+                        in Arr t1' t2'
 
-upcastVar :: G.Var e a -> Var
-upcastVar G.Zro = Zro
-upcastVar (G.Suc v) = Suc $ upcastVar v
+downVar :: G.Var e a -> Var
+downVar G.Zro = Zro
+downVar (G.Suc v) = Suc $ downVar v
 
 ---------------------------------------------------------------------------
 
