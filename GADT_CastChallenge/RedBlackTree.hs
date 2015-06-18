@@ -43,6 +43,7 @@ instance Valid Black c1 c2
 
 data Nat = Z | S Nat
 
+-- Count the number of blacks:
 type family Incr (c :: Color) (n :: Nat)
              :: Nat
 type instance Incr Black n = S n
@@ -87,7 +88,7 @@ downCT (N c l a r) =
   N' (downSColor c) (downCT l) a (downCT r)
 
 data SealedCT a =
-     forall n c . SealedCT (CT n c a)
+     forall n c . SealedCT (NatDict n) (CT n c a)
 
 data SealedSColor =
      forall c . SealedSColor (SColor c)
@@ -98,15 +99,14 @@ upSColor R' = Just $ SealedSColor R
 upSColor B' = Just $ SealedSColor B
 
 upCT :: forall a . CT' a -> Maybe (SealedCT a)
-upCT E' = Just $ SealedCT E
+upCT E' = Just $ SealedCT (SD ZD) E
 upCT (N' c l a r) =
   do SealedSColor (c' :: SColor c') <- upSColor c
-     SealedCT (l' :: CT ln lc a) <- upCT l
-     SealedCT (r' :: CT rn rc a) <- upCT r
+     SealedCT lndict (l' :: CT ln lc a) <- upCT l
+     SealedCT rndict (r' :: CT rn rc a) <- upCT r
 
-     -- FINISHME: we need eqT for the new kinds:
-     -- Refl <- eqT (unused::ln) (unused::rn)
-     ReflNat <- eqNat (unused::NatDict ln) (unused::NatDict rn)
+     -- We need an eqT analog for the new kinds:
+     ReflNat <- eqNat lndict rndict
 
      -- Finally must prove that Valid c c1 c2:
      let x :: SColor lc
@@ -119,7 +119,7 @@ upCT (N' c l a r) =
        Just ReifyDict ->
          do let n :: CT (Incr c' ln) c' a
                 n = (N c' l' a r')
-            return $ SealedCT n
+            return $ SealedCT (incrDict c' lndict) n
 
 unused :: t
 unused = error "this is never used"
@@ -131,6 +131,10 @@ data NatEq :: Nat -> Nat -> * where
 data NatDict (m :: Nat) where
   ZD :: NatDict Z
   SD :: NatDict n -> NatDict (S n)
+
+incrDict :: SColor c -> NatDict n -> NatDict (Incr c n)
+incrDict B nd = SD nd
+incrDict R nd = nd
 
 eqNat :: NatDict m -> NatDict n -> Maybe (NatEq m n)
 eqNat ZD ZD = Just ReflNat
