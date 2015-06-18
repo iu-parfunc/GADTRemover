@@ -70,7 +70,8 @@ data Typ where
 -- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
 data SealedExp e where
-  SealedExp :: Typeable a => G.Exp e a -> SealedExp e
+  SealedExp :: forall a e . Typeable a =>
+               G.Exp e a -> SealedExp e
 
 data SealedVar e where
   SealedVar :: Typeable a => G.Var e a -> SealedVar e
@@ -86,7 +87,7 @@ instance NFData Typ
 
 -- Because "e" is checked, it is a "parameter" here:
 upExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
-upExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
+upExp (Con i)     = Just $ SealedExp (G.Con i)
 upExp (Add e1 e2) =
   -- We know the "e" in the output is the same as the inputs.
   -- That lets us know what "e" to ask for in our recursive calls here.
@@ -102,7 +103,7 @@ upExp (Mul e1 e2) =       -- exactly same as Add case
      Refl <- unify (unused :: tb) (unused::Int)
      return $ SealedExp $ G.Mul a b
 upExp (Var e)     =
-  do SealedVar (v :: G.Var e a) <- (upVar e)
+  do SealedVar (v) <- (upVar e)
      return $ SealedExp $ G.Var v
 upExp (Abs t e)   =
   do SealedTyp (t' :: G.Typ tt) <- upTyp t
