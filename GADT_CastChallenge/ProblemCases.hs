@@ -150,7 +150,7 @@ data A' = A' (B Empty)
 
 data Empty
 
--- We could disallow this scenario, but in some sense it is even
+-- | We could disallow this scenario, but in some sense it is even
 -- *easier* to cast types with phantom vars:
 up_A :: Typeable x => A' -> Maybe (A x)
 up_A (A' (B i))  =
@@ -158,6 +158,23 @@ up_A (A' (B i))  =
 
 t8 :: Maybe (A Char)
 t8 = up_A (A' (B 3))
+
+-- | In the other version of the Ghostbuster algorithm, instead of
+-- replacing a with Dyn or Empty, we would let it become an
+-- existential type var and include the dictionary:
+data A'' where
+  A'' :: forall a . TypeDict a -> B a -> A''
+
+downA'' :: TypeDict x -> A x -> A''
+downA'' d (A b) = A'' d b
+
+upA'' :: TypeDict x -> A'' -> Maybe (A x)
+upA'' d1 (A'' d2 b) =
+  do Refl <- teq d1 d2
+     return $ A b
+
+t9 :: Maybe (A Int)
+t9 = upA'' IntDict $ downA'' IntDict (A (B 3))
 
 -----------------------------------------------
 -- And with existentials ...
