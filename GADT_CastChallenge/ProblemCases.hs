@@ -1,6 +1,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | A collection of small casses that may pose problems.
 
@@ -20,7 +21,6 @@ data Foo a where
   Foo :: forall x . x -> Foo x
   -- Here x is an existential variable:
   Bar :: forall x y . Foo x -> Foo y
-
 -- Errors:
 -- deriving instance Show x => Show (Foo x)
 instance Show (Foo x) where
@@ -62,22 +62,80 @@ data Foo'' where
 
 -- But this approach runs into an impossibility too.  There's no way
 -- for us to recover a dictionary for the existing existential.
-downFoo2 :: TypeDict a -> Foo a -> Foo''
-downFoo2 d (Foo a) = Foo'' d a
-downFoo2 d (Bar a) =
-  undefined
-  -- Bar'' (error "impossible") (downFoo2 d a)
-
+downFoo'' :: TypeDict a -> Foo a -> Foo''
+downFoo'' d (Foo a) = Foo'' d a
+downFoo'' d (Bar a) =
+  Bar'' d (downFoo'' (error "impossibility") a)
 -- Should ghostbuster therefore disallow existentials in its input programs?
 -- Or should it require that they have a TypeDict / Typeable instance?
 
+-- | IF ghostbuster could search for and verify the presence of
+-- preexisting TypeDict arguments, then it could handle a datatype
+-- like this:
+data Foo2 a where
+  Foo2 :: forall x . x -> Foo2 x
+  -- Here x is an existential variable, but we've got its Dict.
+  Bar2 :: forall x y . TypeDict x -> Foo2 x -> Foo2 y
 
+instance Show a => Show (Foo2 a) where
+  show (Foo2 x) = "Foo " ++ show x
+  show (Bar2 d x) = "Bar ("++ loop d x++")"
+    where
+     loop :: forall x . TypeDict x -> Foo2 x -> String
+     loop dt (Foo2 a) = "Foo "++ showD dt a
+     loop d1 (Bar2 d2 a) = "Bar ("++ loop d2 a ++") :: Foo2 "++show d1
+
+instance Show Foo'' where
+  show (Foo'' d a) = "Foo "++ show d ++ " "++ showD d a
+  show (Bar'' d a) = "Bar ("++ show a ++ " :: Foo'' "++show d++")"
+
+downFoo2 :: TypeDict a -> Foo2 a -> Foo''
+downFoo2 d (Foo2 a)     = Foo'' d a
+downFoo2 _d1 (Bar2 d2 a) = Bar'' d2 (downFoo2 d2 a)
+
+upFoo2 :: TypeDict a -> Foo'' -> Maybe (Foo2 a)
+upFoo2 d1 (Foo'' d2 a) =
+  do Refl <- teq d1 d2
+     return $ Foo2 a
+upFoo2 (_d1::TypeDict res) (Bar'' d2 a) =
+  do a' <- upFoo2 d2 a
+     return (Bar2 d2 a' :: Foo2 res)
+
+t3 :: Foo2 Int
+t3 = (Bar2 BoolDict (Bar2 IntDict (Foo2 3)))
+
+t3' :: Foo''
+t3' = downFoo2 IntDict t3
+
+t3'' :: Maybe (Foo2 Int)
+t3'' = upFoo2 IntDict t3'
+
+t4 :: Foo2 Int
+t4 = (Foo2 3)
+
+t4' :: Foo''
+t4' = downFoo2 IntDict t4
+
+t4'' :: Maybe (Foo2 Int)
+t4'' = upFoo2 IntDict t4'
+
+
+t5 :: Foo2 Bool
+t5 = Bar2 IntDict (Foo2 3)
+
+t5' :: Foo''
+t5' = downFoo2 BoolDict t5
+
+t5'' :: Maybe (Foo2 Bool)
+t5'' = upFoo2 BoolDict t5'
 
 --------------------------------------------------------------------------------
 -- How about erased variables flowing to kept phantom positions?
 --------------------------------------------------------------------------------
 
-data A x = A (B x) deriving Show
+data A x where
+  A :: (B x) -> A x
+  deriving Show
 
 -- This clearly fails the ambiguity check for "synthesize".
 -- But, because we're not erasing the var in this case, it's fine.
@@ -98,8 +156,8 @@ up_A :: Typeable x => A' -> Maybe (A x)
 up_A (A' (B i))  =
   Just $ A (B i)
 
-t3 :: Maybe (A Char)
-t3 = up_A (A' (B 3))
+t8 :: Maybe (A Char)
+t8 = up_A (A' (B 3))
 
 -----------------------------------------------
 -- And with existentials ...
