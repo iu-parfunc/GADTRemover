@@ -123,7 +123,18 @@ dd1 = DDef "Exp" (KCS [] ["e"] ["a"])
   tup a b = ConTy ","  [a,b]
   arr a b = ConTy "->" [a,b]
 
--- TODO: Needs Var and Typ to be defined.
-
 int :: MonoTy
 int = ConTy "Int" []
+
+-- TODO: Needs Var and Typ to be defined.
+{-
+
+data Var e a where
+  Zro :: Var (e,a) a
+  Suc :: Var e a -> Var (e,b) a
+
+data Typ a where
+  Int :: Typ Int
+  Arr :: Typ a -> Typ b -> Typ (a -> b)
+
+-}
