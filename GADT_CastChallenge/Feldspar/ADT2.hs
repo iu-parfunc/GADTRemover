@@ -109,10 +109,9 @@ unify s t =
 
 -- Because "env" is checked, it is a "parameter" here:
 --
-upExp
-    :: forall env. Typeable env
-    => Exp
-    -> Either TypeError (SealedExp env)
+upExp :: forall env. Typeable env
+      => Exp
+      -> Either TypeError (SealedExp env)
 upExp = cvt
   where
     cvt :: Exp -> Either TypeError (SealedExp env)
@@ -155,10 +154,9 @@ upExp = cvt
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
 -- upVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 
-upVar
-    :: forall e. Typeable e
-    => Var
-    -> Either TypeError (SealedVar e)
+upVar :: forall e. Typeable e
+      => Var
+      -> Either TypeError (SealedVar e)
 upVar Zro =
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
     Nothing                                     -> Left "type error: upVar"
