@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Ghostbuster.Types
+                       Ghostbuster.Examples.Feldspar
   -- other-modules:
   -- other-extensions:
   build-depends:       GenericPretty >= 1.2
