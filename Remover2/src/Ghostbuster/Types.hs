@@ -30,21 +30,16 @@ newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
 data DDef = DDef { tyName :: Var
-                 , tyParams :: KCS (TyVar,Kind)
+                 , kVars :: [(TyVar,Kind)]
+                 , cVars :: [(TyVar,Kind)]
+                 , sVars :: [(TyVar,Kind)]
                  , cases :: [KCons]
-                 }
-  deriving (Eq,Ord,Show,Read,Generic)
-
--- KCSegorized entities:
-data KCS a = KCS { ks :: [a]
-                 , cs :: [a]
-                 , ss :: [a]
                  }
   deriving (Eq,Ord,Show,Read,Generic)
 
 data KCons = KCons { conName :: Var
                    , fields  :: [MonoTy] -- ^ The \tau_1 through \tau_p arguments
-                   , outputs :: KCS MonoTy -- ^ The type params fed to 'T' in the RHS
+                   , outputs :: [MonoTy] -- ^ The type params fed to 'T' in the RHS
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
@@ -85,7 +80,6 @@ instance Out B.ByteString where
 instance Out Var where
   doc (Var b) = doc b
   docPrec _ v = doc v
-instance Out a => Out (KCS a)
 instance Out KCons
 instance Out MonoTy
 instance Out Kind
@@ -108,15 +102,15 @@ data Exp (e :: *) (a :: *) where
   App :: Exp e (a -> b) -> Exp e a -> Exp e b
 -}
 dd1 :: DDef
-dd1 = DDef "Exp" (KCS [] [("e",Star)] [("a",Star)])
-      [ KCons "Con" [int]                          (KCS [] ["e"] [int])
-      , KCons "Add" [exp "e" int, exp "e" int]     (KCS [] ["e"] [int])
-      , KCons "Mul" [exp "e" int, exp "e" int]     (KCS [] ["e"] [int])
-      , KCons "Var" [ConTy "Var" ["e","a"]]        (KCS [] ["e"] ["a"])
+dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
+      [ KCons "Con" [int]                          ["e",int]
+      , KCons "Add" [exp "e" int, exp "e" int]     ["e",int]
+      , KCons "Mul" [exp "e" int, exp "e" int]     ["e",int]
+      , KCons "Var" [ConTy "Var" ["e","a"]]        ["e","a"]
       , KCons "Abs" [ConTy "Typ" ["a"], exp (tup "e" "a") "b"]
-                                                   (KCS [] ["e"] [arr "a" "b"])
+                                                   (["e",arr "a" "b"])
       , KCons "App" [exp "e" (arr "a" "b"), exp "e" "a"]
-                                                   (KCS [] ["e"] ["b"])
+                                                   (["e","b"])
       ]
   where
   exp a b = ConTy "Exp"   [a,b]
@@ -132,16 +126,16 @@ int = ConTy "Int" []
 
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
-dd2 = DDef "Var" (KCS [] [("e",Star)] [("a",Star)])
-      [ KCons "Zro" [] (KCS [] ["e"] ["a"])
-      , KCons "Suc" [ConTy "Var" ["e","a"]] (KCS [] [tup "e" "b"] ["a"])
+dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
+      [ KCons "Zro" [] (["e","a"])
+      , KCons "Suc" [ConTy "Var" ["e","a"]] ([tup "e" "b", "a"])
       ]
 
 dd3 :: DDef
-dd3 = DDef "Typ" (KCS [] [] [("a",Star)])
-      [ KCons "Int" [] (KCS [] [] [int])
+dd3 = DDef "Typ" [] [] [("a",Star)]
+      [ KCons "Int" [] ([int])
       , KCons "Arr" [ConTy "Typ" ["a"], ConTy "Typ" ["b"]]
-                    (KCS [] [] [arr "a" "b"])
+                    ([arr "a" "b"])
       ]
 
 feldspar :: [DDef]
