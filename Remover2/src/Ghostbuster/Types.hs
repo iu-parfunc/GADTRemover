@@ -120,21 +120,29 @@ dd1 = DDef "Exp" (KCS [] ["e"] ["a"])
       ]
   where
   exp a b = ConTy "Exp"   [a,b]
-  tup a b = ConTy ","  [a,b]
-  arr a b = ConTy "->" [a,b]
+
+tup :: MonoTy -> MonoTy -> MonoTy
+tup a b = ConTy ","  [a,b]
+
+arr :: MonoTy -> MonoTy -> MonoTy
+arr a b = ConTy "->" [a,b]
 
 int :: MonoTy
 int = ConTy "Int" []
 
--- TODO: Needs Var and Typ to be defined.
-{-
+-- | Var is also ghostbusted with e=checked, a=synth:
+dd2 :: DDef
+dd2 = DDef "Var" (KCS [] ["e"] ["a"])
+      [ KCons "Zro" [] (KCS [] ["e"] ["a"])
+      , KCons "Suc" [ConTy "Var" ["e","a"]] (KCS [] [tup "e" "b"] ["a"])
+      ]
 
-data Var e a where
-  Zro :: Var (e,a) a
-  Suc :: Var e a -> Var (e,b) a
+dd3 :: DDef
+dd3 = DDef "Typ" (KCS [] [] ["a"])
+      [ KCons "Int" [] (KCS [] [] [int])
+      , KCons "Arr" [ConTy "Typ" ["a"], ConTy "Typ" ["b"]]
+                    (KCS [] [] [arr "a" "b"])
+      ]
 
-data Typ a where
-  Int :: Typ Int
-  Arr :: Typ a -> Typ b -> Typ (a -> b)
-
--}
+feldspar :: [DDef]
+feldspar = [dd1,dd2,dd3]
