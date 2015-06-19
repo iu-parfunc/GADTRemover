@@ -20,10 +20,11 @@ main =
 
       testADT :: ADT2.Exp -> Int
       testADT adt =
-        case ADT2.downcastExp adt of
-          Just (ADT2.SealedExp e)
-            | Just gadt <- gcast e -> GADT.run gadt ()
-          _                        -> error "downcast failed"
+        case ADT2.upcastExp adt of
+          Right (ADT2.SealedExp e)
+            | Just gadt <- gcast e      -> GADT.run gadt ()
+          Right _                       -> error "Upcast failed: type-mismatch"
+          Left err                      -> error $ unlines ["Upcast failed:", err]
 
       testHint :: ADT2.Exp -> IO Int
       testHint adt = do

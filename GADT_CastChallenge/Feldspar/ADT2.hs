@@ -57,6 +57,7 @@ data Exp where
 -- This one is subtle.  Why is the "a" param not ambiguous?  We're
 -- deleting it with "synthesized" mode, but the synthesized param is
 -- __determined__ by the checked param, so this should pass muster.
+--
 data Var where
   Zro :: Var
   Suc :: Var -> Var
@@ -69,6 +70,7 @@ data Typ where
 
 -- Because I was told to synthesize "a", I must hide it in the sealed
 -- result type here:
+--
 data SealedExp e where
   SealedExp :: Typeable a => G.Exp e a -> SealedExp e
 
@@ -82,113 +84,125 @@ instance NFData Exp
 instance NFData Var
 instance NFData Typ
 
---------------------------- Downcasting -----------------------------------
+---------------------------------------------------------------------------
+-- Upcast
+---------------------------------------------------------------------------
 
--- Because "e" is checked, it is a "parameter" here:
-downcastExp :: forall e . Typeable e => Exp -> Maybe (SealedExp e)
-downcastExp (Con i)     = Just $ SealedExp (G.Con i :: G.Exp e Int)
-downcastExp (Add e1 e2) =
-  -- We know the "e" in the output is the same as the inputs.
-  -- That lets us know what "e" to ask for in our recursive calls here.
-  do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
-     SealedExp (b::G.Exp e tb) <- (downcastExp e2)
-     Refl <- unify (unused :: ta) (unused::Int)
-     Refl <- unify (unused :: tb) (unused::Int)
-     return $ SealedExp $ G.Add a b
-downcastExp (Mul e1 e2) =       -- exactly same as Add case
-  do SealedExp (a::G.Exp e ta) <- (downcastExp e1)
-     SealedExp (b::G.Exp e tb) <- (downcastExp e2)
-     Refl <- unify (unused :: ta) (unused::Int)
-     Refl <- unify (unused :: tb) (unused::Int)
-     return $ SealedExp $ G.Mul a b
-downcastExp (Var e)     =
-  do SealedVar (v :: G.Var e a) <- (downcastVar e)
-     return $ SealedExp $ G.Var v
-downcastExp (Abs t e)   =
-  do SealedTyp (t' :: G.Typ tt) <- downcastTyp t
-     SealedExp (e' :: G.Exp (e,tt) b) <- downcastExp e
-     return $ SealedExp $ G.Abs t' e'
-downcastExp (App e1 e2) =
-  do SealedExp (a::G.Exp e tarr) <- (downcastExp e1)
-     SealedExp (b::G.Exp e ta)   <- (downcastExp e2)
-     case typeCaseArrow :: Maybe (TypeCaseArrow tarr) of
-       Nothing -> Nothing
-       Just (TypeCaseArrow (Refl :: tarr :~: (ta' -> tb))) ->
-         do Refl <- unify (unused :: ta') (unused :: ta)
-            return $ SealedExp $ G.App a b
+type TypeError = String
+
+typeError :: forall s t. (Typeable s, Typeable t) => s -> t -> TypeError
+typeError _ _
+  = printf "Couldn't match expected type `%s' with actual type `%s'"
+           (show (typeOf (undefined::s)))
+           (show (typeOf (undefined::t)))
+
+unify :: forall s t. (Typeable s, Typeable t)
+      => s
+      -> t
+      -> Either TypeError (s :~: t)
+unify s t =
+  case (eqT :: Maybe (s :~: t)) of
+    Nothing   -> Left (typeError s t)
+    Just Refl -> Right Refl
+
+
+-- Because "env" is checked, it is a "parameter" here:
+--
+upcastExp
+    :: forall env. Typeable env
+    => Exp
+    -> Either TypeError (SealedExp env)
+upcastExp = cvt
+  where
+    cvt :: Exp -> Either TypeError (SealedExp env)
+    cvt (Con i)         = return $ SealedExp (G.Con i :: G.Exp env Int)
+    cvt (Add x y)       = do
+      -- We know the "env" in the output is the same as the inputs. That lets us
+      -- know what "env" to ask for in our recursive calls here.
+      SealedExp (x' :: G.Exp env x)     <- cvt x
+      SealedExp (y' :: G.Exp env y)     <- cvt y
+      Refl                              <- unify (undefined :: x) (undefined :: Int)
+      Refl                              <- unify (undefined :: y) (undefined :: Int)
+      return $ SealedExp (G.Add x' y')
+
+    cvt (Mul x y)       = do
+      SealedExp (x' :: G.Exp env x)     <- cvt x
+      SealedExp (y' :: G.Exp env y)     <- cvt y
+      Refl                              <- unify (undefined :: x) (undefined :: y)
+      Refl                              <- unify (undefined :: x) (undefined :: Int)
+      return $ SealedExp (G.Mul x' y')
+
+    cvt (Var ix)        = do
+      SealedVar (ix' :: G.Var env t)    <- upcastVar ix
+      return $ SealedExp (G.Var ix')
+
+    cvt (Abs t e)       = do
+      SealedTyp (t' :: G.Typ t)         <- upcastTyp t
+      SealedExp (e' :: G.Exp (e,t) b)   <- upcastExp e
+      return $ SealedExp (G.Abs t' e')
+
+    cvt (App f x)       = do
+      SealedExp (f' :: G.Exp env f)     <- upcastExp f
+      SealedExp (x' :: G.Exp env a)     <- upcastExp x
+      case typeCaseArrow :: Maybe (TypeCaseArrow f) of
+        Nothing                                         -> Left "type error: App"
+        Just (TypeCaseArrow (Refl :: f :~: (a' -> b'))) -> do
+          Refl <- unify (undefined :: a) (undefined :: a')
+          return $ SealedExp (G.App f' x')
+
 
 -- test = downcastvarstExp (App (Abs ))
 
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
--- downcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
+-- upcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 
-downcastVar :: forall e . (Typeable e) => Var  -> Maybe (SealedVar e)
-downcastVar Zro =
+upcastVar
+    :: forall e. Typeable e
+    => Var
+    -> Either TypeError (SealedVar e)
+upcastVar Zro =
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
-    Nothing -> Nothing
-    Just (TypeCaseTuple (Refl :: e :~: (x,y))) ->
-      return $ SealedVar (G.Zro :: G.Var (x,y) y)
-downcastVar (Suc v) =
+    Nothing                                     -> Left "type error: upcastVar"
+    Just (TypeCaseTuple (Refl :: e :~: (x,y)))  -> return $ SealedVar (G.Zro :: G.Var (x,y) y)
+upcastVar (Suc v) =
   -- problems with unification of types here
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
-    Nothing -> Nothing
-    Just (TypeCaseTuple (Refl :: e :~: (e1,b))) ->
-     do SealedVar (v' :: G.Var e1 a) <- (downcastVar v)
-        return $ SealedVar ((G.Suc v') :: G.Var e a)
+    Nothing                                     -> Left "type error: upcastVar"
+    Just (TypeCaseTuple (Refl :: e :~: (e1,b))) -> do
+      SealedVar (v' :: G.Var e1 a) <- upcastVar v
+      return $ SealedVar (G.Suc v' :: G.Var e a)
 
-downcastTyp :: Typ -> Maybe (SealedTyp)
-downcastTyp Int = Just (SealedTyp G.Int)
-downcastTyp (Arr x1 x2) =
-  do SealedTyp a <- downcastTyp x1
-     SealedTyp b <- downcastTyp x2
-     -- No constraints on a/b.  How do we ensure (a->b) on the result though?
-     -- Goal: call G.Arr
-     -- Reasoning: why do we not need a cast?
-     return $ SealedTyp $ G.Arr a b
-
---------------------------- Upcasting ------------------------------------------
-
-upcastExp :: G.Exp e a -> Exp
-upcastExp (G.Con i) = Con i
-upcastExp (G.Var e) = Var $ upcastVar e
-upcastExp (G.Add e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in Add e1' e2'
-upcastExp (G.Mul e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in Mul e1' e2'
-upcastExp (G.Abs typ e) = let typ' = upcastTyp typ
-                              e'   = upcastExp e
-                          in Abs typ' e'
-upcastExp (G.App e1 e2) = let e1' = upcastExp e1
-                              e2' = upcastExp e2
-                          in App e1' e2'
-
-upcastTyp :: G.Typ a -> Typ
-upcastTyp G.Int = Int
-upcastTyp (G.Arr t1 t2) = let t1' = upcastTyp t1
-                              t2' = upcastTyp t2
-                          in Arr t1' t2'
-
-upcastVar :: G.Var e a -> Var
-upcastVar G.Zro = Zro
-upcastVar (G.Suc v) = Suc $ upcastVar v
-
----------------------------------------------------------------------------
-
-unify :: (Typeable s, Typeable t) => s -> t -> Maybe (s :~: t)
-unify s t =
-  case eqT of
-    Nothing   -> typeError s t
-    refl      -> refl
-
-unused :: t
-unused = error "this is never used"
+upcastTyp :: Typ -> Either TypeError SealedTyp
+upcastTyp Int         = return (SealedTyp G.Int)
+upcastTyp (Arr x1 x2) = do
+  SealedTyp a   <- upcastTyp x1
+  SealedTyp b   <- upcastTyp x2
+  -- No constraints on a/b.  How do we ensure (a->b) on the result though?
+  -- Goal: call G.Arr
+  -- Reasoning: why do we not need a cast?
+  return $ SealedTyp (G.Arr a b)
 
 
-typeError :: forall s t a. (Typeable s, Typeable t) => s -> t -> a
-typeError _ _
-  = error
-  $ printf "Couldn't match expected type `%s' with actual type `%s'"
-           (show (typeOf (unused::s)))
-           (show (typeOf (unused::t)))
+--------------------------------------------------------------------------------
+-- Downcast
+--------------------------------------------------------------------------------
+
+downcastExp :: forall env t. G.Exp env t -> Exp
+downcastExp = cvt
+  where
+    cvt :: G.Exp env t -> Exp
+    cvt (G.Con i)       = Con i
+    cvt (G.Var ix)      = Var (cvtV ix)
+    cvt (G.Add x y)     = Add (cvt x) (cvt y)
+    cvt (G.Mul x y)     = Mul (cvt x) (cvt y)
+    cvt (G.Abs t e)     = Abs (cvtT t) (downcastExp e)
+    cvt (G.App f x)     = App (downcastExp f) (downcastExp x)
+
+    cvtV :: G.Var e a -> Var
+    cvtV G.Zro      = Zro
+    cvtV (G.Suc ix) = Suc (cvtV ix)
+
+    cvtT :: G.Typ a -> Typ
+    cvtT G.Int       = Int
+    cvtT (G.Arr a b) = Arr (cvtT a) (cvtT b)
+
