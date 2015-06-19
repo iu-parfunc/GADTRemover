@@ -30,7 +30,7 @@ newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
 data DDef = DDef { tyName :: Var
-                 , tyParams :: KCS Var
+                 , tyParams :: KCS (TyVar,Kind)
                  , cases :: [KCons]
                  }
   deriving (Eq,Ord,Show,Read,Generic)
@@ -57,7 +57,7 @@ data MonoTy = VarTy TyVar
 data Kind = Star | ArrowKind Kind Kind
   deriving (Eq,Ord,Show,Read,Generic)
 
-data Sigma = ForAll [TyVar] MonoTy
+data Sigma = ForAll [(TyVar,Kind)] MonoTy
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Pat = Pat KName [TermVar]
@@ -108,7 +108,7 @@ data Exp (e :: *) (a :: *) where
   App :: Exp e (a -> b) -> Exp e a -> Exp e b
 -}
 dd1 :: DDef
-dd1 = DDef "Exp" (KCS [] ["e"] ["a"])
+dd1 = DDef "Exp" (KCS [] [("e",Star)] [("a",Star)])
       [ KCons "Con" [int]                          (KCS [] ["e"] [int])
       , KCons "Add" [exp "e" int, exp "e" int]     (KCS [] ["e"] [int])
       , KCons "Mul" [exp "e" int, exp "e" int]     (KCS [] ["e"] [int])
@@ -132,13 +132,13 @@ int = ConTy "Int" []
 
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
-dd2 = DDef "Var" (KCS [] ["e"] ["a"])
+dd2 = DDef "Var" (KCS [] [("e",Star)] [("a",Star)])
       [ KCons "Zro" [] (KCS [] ["e"] ["a"])
       , KCons "Suc" [ConTy "Var" ["e","a"]] (KCS [] [tup "e" "b"] ["a"])
       ]
 
 dd3 :: DDef
-dd3 = DDef "Typ" (KCS [] [] ["a"])
+dd3 = DDef "Typ" (KCS [] [] [("a",Star)])
       [ KCons "Int" [] (KCS [] [] [int])
       , KCons "Arr" [ConTy "Typ" ["a"], ConTy "Typ" ["b"]]
                     (KCS [] [] [arr "a" "b"])
