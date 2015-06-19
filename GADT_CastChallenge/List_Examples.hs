@@ -13,8 +13,10 @@ import Data.Dynamic
 import Data.Typeable
 import Text.Printf
 
+--------------------------------------------------------------------------------
 -- Version 1: the most basic list example:
 --------------------------------------------------------------------------------
+
 data List a = Nil | Cons a (List a)
   deriving (Show,Eq,Read,Ord)
 
@@ -38,8 +40,11 @@ toList []     = Nil
 toList (x:xs) = x `Cons` toList xs
 
 
+--------------------------------------------------------------------------------
 -- Version 2:  What about kinds other than '*'
 --------------------------------------------------------------------------------
+
+-- (Update: we're ruling these out for now in Ghostbuster)
 
 data List2 f = Nil2 | Cons2 (f Int) (List2 f)
 
@@ -66,6 +71,7 @@ data Tup2 x = Tup2 x x
 test2 :: Maybe (List2 Tup2)
 test2 = restore2 (strip2 (Cons2 (Tup2 3 4) Nil2))
 
+--------------------------------------------------------------------------------
 -- Version3:
 --------------------------------------------------------------------------------
 

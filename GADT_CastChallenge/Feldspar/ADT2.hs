@@ -72,7 +72,8 @@ data Typ where
 -- result type here:
 --
 data SealedExp e where
-  SealedExp :: Typeable a => G.Exp e a -> SealedExp e
+  SealedExp :: forall a e . Typeable a =>
+               G.Exp e a -> SealedExp e
 
 data SealedVar e where
   SealedVar :: Typeable a => G.Var e a -> SealedVar e
@@ -85,7 +86,7 @@ instance NFData Var
 instance NFData Typ
 
 ---------------------------------------------------------------------------
--- Upcast
+-- Restoring types
 ---------------------------------------------------------------------------
 
 type TypeError = String
@@ -108,11 +109,11 @@ unify s t =
 
 -- Because "env" is checked, it is a "parameter" here:
 --
-upcastExp
+upExp
     :: forall env. Typeable env
     => Exp
     -> Either TypeError (SealedExp env)
-upcastExp = cvt
+upExp = cvt
   where
     cvt :: Exp -> Either TypeError (SealedExp env)
     cvt (Con i)         = return $ SealedExp (G.Con i :: G.Exp env Int)
@@ -133,17 +134,17 @@ upcastExp = cvt
       return $ SealedExp (G.Mul x' y')
 
     cvt (Var ix)        = do
-      SealedVar (ix' :: G.Var env t)    <- upcastVar ix
+      SealedVar (ix' :: G.Var env t)    <- upVar ix
       return $ SealedExp (G.Var ix')
 
     cvt (Abs t e)       = do
-      SealedTyp (t' :: G.Typ t)         <- upcastTyp t
-      SealedExp (e' :: G.Exp (e,t) b)   <- upcastExp e
+      SealedTyp (t' :: G.Typ t)         <- upTyp t
+      SealedExp (e' :: G.Exp (e,t) b)   <- upExp e
       return $ SealedExp (G.Abs t' e')
 
     cvt (App f x)       = do
-      SealedExp (f' :: G.Exp env f)     <- upcastExp f
-      SealedExp (x' :: G.Exp env a)     <- upcastExp x
+      SealedExp (f' :: G.Exp env f)     <- upExp f
+      SealedExp (x' :: G.Exp env a)     <- upExp x
       case typeCaseArrow :: Maybe (TypeCaseArrow f) of
         Nothing                                         -> Left "type error: App"
         Just (TypeCaseArrow (Refl :: f :~: (a' -> b'))) -> do
@@ -151,32 +152,30 @@ upcastExp = cvt
           return $ SealedExp (G.App f' x')
 
 
--- test = downcastvarstExp (App (Abs ))
-
 -- Typechecks, but we run into problems with Typeable and guaranteeing that it's a tuple when calling this.
--- upcastVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
+-- upVar :: forall a b. (Typeable a, Typeable b) => Var  -> Maybe (SealedVar (a,b))
 
-upcastVar
+upVar
     :: forall e. Typeable e
     => Var
     -> Either TypeError (SealedVar e)
-upcastVar Zro =
+upVar Zro =
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
-    Nothing                                     -> Left "type error: upcastVar"
+    Nothing                                     -> Left "type error: upVar"
     Just (TypeCaseTuple (Refl :: e :~: (x,y)))  -> return $ SealedVar (G.Zro :: G.Var (x,y) y)
-upcastVar (Suc v) =
+upVar (Suc v) =
   -- problems with unification of types here
   case typeCaseTuple :: Maybe (TypeCaseTuple e) of
-    Nothing                                     -> Left "type error: upcastVar"
+    Nothing                                     -> Left "type error: upVar"
     Just (TypeCaseTuple (Refl :: e :~: (e1,b))) -> do
-      SealedVar (v' :: G.Var e1 a) <- upcastVar v
+      SealedVar (v' :: G.Var e1 a) <- upVar v
       return $ SealedVar (G.Suc v' :: G.Var e a)
 
-upcastTyp :: Typ -> Either TypeError SealedTyp
-upcastTyp Int         = return (SealedTyp G.Int)
-upcastTyp (Arr x1 x2) = do
-  SealedTyp a   <- upcastTyp x1
-  SealedTyp b   <- upcastTyp x2
+upTyp :: Typ -> Either TypeError SealedTyp
+upTyp Int         = return (SealedTyp G.Int)
+upTyp (Arr x1 x2) = do
+  SealedTyp a   <- upTyp x1
+  SealedTyp b   <- upTyp x2
   -- No constraints on a/b.  How do we ensure (a->b) on the result though?
   -- Goal: call G.Arr
   -- Reasoning: why do we not need a cast?
@@ -184,19 +183,19 @@ upcastTyp (Arr x1 x2) = do
 
 
 --------------------------------------------------------------------------------
--- Downcast
+-- Stripping types
 --------------------------------------------------------------------------------
 
-downcastExp :: forall env t. G.Exp env t -> Exp
-downcastExp = cvt
+downExp :: forall env t. G.Exp env t -> Exp
+downExp = cvt
   where
     cvt :: G.Exp env t -> Exp
     cvt (G.Con i)       = Con i
     cvt (G.Var ix)      = Var (cvtV ix)
     cvt (G.Add x y)     = Add (cvt x) (cvt y)
     cvt (G.Mul x y)     = Mul (cvt x) (cvt y)
-    cvt (G.Abs t e)     = Abs (cvtT t) (downcastExp e)
-    cvt (G.App f x)     = App (downcastExp f) (downcastExp x)
+    cvt (G.Abs t e)     = Abs (cvtT t) (downExp e)
+    cvt (G.App f x)     = App (downExp f) (downExp x)
 
     cvtV :: G.Var e a -> Var
     cvtV G.Zro      = Zro
