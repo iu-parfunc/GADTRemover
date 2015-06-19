@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
-
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | hello
 
@@ -15,6 +15,7 @@ module Ghostbuster.Types
 
 import qualified Data.ByteString.Char8 as B
 import           Data.String (IsString)
+import qualified Text.PrettyPrint as PP
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
 newtype Var = Var B.ByteString
@@ -27,16 +28,13 @@ newtype Var = Var B.ByteString
 --   rnf (Var s) = rnf s
 
 data DDef = DDef { tyName :: Var
-                 , tyParams :: Cat Var
-                 -- , kVars :: [Var]
-                 -- , cVars :: [Var]
-                 -- , sVars :: [Var]
+                 , tyParams :: KCS Var
                  , cases :: [KCons]
                  }
   deriving (Eq,Ord,Show,Read,Generic)
 
--- Categorized entities:
-data Cat a = Cat { ks :: [a]
+-- KCSegorized entities:
+data KCS a = KCS { ks :: [a]
                  , cs :: [a]
                  , ss :: [a]
                  }
@@ -44,7 +42,7 @@ data Cat a = Cat { ks :: [a]
 
 data KCons = KCons { conName :: Var
                    , fields  :: [MonoTy] -- ^ The \tau_1 through \tau_p arguments
-                   , outputs :: Cat MonoTy -- ^ The type params fed to 'T' in the RHS
+                   , outputs :: KCS MonoTy -- ^ The type params fed to 'T' in the RHS
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
@@ -59,16 +57,28 @@ data Kind = Star | ArrowKind Kind Kind
 
 --------------------------------------------------------------------------------
 
--- instance Out Var
--- instance Out MonoTy
+-- deriving instance Generic B.ByteString
+
+-- instance GOut B.Bytestring where
+
+instance Out B.ByteString where
+  doc b = PP.text (B.unpack b)
+  docPrec _ b  = doc b
+
+instance Out Var where
+  doc (Var b) = doc b
+instance Out MonoTy
+instance Out Kind
 
 --------------------------------------------------------------------------------
 -- WIP: Let's build our simple example:
 
+v :: Var
 v = Var "hello"
 
-dd1 = DDef "Exp" (Cat [] [] [])
-           [KCons "Con" [ConTy "Int" []] (Cat [] [] [])]
+dd1 :: DDef
+dd1 = DDef "xExp" (KCS [] [] [])
+           [KCons "Con" [ConTy "Int" []] (KCS [] [] [])]
 
 
 {-
