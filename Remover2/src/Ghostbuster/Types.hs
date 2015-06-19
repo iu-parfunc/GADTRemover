@@ -26,12 +26,6 @@ type TermVar = Var
 type TyVar = Var
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
--- instance Show Var where
---   show (Var s) = B.unpack s
--- instance Read Var where
---   readsPrec i s = map (\ (a,b) -> (Var a,b)) (readsPrec i s)
--- instance NFData Var where
---   rnf (Var s) = rnf s
 
 data DDef = DDef { tyName :: Var
                  , tyParams :: KCS Var
