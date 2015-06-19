@@ -18,6 +18,12 @@ import           Data.String (IsString)
 import qualified Text.PrettyPrint as PP
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
+-- | We could distinguish our different classes variables: T,K,a, etc,
+-- but we don't do that here:
+type TName = Var
+type KName = Var
+type TermVar = Var
+type TyVar = Var
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 -- instance Show Var where
@@ -46,20 +52,29 @@ data KCons = KCons { conName :: Var
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
-data MonoTy = VarTy Var
+data MonoTy = VarTy TyVar
             | ArrowTy MonoTy MonoTy
-            | ConTy Var [MonoTy]
-            | TypeDictTy Var
+            | ConTy KName [MonoTy]
+            | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Kind = Star | ArrowKind Kind Kind
   deriving (Eq,Ord,Show,Read,Generic)
 
+data Sigma = ForAll [TyVar] MonoTy
+data Pat = Pat KName [TermVar]
+
+data Exp = EK KName
+         | EVar TermVar
+         | ELam (TermVar,MonoTy) Exp
+         | ELet (TermVar,Sigma,Exp) Exp
+         | ECase Exp [(Pat,Exp)]
+         | EDict TName
+         | ECaseDict Exp (TName,[TermVar],Exp)
+         | EIfTyEq (Exp,Exp) Exp Exp
+
+
 --------------------------------------------------------------------------------
-
--- deriving instance Generic B.ByteString
-
--- instance GOut B.Bytestring where
 
 instance Out B.ByteString where
   doc b = PP.text (B.unpack b)
