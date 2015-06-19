@@ -64,6 +64,7 @@ data Pat = Pat KName [TermVar]
 data Exp = EK KName
          | EVar TermVar
          | ELam (TermVar,MonoTy) Exp
+         | EApp Exp Exp
          | ELet (TermVar,Sigma,Exp) Exp
          | ECase Exp [(Pat,Exp)]
          | EDict TName
@@ -71,10 +72,18 @@ data Exp = EK KName
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
+data Prog = Prog [DDef] Exp
+
+ghostbuster :: [DDef] -> ([DDef], [([DDef],Exp,Exp)])
+ghostbuster = undefined
+
 --------------------------------------------------------------------------------
 
 instance IsString MonoTy where
   fromString s = VarTy (Var$ B.pack s)
+
+instance IsString Exp where
+  fromString s = EVar (Var$ B.pack s)
 
 instance Out B.ByteString where
   doc b = PP.text (B.unpack b)
@@ -83,6 +92,7 @@ instance Out B.ByteString where
 instance Out Var where
   doc (Var b) = doc b
   docPrec _ v = doc v
+
 instance Out KCons
 instance Out MonoTy
 instance Out Kind
@@ -92,3 +102,20 @@ instance Out Exp
 instance Out DDef
 
 --------------------------------------------------------------------------------
+
+-- WIP: write out an example "Up" function:
+
+upExp :: Exp
+upExp =
+  ELam ("orig", exp') $
+    ELet ("loop", ForAll [] exp',
+          ELam ("x", exp') $
+            ECase "x" $
+             [ (Pat "Add'" ["e1", "e2"],
+                ELet ("s1", undefined, EApp "loop" "e1") $
+                 ECaseDict undefined undefined)
+             ]
+          )
+         (EApp "loop" "orig")
+ where
+   exp' = ConTy "Exp'" []
