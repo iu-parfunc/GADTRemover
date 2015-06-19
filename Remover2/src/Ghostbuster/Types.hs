@@ -120,8 +120,8 @@ dd1 = DDef "Exp" (KCS [] ["e"] ["a"])
       ]
   where
   exp a b = ConTy "Exp"   [a,b]
-  tup a b = ConTy "Tup2"  [a,b]
-  arr a b = ConTy "Arrow" [a,b]
+  tup a b = ConTy ","  [a,b]
+  arr a b = ConTy "->" [a,b]
 
 -- TODO: Needs Var and Typ to be defined.
 
