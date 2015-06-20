@@ -6,6 +6,7 @@ module Ghostbuster.Examples.Feldspar where
 
 import Ghostbuster.Types
 import           Prelude hiding (exp)
+import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
 
 {-
@@ -30,7 +31,6 @@ dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
       ]
   where
   exp a b = ConTy "Exp"   [a,b]
-
 tup :: MonoTy -> MonoTy -> MonoTy
 tup a b = ConTy ","  [a,b]
 
@@ -54,12 +54,53 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
                     ([arr "a" "b"])
       ]
 
-feldspar :: [DDef]
-feldspar = [dd1,dd2,dd3]
+feldspar_gadt :: [DDef]
+feldspar_gadt = [dd1,dd2,dd3]
 
 --------------------------------------------------------------------------------
 
--- Testing: Manually written up function:
+-- And here's a manual version of the ghostbusted types:
+
+-- data Exp where
+--   Con :: Int -> Exp
+--   Add :: Exp -> Exp -> Exp
+--   Mul :: Exp -> Exp -> Exp
+--   Var :: Var -> Exp
+--   Abs :: Typ -> Exp -> Exp
+--   App :: Exp -> Exp -> Exp
+--  deriving (Show, Generic)
+
+dd1' :: DDef
+dd1' = DDef "Exp" [] [("e",Star)] [("a",Star)]
+       [ KCons "Con'" [int]            []
+       , KCons "Add'" [exp', exp']     []
+       , KCons "Mul'" [exp', exp']     []
+       , KCons "Var'" [ConTy "Var'" []]       []
+       , KCons "Abs'" [ConTy "Typ'" [], exp'] []
+       , KCons "App'" [exp', exp'] []
+       ]
+  where
+  exp' = ConTy "Exp'" []
+
+
+dd2' :: DDef
+dd2' = DDef "Var'" [] [] []
+       [ KCons "Zro'" [] []
+       , KCons "Suc'" [ConTy "Var'" []] []
+       ]
+
+dd3' :: DDef
+dd3' = DDef "Typ'" [] [] []
+       [ KCons "Int'" [] []
+       , KCons "Arr'" [ConTy "Typ'" [], ConTy "Typ'" []] []
+       ]
+
+feldspar_adt :: [DDef]
+feldspar_adt = [dd1',dd2',dd3']
+
+--------------------------------------------------------------------------------
+
+-- Testing: Manually written up-function:
 
 upExp :: VDef
 upExp = VDef "upExp" (ForAll [] (arr exp' (mayb exp))) $
