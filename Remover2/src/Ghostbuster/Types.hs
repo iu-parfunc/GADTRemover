@@ -28,6 +28,10 @@ type TyVar = Var
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
+-- | A program is a list of declarations followed by a "main" expression.
+data Prog = Prog [DDef] [VDef] Exp
+  deriving (Eq,Ord,Show,Read,Generic)
+
 -- | A single datatype definition.
 data DDef = DDef { tyName :: Var
                  , kVars :: [(TyVar,Kind)]
@@ -35,6 +39,10 @@ data DDef = DDef { tyName :: Var
                  , sVars :: [(TyVar,Kind)]
                  , cases :: [KCons]
                  }
+  deriving (Eq,Ord,Show,Read,Generic)
+
+-- | Top-level value definitions
+data VDef = VDef TermVar Sigma Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | Data constructor signatures.
@@ -72,11 +80,6 @@ data Exp = EK KName
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
-data Prog = Prog [DDef] Exp
-
-ghostbuster :: [DDef] -> ([DDef], [([DDef],Exp,Exp)])
-ghostbuster = undefined
-
 --------------------------------------------------------------------------------
 
 instance IsString MonoTy where
@@ -100,22 +103,11 @@ instance Out Sigma
 instance Out Pat
 instance Out Exp
 instance Out DDef
+instance Out VDef
+instance Out Prog
 
 --------------------------------------------------------------------------------
 
--- WIP: write out an example "Up" function:
-
-upExp :: Exp
-upExp =
-  ELam ("orig", exp') $
-    ELet ("loop", ForAll [] exp',
-          ELam ("x", exp') $
-            ECase "x" $
-             [ (Pat "Add'" ["e1", "e2"],
-                ELet ("s1", undefined, EApp "loop" "e1") $
-                 ECaseDict undefined undefined)
-             ]
-          )
-         (EApp "loop" "orig")
- where
-   exp' = ConTy "Exp'" []
+ -- TODO: when it's done ghostbuster will have this sig:
+ghostbuster :: [DDef] -> Prog
+ghostbuster = undefined

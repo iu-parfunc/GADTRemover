@@ -56,3 +56,22 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
 
 feldspar :: [DDef]
 feldspar = [dd1,dd2,dd3]
+
+--------------------------------------------------------------------------------
+
+-- Testing: Manually written up function:
+
+upExp :: VDef
+upExp = VDef "upExp" (ForAll [] (arr exp' (mayb exp))) $
+        ELam ("x", exp') $
+          ECase "x" $
+           [ (Pat "Add'" ["e1", "e2"],
+              ELet ("s1", undefined, EApp "upExp" "e1") $
+               ECaseDict undefined undefined)
+           ]
+ where
+   exp' = ConTy "Exp'" []
+   exp  = ConTy "Exp" []
+
+mayb :: MonoTy -> MonoTy
+mayb a = ConTy "Maybe" [a]
