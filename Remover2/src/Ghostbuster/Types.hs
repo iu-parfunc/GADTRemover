@@ -44,7 +44,10 @@ data DDef = DDef { tyName :: Var
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | Top-level value definitions
-data VDef = VDef TermVar Sigma Exp
+data VDef = VDef { valName :: Var
+                 , valTy   :: Sigma
+                 , valExp  :: Exp
+                 }
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | Data constructor signatures.
@@ -78,7 +81,7 @@ data Exp = EK KName
          | ELet (TermVar,Sigma,Exp) Exp
          | ECase Exp [(Pat,Exp)]
          | EDict TName
-         | ECaseDict Exp (TName,[TermVar],Exp)
+         | ECaseDict Exp (TName,[TermVar],Exp) Exp
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
@@ -86,10 +89,17 @@ data Exp = EK KName
 -- Values, for use by any interpreters:
 
 -- | Vals are a subset of Exp
-data Val = VK KName
+data Val = VK KName [Val] -- ^ Data constructors are parameterized by values.
          | VLam (TermVar,MonoTy) Exp
          | VDict TName
   deriving (Eq,Ord,Show,Read,Generic)
+
+-- | Sometimes it's convenient to convert back to expression:
+val2Exp :: Val -> Exp
+val2Exp (VK k []) = EK k
+val2Exp (VK k (h:t)) = EApp (val2Exp (VK k t)) (val2Exp h)
+val2Exp (VLam vt bod) = ELam vt bod
+val2Exp (VDict t) = EDict t
 
 --------------------------------------------------------------------------------
 

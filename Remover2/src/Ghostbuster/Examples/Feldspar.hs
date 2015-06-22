@@ -4,9 +4,10 @@
 
 module Ghostbuster.Examples.Feldspar where
 
+import Ghostbuster.Interp
 import Ghostbuster.Types
-import           Prelude hiding (exp)
-import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
+import Prelude hiding (exp)
+import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
 
 {-
@@ -153,3 +154,6 @@ upExp =
 upProg :: Prog
 upProg = Prog [ints, maybs] [upExp]
          (EApp "upExp" exp1)
+
+ex1 :: Val
+ex1 = interp $ Prog [ints,maybs] [] exp1
