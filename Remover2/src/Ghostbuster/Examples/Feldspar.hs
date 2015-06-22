@@ -56,7 +56,7 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
       ]
 
 feldspar_gadt :: [DDef]
-feldspar_gadt = [dd1,dd2,dd3]
+feldspar_gadt = [ints,dd1,dd2,dd3]
 
 --------------------------------------------------------------------------------
 
@@ -122,7 +122,7 @@ maybs = DDef "Maybe" [("a", Star)] [] []
 
 sealedExp :: DDef
 sealedExp = DDef "SealeExp" [("e",Star)] [] []
-            [ KCons "SealeExp" [(TypeDict "a"), ConTy "Exp" ["e","a"]] ["e"] ]
+            [ KCons "SealeExp" [(TypeDictTy "a"), ConTy "Exp" ["e","a"]] ["e"] ]
 
 -- Can't get this to typecheck unless we have Int lits:
 exp1 :: Exp
@@ -141,13 +141,11 @@ upExp =
         [ (Pat "Add'" ["e1", "e2"],
            ECase (EApp "upExp" "e1")
             [ (Pat "SealedExp" ["dict1", "e1'"],
-               ECaseDict undefined undefined)
+               ECaseDict undefined undefined undefined)
             ])
         ]
  where
    exp' = ConTy "Exp'" []
-   exp  = ConTy "Exp"  []
-
 
 
 -- | Test: run the upExp conversion against the sample value.
@@ -155,5 +153,11 @@ upProg :: Prog
 upProg = Prog [ints, maybs] [upExp]
          (EApp "upExp" exp1)
 
+ex0 :: Val
+ex0 = interp $ Prog feldspar_gadt [] (EK "One")
+
 ex1 :: Val
-ex1 = interp $ Prog [ints,maybs] [] exp1
+ex1 = interp $ Prog feldspar_gadt [] (EApp (EK "Con") (EK "One"))
+
+ex2 :: Val
+ex2 = interp $ Prog feldspar_gadt [] exp1

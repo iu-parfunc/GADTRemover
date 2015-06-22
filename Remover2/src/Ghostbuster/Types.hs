@@ -2,8 +2,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
--- | Types for
+-- | Types for all Ghostbuster related tools.
 
 module Ghostbuster.Types
   where
@@ -29,6 +30,9 @@ type TermVar = Var
 type TyVar = Var
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
+
+mkVar :: String -> Var
+mkVar = Var . B.pack
 
 -- | A program is a list of declarations followed by a "main" expression.
 data Prog = Prog [DDef] [VDef] Exp
@@ -61,7 +65,7 @@ data KCons = KCons { conName :: Var
 data MonoTy = VarTy TyVar
             | ArrowTy MonoTy MonoTy
             | ConTy KName [MonoTy]
-            | TypeDict TName
+            | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Kind = Star | ArrowKind Kind Kind
@@ -89,19 +93,44 @@ data Exp = EK KName
 -- Values, for use by any interpreters:
 
 -- | Vals are a subset of Exp
-data Val = VK KName [Val] -- ^ Data constructors are parameterized by values.
+data Val = VK KName [Val]    -- ^ Data constructors are parameterized by values.
          | VLam (TermVar,MonoTy) Exp
-         | VDict TName
+         | VDict TName [Val] -- ^ A dict value may be partially or fully applied.
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | Sometimes it's convenient to convert back to expression:
 val2Exp :: Val -> Exp
 val2Exp (VK k []) = EK k
-val2Exp (VK k (h:t)) = EApp (val2Exp (VK k t)) (val2Exp h)
+val2Exp (VK k ls) = EApp (val2Exp (VK k (init ls)))
+                         (val2Exp (last ls))
 val2Exp (VLam vt bod) = ELam vt bod
-val2Exp (VDict t) = EDict t
+val2Exp (VDict t []) = EDict t
+val2Exp (VDict t ls) = EApp (val2Exp (VDict t (init ls)))
+                            (val2Exp (last ls))
 
 --------------------------------------------------------------------------------
+-- Misc Helpers
+
+getConArgs :: [DDef] -> KName -> [MonoTy]
+getConArgs [] k = error $ "getConArgs: cannot find definition for constructor "++show k
+getConArgs (DDef {cases} : rst) k =
+  case loop cases of
+    Just x  -> x
+    Nothing -> getConArgs rst k
+  where
+  loop [] = Nothing
+  loop (KCons {conName,fields} : rest)
+    | conName == k = Just fields
+    | otherwise = loop rest
+
+getTyArgs :: [DDef] -> TName -> [Kind]
+getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
+getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
+  | k == tyName  = map snd $ kVars ++ cVars ++ sVars
+  | otherwise = getTyArgs rst k
+
+--------------------------------------------------------------------------------
+-- Instances
 
 instance IsString MonoTy where
   fromString s = VarTy (Var$ B.pack s)

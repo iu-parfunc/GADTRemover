@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | An interpreter for the Ghostbuster core language.
 
@@ -6,10 +7,17 @@ module Ghostbuster.Interp
        (interp) where
 
 import Data.Map.Lazy as M
+import Debug.Trace
 import Ghostbuster.Types
 import Prelude as P hiding (exp)
+import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
 type Env = Map Var Val
+
+instance (Out k, Out v) => Out (Map k v) where
+  docPrec _ b  = doc b
+  doc mp = doc (M.toList mp)
+
 
 -- | This interprets the program with a call-by-need semantics.
 interp :: Prog -> Val
@@ -27,15 +35,26 @@ interp (Prog ddefs vdefs main) =
 -- | Interpret an expression
 exp :: [DDef] -> Env -> Exp -> Val
 exp defs env exp0 =
+  (\res ->
+        trace ("((Eval: " ++ show (doc exp0)
+                                    ++ " in env: "++ show (doc env)++ ")"
+              ++ " -> "++ show (doc res)++ ")") res) $
   case exp0 of
-    (EK x)   -> VK x [] -- FIXME: if we know the type of this
-                        -- constructor, we need to make this a VLam!
+    (EK x)   -> VK x []
+      -- case (getConArgs defs x) of
+      --   [] -> VK x []
+      --   ls -> exp defs env (applyList (EK x) ls)
     (EVar x) -> env # x
     (ELam (v,ty) bod) -> VLam (v,ty) bod
-    (EApp x1 x2) -> let VLam (v,_) bod = exp defs env x1
-                        arg = exp defs env x2
-                        env' = M.insert v arg env
-                    in exp defs env' bod
+    (EApp x1 x2) ->
+      let arg = exp defs env x2
+      in case exp defs env x1 of
+          VLam (v,_) bod -> let env' = M.insert v arg env
+                            in exp defs env' bod
+          -- These values just accumulate arguments:
+          VK k ls    -> VK k (ls++[arg])
+          VDict t ls -> VDict t (ls++ [arg])
+
     (ELet (v,_,x1) x2) -> let x1' = exp defs env x1
                               env' = M.insert v x1' env
                           in exp defs env' x2
@@ -52,27 +71,51 @@ exp defs env exp0 =
                                "\nReceived: " ++show args
                        | otherwise  -> exp defs env (ECase (val2Exp v) rst)
         v@(VLam _ _) -> tyErr$ "cannot case on a lambda!: "++show v
-        v@(VDict _) -> tyErr $ "cannot perform a regular ECase on a Dict value, use ECaseDict: "
+        v@(VDict{}) -> tyErr $ "cannot perform a regular ECase on a Dict value, use ECaseDict: "
                                ++ show v
-    (EDict x) -> VDict x
+    (EDict x) -> VDict x []
+      -- exp defs env $
+      -- applyList (EDict x)
+      --           [ TypeDictTy $ mkVar $ "tau" ++show i
+      --           | (_,i) <- zip (getTyArgs defs x) [0::Int ..]]
     (ECaseDict x1 (tn,vs,rhs) x3) ->
       case exp defs env x1 of
         v@(VK{})   -> tyErr $ "ECaseDict got non-Dict value: "++show v
         v@(VLam{}) -> tyErr $ "ECaseDict got non-Dict value: "++show v
-        (VDict t2) | tn == t2 ->
-                     let env' = M.union
-                                (M.fromList (zip vs newdicts))
-                                env
-                         newdicts = error "FINISHME: need the types at runtime to construct dicts..."
-                     in exp defs env' rhs
-                   | otherwise -> exp defs env x3
+        (VDict t2 args)
+         | tn == t2 ->
+           (if length vs == length args
+            then let env' = M.union
+                            (M.fromList (zip vs args))
+                            env
+                 in exp defs env' rhs
+            else tyErr $ "ECaseDict: mismatched length of pattern vars "++show vs
+                         ++" and dict args: "++show args)
+         | otherwise -> exp defs env x3
     (EIfTyEq (le,re) x2 x3) ->
       -- Here we would extend the type env on the x2 case when type checking.
       -- But the value env doesn't change at all.
       case (exp defs env le, exp defs env re) of
-        (VDict k1, VDict k2) | k1 == k2  -> exp defs env x2
-                             | otherwise -> exp defs env x3
+        (VDict k1 a1, VDict k2 a2)
+           | k1 == k2 && a1 == a2  -> exp defs env x2
+           | otherwise -> exp defs env x3
         (bad1,bad2) -> tyErr $ "EIfTyEq must take two VDict values, got: "++show (bad1,bad2)
+
+applyList :: (Exp) -> [MonoTy] -> Exp
+applyList f ls = loop [] ls
+  where
+  numArgs = length ls
+
+  loop :: [Var] -> [MonoTy] -> Exp
+  loop acc [] = loop2 (P.map EVar acc)
+  loop acc (ty1:tys) =
+    let var = mkVar $ "arg"++show (numArgs - length tys)
+    in ELam (var, ty1) $
+       loop (var:acc) tys
+
+  loop2 [] = f
+  loop2 (hd:tl) = EApp (loop2 tl) hd
+
 
 
 (#) :: (Ord k, Show k, Show v) => Map k v -> k -> v
@@ -83,3 +126,6 @@ m # k = case M.lookup k m of
 
 tyErr :: String -> t
 tyErr s = error ("<Runtime Type Error>: "++s)
+
+test :: Exp
+test = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
