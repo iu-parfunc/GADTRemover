@@ -14,6 +14,7 @@ module Ghostbuster.Types
 -- import StringTable.Atom
 -- import Data.Atom.Simple
 
+import Data.Map.Lazy as M
 import qualified Data.ByteString.Char8 as B
 import           Data.String (IsString(..))
 import qualified Text.PrettyPrint as PP
@@ -92,9 +93,11 @@ data Exp = EK KName
 --------------------------------------------------------------------------------
 -- Values, for use by any interpreters:
 
+type Env = Map Var Val
+
 -- | Vals are a subset of Exp
 data Val = VK KName [Val]    -- ^ Data constructors are parameterized by values.
-         | VLam (TermVar,MonoTy) Exp
+         | VClo (TermVar,MonoTy) Env Exp -- ^ Closures with captured environment.
          | VDict TName [Val] -- ^ A dict value may be partially or fully applied.
   deriving (Eq,Ord,Show,Read,Generic)
 
@@ -103,7 +106,7 @@ val2Exp :: Val -> Exp
 val2Exp (VK k []) = EK k
 val2Exp (VK k ls) = EApp (val2Exp (VK k (init ls)))
                          (val2Exp (last ls))
-val2Exp (VLam vt bod) = ELam vt bod
+val2Exp (VClo vt env bod) = (error "FINISHME") $ ELam vt bod
 val2Exp (VDict t []) = EDict t
 val2Exp (VDict t ls) = EApp (val2Exp (VDict t (init ls)))
                             (val2Exp (last ls))
@@ -126,7 +129,7 @@ getConArgs (DDef {cases} : rst) k =
 getTyArgs :: [DDef] -> TName -> [Kind]
 getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
 getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
-  | k == tyName  = map snd $ kVars ++ cVars ++ sVars
+  | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
   | otherwise = getTyArgs rst k
 
 --------------------------------------------------------------------------------
@@ -158,11 +161,24 @@ instance Out Prog
 
 -- instance Out Val
 
+instance (Out k, Out v) => Out (Map k v) where
+  docPrec _ b  = doc b
+  doc mp = doc (M.toList mp)
+
 -- Concise value printing:
 instance Out Val where
-  doc (VK v1 ls) = PP.hcat $ doc v1 : " " : L.intersperse " " (L.map (PP.parens . doc) ls)
-  doc (VLam (v,t) v2) = PP.parens (PP.hcat ["\\",doc (v,t), "->", doc v2] )
-  doc (VDict v1 ls) = PP.hcat $ "Dict " : doc v1 : L.intersperse " " (L.map (PP.parens . doc) ls)
+  doc (VClo (v,t) env v2) = PP.parens (PP.hcat [ "\\",doc (v,t), " -> ", doc v2
+                                               , " in env ", doc env] )
+  doc (VDict v1 ls) = PP.hcat $ "Dict " : doc v1 : wList (L.map (PP.parens . doc) ls)
+  -- docPrec n v = PP.hcat [PP.text (show n), "~", doc v]
+  doc (VK v1 ls) = PP.hcat $ doc v1 : wList (L.map maybeParen ls)
+   where
+   maybeParen v@(VK _ []) = doc v
+   maybeParen oth = PP.parens $ doc $ oth
+
+wList :: IsString t => [t] -> [t]
+wList [] = []
+wList ls = " " : L.intersperse " " ls
 
 --------------------------------------------------------------------------------
 

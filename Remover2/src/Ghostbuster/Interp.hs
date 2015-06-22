@@ -12,11 +12,6 @@ import Ghostbuster.Types
 import Prelude as P hiding (exp)
 import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
-type Env = Map Var Val
-
-instance (Out k, Out v) => Out (Map k v) where
-  docPrec _ b  = doc b
-  doc mp = doc (M.toList mp)
 
 
 -- | This interprets the program with a call-by-need semantics.
@@ -45,12 +40,12 @@ exp defs env exp0 =
       --   [] -> VK x []
       --   ls -> exp defs env (applyList (EK x) ls)
     (EVar x) -> env # x
-    (ELam (v,ty) bod) -> VLam (v,ty) bod
+    (ELam (v,ty) bod) -> VClo (v,ty) env bod
     (EApp x1 x2) ->
       let arg = exp defs env x2
       in case exp defs env x1 of
-          VLam (v,_) bod -> let env' = M.insert v arg env
-                            in exp defs env' bod
+          VClo (v,_) env2 bod -> let env' = M.insert v arg env2
+                                 in exp defs env' bod
           -- These values just accumulate arguments:
           VK k ls    -> VK k (ls++[arg])
           VDict t ls -> VDict t (ls++ [arg])
@@ -70,7 +65,7 @@ exp defs env exp0 =
                                "\nExpected: " ++show vars ++
                                "\nReceived: " ++show args
                        | otherwise  -> exp defs env (ECase (val2Exp v) rst)
-        v@(VLam _ _) -> tyErr$ "cannot case on a lambda!: "++show v
+        v@(VClo{}) -> tyErr$ "cannot case on a lambda!: "++show v
         v@(VDict{}) -> tyErr $ "cannot perform a regular ECase on a Dict value, use ECaseDict: "
                                ++ show v
     (EDict x) -> VDict x []
@@ -81,7 +76,7 @@ exp defs env exp0 =
     (ECaseDict x1 (tn,vs,rhs) x3) ->
       case exp defs env x1 of
         v@(VK{})   -> tyErr $ "ECaseDict got non-Dict value: "++show v
-        v@(VLam{}) -> tyErr $ "ECaseDict got non-Dict value: "++show v
+        v@(VClo{}) -> tyErr $ "ECaseDict got non-Dict value: "++show v
         (VDict t2 args)
          | tn == t2 ->
            (if length vs == length args
