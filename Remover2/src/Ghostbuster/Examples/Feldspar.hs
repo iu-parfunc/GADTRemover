@@ -99,6 +99,23 @@ feldspar_adt :: [DDef]
 feldspar_adt = [dd1',dd2',dd3']
 
 --------------------------------------------------------------------------------
+-- General prerequisites:
+
+ints :: DDef
+ints = DDef "Int" [] [] []
+        [ KCons "One" [] []
+        , KCons "Two" [] []
+        , KCons "Three" [] []
+        -- Uh, we're probably missing some integers here.  Should be good enough.
+        ]
+
+maybs :: DDef
+maybs = DDef "Maybe" [("a", Star)] [] []
+       [ KCons "Just" ["a"] ["a"]
+       , KCons "Nothing" [] ["a"]
+       ]
+
+--------------------------------------------------------------------------------
 
 -- Testing: Manually written up-function:
 
@@ -106,25 +123,33 @@ sealedExp :: DDef
 sealedExp = DDef "SealeExp" [("e",Star)] [] []
             [ KCons "SealeExp" [(TypeDict "a"), ConTy "Exp" ["e","a"]] ["e"] ]
 
--- Oops, can't get this to typecheck unless we have Int lits:
+-- Can't get this to typecheck unless we have Int lits:
 exp1 :: Exp
-exp1 = EApp (EApp (EK "Add") (EApp (EK "Con") "1")) (EApp (EK "Con") "2")
-
-upExp :: VDef
-upExp = VDef "upExp" (ForAll [] (arr exp' (mayb (ConTy "SealeExp" ["e"])))) $
-        ELam ("x", exp') $
-          ECase "x" $
-           [ (Pat "Add'" ["e1", "e2"],
-              ECase (EApp "upExp" "e1")
-               [ (Pat "SealedExp" ["dict1", "e1'"],
-                  ECaseDict undefined undefined)
-               ])
-           ]
- where
-   exp' = ConTy "Exp'" []
-   exp  = ConTy "Exp" []
-
+exp1 = EApp (EApp (EK "Add") (EApp (EK "Con") (EK "One")))
+                             (EApp (EK "Con") (EK "Two"))
 
 
 mayb :: MonoTy -> MonoTy
 mayb a = ConTy "Maybe" [a]
+
+upExp :: VDef
+upExp =
+     VDef "upExp" (ForAll [] (arr exp' (mayb (ConTy "SealeExp" ["e"])))) $
+      ELam ("x", exp') $
+       ECase "x" $
+        [ (Pat "Add'" ["e1", "e2"],
+           ECase (EApp "upExp" "e1")
+            [ (Pat "SealedExp" ["dict1", "e1'"],
+               ECaseDict undefined undefined)
+            ])
+        ]
+ where
+   exp' = ConTy "Exp'" []
+   exp  = ConTy "Exp"  []
+
+
+
+-- | Test: run the upExp conversion against the sample value.
+upProg :: Prog
+upProg = Prog [ints, maybs] [upExp]
+         (EApp "upExp" exp1)

@@ -19,6 +19,8 @@ import qualified Text.PrettyPrint as PP
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
 
 
+type TypeError = String
+
 -- | We could distinguish our different classes variables: T,K,a, etc,
 -- but we don't do that here:
 type TName = Var
@@ -81,6 +83,15 @@ data Exp = EK KName
   deriving (Eq,Ord,Show,Read,Generic)
 
 --------------------------------------------------------------------------------
+-- Values, for use by any interpreters:
+
+-- | Vals are a subset of Exp
+data Val = VK KName
+         | VLam (TermVar,MonoTy) Exp
+         | VDict TName
+  deriving (Eq,Ord,Show,Read,Generic)
+
+--------------------------------------------------------------------------------
 
 instance IsString MonoTy where
   fromString s = VarTy (Var$ B.pack s)
@@ -102,6 +113,7 @@ instance Out Kind
 instance Out Sigma
 instance Out Pat
 instance Out Exp
+instance Out Val
 instance Out DDef
 instance Out VDef
 instance Out Prog

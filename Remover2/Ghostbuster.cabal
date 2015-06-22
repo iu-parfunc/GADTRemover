@@ -17,6 +17,9 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Ghostbuster.Types
+                       Ghostbuster.Interp
+                       Ghostbuster.TypeCheck
+                       Ghostbuster.KindCheck
                        Ghostbuster.Examples.Feldspar
   -- other-modules:
   -- other-extensions:
