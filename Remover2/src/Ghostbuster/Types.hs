@@ -18,7 +18,7 @@ import qualified Data.ByteString.Char8 as B
 import           Data.String (IsString(..))
 import qualified Text.PrettyPrint as PP
 import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-
+import qualified Data.List as L
 
 type TypeError = String
 
@@ -152,10 +152,17 @@ instance Out Kind
 instance Out Sigma
 instance Out Pat
 instance Out Exp
-instance Out Val
 instance Out DDef
 instance Out VDef
 instance Out Prog
+
+-- instance Out Val
+
+-- Concise value printing:
+instance Out Val where
+  doc (VK v1 ls) = PP.hcat $ doc v1 : " " : L.intersperse " " (L.map (PP.parens . doc) ls)
+  doc (VLam (v,t) v2) = PP.parens (PP.hcat ["\\",doc (v,t), "->", doc v2] )
+  doc (VDict v1 ls) = PP.hcat $ "Dict " : doc v1 : L.intersperse " " (L.map (PP.parens . doc) ls)
 
 --------------------------------------------------------------------------------
 
