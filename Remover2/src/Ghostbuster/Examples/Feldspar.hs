@@ -71,7 +71,7 @@ feldspar_gadt = [dd1,dd2,dd3]
 --  deriving (Show, Generic)
 
 dd1' :: DDef
-dd1' = DDef "Exp" [] [("e",Star)] [("a",Star)]
+dd1' = DDef "Exp" [] [] []
        [ KCons "Con'" [int]            []
        , KCons "Add'" [exp', exp']     []
        , KCons "Mul'" [exp', exp']     []
@@ -102,17 +102,29 @@ feldspar_adt = [dd1',dd2',dd3']
 
 -- Testing: Manually written up-function:
 
+sealedExp :: DDef
+sealedExp = DDef "SealeExp" [("e",Star)] [] []
+            [ KCons "SealeExp" [(TypeDict "a"), ConTy "Exp" ["e","a"]] ["e"] ]
+
+-- Oops, can't get this to typecheck unless we have Int lits:
+exp1 :: Exp
+exp1 = EApp (EApp (EK "Add") (EApp (EK "Con") "1")) (EApp (EK "Con") "2")
+
 upExp :: VDef
-upExp = VDef "upExp" (ForAll [] (arr exp' (mayb exp))) $
+upExp = VDef "upExp" (ForAll [] (arr exp' (mayb (ConTy "SealeExp" ["e"])))) $
         ELam ("x", exp') $
           ECase "x" $
            [ (Pat "Add'" ["e1", "e2"],
-              ELet ("s1", undefined, EApp "upExp" "e1") $
-               ECaseDict undefined undefined)
+              ECase (EApp "upExp" "e1")
+               [ (Pat "SealedExp" ["dict1", "e1'"],
+                  ECaseDict undefined undefined)
+               ])
            ]
  where
    exp' = ConTy "Exp'" []
    exp  = ConTy "Exp" []
+
+
 
 mayb :: MonoTy -> MonoTy
 mayb a = ConTy "Maybe" [a]

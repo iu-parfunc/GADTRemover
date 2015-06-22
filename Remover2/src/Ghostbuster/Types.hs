@@ -56,7 +56,7 @@ data KCons = KCons { conName :: Var
 data MonoTy = VarTy TyVar
             | ArrowTy MonoTy MonoTy
             | ConTy KName [MonoTy]
-            | TypeDictTy TName
+            | TypeDict TName
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Kind = Star | ArrowKind Kind Kind
