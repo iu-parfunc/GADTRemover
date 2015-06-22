@@ -122,6 +122,9 @@ m # k = case M.lookup k m of
 tyErr :: String -> t
 tyErr s = error ("<Runtime Type Error>: "++s)
 
+--------------------------------------------------------------------------------
+-- Tests and examples:
+
 ti1 :: Exp
 ti1 = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
 
@@ -130,3 +133,9 @@ p2 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
 
 ti2 :: Val
 ti2 = interp $ Prog [ints] [] p2
+
+p3 :: Exp
+p3 = EDict ("Int")
+
+ti3 :: Val
+ti3 = interp $ Prog [ints] [] p3
