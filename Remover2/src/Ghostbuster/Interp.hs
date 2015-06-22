@@ -4,7 +4,7 @@
 -- | An interpreter for the Ghostbuster core language.
 
 module Ghostbuster.Interp
-       (interp) where
+       where
 
 import Data.Map.Lazy as M
 import Debug.Trace
@@ -122,5 +122,11 @@ m # k = case M.lookup k m of
 tyErr :: String -> t
 tyErr s = error ("<Runtime Type Error>: "++s)
 
-test :: Exp
-test = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
+ti1 :: Exp
+ti1 = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
+
+p2 :: Exp
+p2 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
+
+ti2 :: Val
+ti2 = interp $ Prog [ints] [] p2

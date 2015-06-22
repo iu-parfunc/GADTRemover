@@ -100,23 +100,6 @@ feldspar_adt :: [DDef]
 feldspar_adt = [dd1',dd2',dd3']
 
 --------------------------------------------------------------------------------
--- General prerequisites:
-
-ints :: DDef
-ints = DDef "Int" [] [] []
-        [ KCons "One" [] []
-        , KCons "Two" [] []
-        , KCons "Three" [] []
-        -- Uh, we're probably missing some integers here.  Should be good enough.
-        ]
-
-maybs :: DDef
-maybs = DDef "Maybe" [("a", Star)] [] []
-       [ KCons "Just" ["a"] ["a"]
-       , KCons "Nothing" [] ["a"]
-       ]
-
---------------------------------------------------------------------------------
 
 -- Testing: Manually written up-function:
 
@@ -150,7 +133,7 @@ upExp =
 
 -- | Test: run the upExp conversion against the sample value.
 upProg :: Prog
-upProg = Prog [ints, maybs] [upExp]
+upProg = Prog [ints, maybeD] [upExp]
          (EApp "upExp" exp1)
 
 ex0 :: Val

@@ -119,6 +119,22 @@ val2Exp (VClo vt env bod) = loop (M.toList env)
                             (loop tl)
 
 --------------------------------------------------------------------------------
+-- General prerequisites:
+
+ints :: DDef
+ints = DDef "Int" [] [] []
+        [ KCons "One" [] []
+        , KCons "Two" [] []
+        , KCons "Three" [] []
+        -- Uh, we're probably missing some integers here.  Should be good enough.
+        ]
+
+maybeD :: DDef
+maybeD = DDef "Maybe" [("a", Star)] [] []
+        [ KCons "Just" ["a"] ["a"]
+        , KCons "Nothing" [] ["a"]
+        ]
+--------------------------------------------------------------------------------
 -- Misc Helpers
 
 getConArgs :: [DDef] -> KName -> [MonoTy]
