@@ -7,7 +7,12 @@
 module Ghostbuster.Core
   where
 
-import Types 
+import Ghostbuster.Types
+import qualified Data.Map as HM
+
+type Equations = (HM.Map TyVar [TyVar])
+type Patterns = (HM.Map TyVar MonoTy)
+
 
 toSealedName = \tyName -> "Sealed" ++ tyName
 
@@ -21,10 +26,16 @@ ghostbuster ddef = Prog [sealed] [] "dummyvar"
 
 generateSealed :: DDef -> DDef
 generateSealed (DDef tyName k c s) = DDef (toSealedName tyName) k [] []
-  [Kcons (toSealedName tyName) [((map typeDictForSynth synthVars) ++ conTy)] checkVars]
+  [Kcons (toSealedName tyName) [((map typeDictForSynth synthVars) ++ conTy)] (keepVars ++ checkVars)]
   where
-  keepVars = map snd k
-  checkVars = map snd c
-  synthVars = map snd s
+  keepVars = map fst k
+  checkVars = map fst c
+  synthVars = map fst s
   typeDictForSynth = \var -> (TypeDictTy var)
-  conTy = ConTy tyName (keepVars ++ checkVars ++ synthVars) 
+  conTy = ConTy tyName (keepVars ++ checkVars ++ synthVars)
+
+equalityRemoval :: DDef -> (DDef, [Equations])
+equalityRemoval = undefined
+
+patternMatchingRemoval :: DDef -> (DDef, [Patterns])
+patternMatchingRemoval = undefined
