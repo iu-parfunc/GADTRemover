@@ -20,5 +20,11 @@ case_I3 :: Assertion
 case_I3 = assertEqual "interp dict"
             (VDict (Var "Int") []) I.ti3
 
+case_I5 = assertEqual "nested casedict"
+                      (VK (Var "One") []) ti5
+
+case_I6 = assertEqual "take a false CaseDict branch"
+                      (VK (Var "Three") []) ti6
+
 main :: IO ()
 main = $(defaultMainGenerator)

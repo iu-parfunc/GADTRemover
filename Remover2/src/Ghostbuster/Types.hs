@@ -91,6 +91,12 @@ data Exp = EK KName
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
+
+-- | Built-in type environment.
+primitiveTypes :: [DDef]
+primitiveTypes =
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []]
+
 --------------------------------------------------------------------------------
 -- Values, for use by any interpreters:
 

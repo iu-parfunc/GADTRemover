@@ -31,6 +31,7 @@ library
   hs-source-dirs:      src
   default-language:    Haskell2010
 
+  ghc-options: -Wall
 
 Test-suite test-ghostbuster
   main-is: Main.hs
@@ -41,7 +42,7 @@ Test-suite test-ghostbuster
   -- Standard stuff:
   build-depends: base >= 4.5, containers >= 0.5, bytestring >= 0.10
   -- Additional deps for testing:
-  build-depends: tasty,
+  build-depends: tasty >= 0.10,
                  tasty-hunit,
                  tasty-th
 --                 QuickCheck >= 2.8

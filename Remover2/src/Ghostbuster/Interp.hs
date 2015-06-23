@@ -139,3 +139,30 @@ p3 = EDict ("Int")
 
 ti3 :: Val
 ti3 = interp $ Prog [ints] [] p3
+
+p4 :: Exp
+p4 = EApp (EApp (EDict ("->")) p3) p3
+
+ti4 :: Val
+ti4 = interp $ Prog [] [] p4
+
+p5 :: Exp
+p5 = ECaseDict p4
+      ("->",["a","b"],
+       ECaseDict "a" ("Int", [], EK "One")
+                 (EK "Two")
+      ) (EK "Three")
+
+ti5 :: Val
+ti5 = interp $ Prog [ints] [] p5
+
+-- | Take a false branch
+p6 :: Exp
+p6 = ECaseDict p3
+      ("->",["a","b"],
+       ECaseDict "a" ("Int", [], EK "One")
+                 (EK "Two")
+      ) (EK "Three")
+
+ti6 :: Val
+ti6 = interp $ Prog [ints] [] p6
