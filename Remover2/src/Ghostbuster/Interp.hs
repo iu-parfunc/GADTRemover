@@ -4,14 +4,14 @@
 -- | An interpreter for the Ghostbuster core language.
 
 module Ghostbuster.Interp
-       where
+       ( interp
+       , ti1, ti2, ti3, ti4, ti5, ti6) where
 
 import Data.Map.Lazy as M
 import Debug.Trace
 import Ghostbuster.Types
 import Prelude as P hiding (exp)
-import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-
+import Text.PrettyPrint.GenericPretty (Out(doc))
 
 
 -- | This interprets the program with a call-by-need semantics.

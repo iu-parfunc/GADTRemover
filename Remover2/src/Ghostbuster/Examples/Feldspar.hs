@@ -7,8 +7,6 @@ module Ghostbuster.Examples.Feldspar where
 import Ghostbuster.Interp
 import Ghostbuster.Types
 import Prelude hiding (exp)
-import Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
-
 
 {-
 data Exp (e :: *) (a :: *) where
@@ -32,6 +30,7 @@ dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
       ]
   where
   exp a b = ConTy "Exp"   [a,b]
+
 tup :: MonoTy -> MonoTy -> MonoTy
 tup a b = ConTy ","  [a,b]
 
