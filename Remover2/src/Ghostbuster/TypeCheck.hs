@@ -1,4 +1,5 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 module Ghostbuster.TypeCheck where
 
 import Control.Applicative
@@ -28,11 +29,11 @@ data Exp = ELit Int
          | ELam (Var,MonoTy) Exp
          | EApp Exp Exp
          | ELet (Var,TyScheme,Exp) Exp
+         | EK KName
+         | EDict TName
 ----------------------------------------------
 -- This stuff should be easier to implement once we use DDefs.
-         | EK KName
          | ECase Exp [(Pat,Exp)]
-         | EDict TName
          | ECaseDict Exp (TName,[TermVar],Exp) Exp
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq, Show)
@@ -181,33 +182,68 @@ instantiate (ForAll tvns t) = do
    VarTy _v ref -> writeSTRef ref (Just t') >> return t'
    _ -> return t'
 
-inferExp :: Env -> Exp -> ST RealWorld MonoTy
-inferExp env expr = case expr of
+kconsLookup :: [KCons] -> KName -> Maybe KCons
+kconsLookup (d@KCons{..} : ds) name = if conName == (name :: Var)
+                                  then Just d
+                                  else kconsLookup ds name
+kconsLookup [] name = Nothing
+
+ddefLookup :: [DDef] -> KName -> Maybe (DDef, KCons)
+ddefLookup (d@DDef{..} : ds) name =
+  case kconsLookup cases name of
+    Nothing -> ddefLookup ds name
+    Just k  -> Just (d, k)
+ddefLookup [] name = Nothing
+
+inferExp :: [DDef] -> Env -> Exp -> ST RealWorld MonoTy
+inferExp ddef env expr = case expr of
   ELit _ -> return TInt
   EVar v -> case M.lookup v env of
     Nothing -> error $ "unbound variable " ++ show v
     Just t -> instantiate t >>= collapse
   EPair e1 e2 -> do
-    t1 <- inferExp env e1
-    t2 <- inferExp env e2
+    t1 <- inferExp ddef env e1
+    t2 <- inferExp ddef env e2
     return $ TEPair t1 t2
   ELam (v, mty) body -> do
     fresh@(VarTy _ _) <- freshVarTy ()
-    t <- inferExp (M.insert v (TMonoTy fresh) env) body
+    t <- inferExp ddef (M.insert v (TMonoTy fresh) env) body
     return $ ArrowTy fresh t
   EApp e1 e2 -> do
-    fun <- inferExp env e1
-    arg <- inferExp env e2
+    fun <- inferExp ddef env e1
+    arg <- inferExp ddef env e2
     res <- freshVarTy ()
     unify fun $ ArrowTy arg res
     return res
   ELet (var, tyscheme, val) body -> do -- TODO: Check this and make sure it works that way it should
-    t1 <- inferExp env val             -- Get the type for val
+    t1 <- inferExp ddef env val             -- Get the type for val
     mTyScheme <- instantiate tyscheme -- Instantiate our given type (so we now have a monotype)
     unify t1 mTyScheme                -- and check that against the type that we were given for the value
     t1' <- generalize t1 env
-    t2 <- inferExp (M.insert var t1' env) body -- Should we insert t1' or tyscheme here?
+    t2 <- inferExp ddef (M.insert var t1' env) body -- Should we insert t1' or tyscheme here?
     return t2
+  EK name -> case ddefLookup ddef name of
+  -- We hit a raw constructor, so we lookup the constructor in our DDef
+  -- env, and the type of it will be based upon what we already have from the DDef and KCons form
+  -- e.g, EK Foo
+  -- data Bar   = Foo     ==> Foo :: Bar
+  -- data Car a = Foo Int ==> Foo :: Int -> Car a
+  -- etc.
+               Just (topDef, constr) ->
+                 return $ foldr ArrowTy (ConTy (tyName topDef) (outputs constr)) (fields constr)
+               Nothing -> error $ "Unbound data constructor found! " ++ show name
+  EDict name                             -> undefined
+  ECase expr [(pat,exps)]                -> undefined
+  ECaseDict expr (tname,[tvar],exps) alt -> undefined
+  -- Need to discuss what exactly this does before I proceed any further.
+  EIfTyEq (e1,e2) t f                -> do --undefined
+    e1typ <- inferExp ddef env e1
+    e2typ <- inferExp ddef env e2
+    ttyp  <- inferExp ddef env t
+    ftyp  <- inferExp ddef env f
+    unify ttyp ftyp
+    {-unify e1typ e2typ -- FIXME: THIS IS WRONG, and do we even need to do this? -}
+    return ttyp
   t -> error $ "Inference for type: " ++ show t ++ " not implented yet!"
 
 varCounter :: AtomicCounter
@@ -223,13 +259,17 @@ freshVarTy _ = do
 ------------------------------ Testing ------------------------------
 
 mainInfer :: Exp -> IO MonoTy
-mainInfer term = stToIO (inferExp M.empty term)
+mainInfer term = stToIO (inferExp [] M.empty term)
 
 eId :: Exp
 eId = ELam ("x", ConTy "Int" []) $ EVar "x"
 
 appeId :: Exp
 appeId = EApp eId eId
+
+primitiveTypes :: [DDef]
+primitiveTypes =
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []]
 
 ------------------------------ PREVIUUS VERSION ------------------------------ 
 
