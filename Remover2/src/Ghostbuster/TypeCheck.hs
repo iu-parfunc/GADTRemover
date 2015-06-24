@@ -151,7 +151,7 @@ unify t01 t02 = do
      if n1 == n2
      then return ()
      else error "Unable to unify TypeDict applied to two different constructors"
-   _ -> error $ "can't unify"
+   (t1 , t2) -> error $ "Can't unify " ++ show t1 ++ " whith " ++ show t2
 
 substMonoTy :: MonoTy -> MonoTyEnv -> MonoTy
 substMonoTy x env = case x of
@@ -206,22 +206,24 @@ inferExp ddef env expr = case expr of
     t2 <- inferExp ddef env e2
     return $ TEPair t1 t2
   ELam (v, mty) body -> do
-    fresh@(VarTy _ _) <- freshVarTy ()
-    t <- inferExp ddef (M.insert v (TMonoTy fresh) env) body
-    return $ ArrowTy fresh t
+    t <- inferExp ddef (M.insert v (TMonoTy mty) env) body
+    return $ ArrowTy mty t
   EApp e1 e2 -> do
     fun <- inferExp ddef env e1
     arg <- inferExp ddef env e2
     res <- freshVarTy ()
     unify fun $ ArrowTy arg res
     return res
-  ELet (var, tyscheme, val) body -> do -- TODO: Check this and make sure it works that way it should
-    t1 <- inferExp ddef env val             -- Get the type for val
-    mTyScheme <- instantiate tyscheme -- Instantiate our given type (so we now have a monotype)
-    unify t1 mTyScheme                -- and check that against the type that we were given for the value
-    t1' <- generalize t1 env
-    t2 <- inferExp ddef (M.insert var t1' env) body -- Should we insert t1' or tyscheme here?
-    return t2
+  ELet (var, tyscheme, val) body -> do
+    -- Get the type for val
+    t1 <- inferExp ddef env val
+    -- We need to make this a monotype in order to try and unify it
+    mTyScheme <- instantiate tyscheme
+    -- Unify the two together to make sure that the annotation is correct
+    unify t1 mTyScheme
+    -- Now get the type of the body with (var :: tyscheme) in Gamma
+    t <- inferExp ddef (M.insert var tyscheme env) body
+    return t
   EK name -> case ddefLookup ddef name of
   -- We hit a raw constructor, so we lookup the constructor in our DDef
   -- env, and the type of it will be based upon what we already have from the DDef and KCons form
@@ -258,14 +260,27 @@ freshVarTy _ = do
 
 ------------------------------ Testing ------------------------------
 
-mainInfer :: Exp -> IO MonoTy
-mainInfer term = stToIO (inferExp [] M.empty term)
+mainInfer :: [DDef] -> Exp -> IO MonoTy
+mainInfer ddefs term = stToIO (inferExp ddefs M.empty term)
 
 eId :: Exp
 eId = ELam ("x", ConTy "Int" []) $ EVar "x"
 
+eBool :: Exp
+eBool = ELam ("x", ConTy "Bool" []) $ EVar "x"
+
+-- Should fail
 appeId :: Exp
 appeId = EApp eId eId
+
+constrT1 :: DDef
+constrT1 =  DDef "Pair" [("a",Star), ("b",Star)] [] [] [KCons "mkPair" [ConTy "Bool" []] [ConTy "Bool" []]]
+
+rawConstrTyp :: Exp
+rawConstrTyp = EK "mkPair"
+
+constrTest1 :: IO MonoTy
+constrTest1 = mainInfer [constrT1] rawConstrTyp
 
 primitiveTypes :: [DDef]
 primitiveTypes =
