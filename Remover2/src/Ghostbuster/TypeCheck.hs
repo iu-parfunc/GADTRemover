@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghostbuster.TypeCheck where
 
+import Debug.Trace
 import Control.Applicative
 import Control.Monad (when, (=<<))
 import Control.Monad.ST
@@ -143,7 +144,7 @@ unify t01 t02 = do
    (TInt, TInt) -> return ()
    (ConTy n1 mono1, ConTy n2 mono2) -> 
      if n1 /= n2
-     then error "Can't unify different type constructors"
+     then error $ "Can't unify different type constructors. Tried unifying: " ++ show n1 ++ " and " ++ show n2
      else  do
        monos <- mapM (\(m1,m2) -> unify m1 m2) $ zip mono1 mono2
        return () -- Pretty sure this is correct but double check it
@@ -269,9 +270,26 @@ eId = ELam ("x", ConTy "Int" []) $ EVar "x"
 eBool :: Exp
 eBool = ELam ("x", ConTy "Bool" []) $ EVar "x"
 
+-- Our show instance is a bit messed up, but this does the correct thing
+eBoolApp :: Exp
+eBoolApp = EApp (ELam ("x", ConTy "Bool" []) $ EVar "x") (EK "False")
+
+-- If you dont believe me, this one will work, but eBoolBadAppApp will not.
+eBoolAppApp :: Exp
+eBoolAppApp = EApp eBool (EApp (ELam ("x", ConTy "Bool" []) $ EVar "x") (EK "False"))
+
 -- Should fail
 appeId :: Exp
 appeId = EApp eId eId
+
+-- Should fail
+eBoolAppBad :: Exp
+eBoolAppBad = EApp (EK "False") (ELam ("x", ConTy "Bool" []) $ EVar "x")
+
+eBoolBadAppApp :: Exp
+eBoolBadAppApp = EApp eId (EApp (ELam ("x", ConTy "Bool" []) $ EVar "x") (EK "False"))
+
+-------------
 
 constrT1 :: DDef
 constrT1 =  DDef "Pair" [("a",Star), ("b",Star)] [] [] [KCons "mkPair" [ConTy "Bool" []] [ConTy "Bool" []]]
@@ -281,6 +299,21 @@ rawConstrTyp = EK "mkPair"
 
 constrTest1 :: IO MonoTy
 constrTest1 = mainInfer [constrT1] rawConstrTyp
+
+constrT2 :: DDef
+constrT2 =  DDef "Bool" [] [] [] [KCons "True" [] [], KCons "False" [] []]
+
+rawConstrTyp2 :: Exp
+rawConstrTyp2 = EK "True"
+
+rawConstrTyp3 :: Exp
+rawConstrTyp3 = EK "False"
+
+constrTest2 :: IO MonoTy
+constrTest2 = mainInfer [constrT2] rawConstrTyp2
+
+constrTest3 :: IO MonoTy
+constrTest3 = mainInfer [constrT2] rawConstrTyp3
 
 primitiveTypes :: [DDef]
 primitiveTypes =
