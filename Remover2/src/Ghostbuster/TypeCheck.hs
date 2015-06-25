@@ -2,9 +2,9 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghostbuster.TypeCheck where
 
-import Debug.Trace
+
 import Control.Applicative
-import Control.Monad (when, (=<<))
+
 import Control.Monad.ST
 import Data.Atomics.Counter
 import Data.STRef
@@ -12,7 +12,7 @@ import Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
-import qualified Ghostbuster.Types as Ghost
+
 import System.IO.Unsafe (unsafePerformIO, unsafeDupablePerformIO)
 
 import Prelude hiding (foldr)
@@ -91,8 +91,8 @@ freeVarTys (ForAll tvns t)               = S.difference <$> (freeVarTys $ TMonoT
 freeVarTys (TMonoTy TInt)                = return $ S.empty
 freeVarTys (TMonoTy (ArrowTy t1 t2))     = S.union <$> freeVarTys (TMonoTy t1) <*> freeVarTys (TMonoTy t2)
 freeVarTys (TMonoTy (ConTy name (m:ms))) = S.union <$> freeVarTys (TMonoTy (ConTy name ms)) <*> freeVarTys (TMonoTy m)
-freeVarTys (TMonoTy (ConTy name []))     = return $ S.empty -- TODO: make this cleaner
-freeVarTys (TMonoTy (TypeDictTy name))   = return $ S.empty
+freeVarTys (TMonoTy (ConTy _name []))    = return $ S.empty -- TODO: make this cleaner
+freeVarTys (TMonoTy (TypeDictTy _name))  = return $ S.empty
 freeVarTys (TMonoTy (TEPair t1 t2))      = S.union <$> freeVarTys (TMonoTy t1) <*> freeVarTys (TMonoTy t2)
 freeVarTys (TMonoTy tv@(VarTy v ref))    = do
   val <- readSTRef ref
@@ -111,7 +111,7 @@ occurs v t = case t of
   VarTy u _ -> u == v
   ArrowTy t1 t2 -> occurs v t1 || occurs v t2
   TEPair t1 t2 -> occurs v t1 || occurs v t2
-  ConTy name monos -> L.foldl (||) False $ map (occurs v) monos
+  ConTy _name monos -> L.foldl (||) False $ map (occurs v) monos
   _ -> False
 
 collapse :: MonoTy -> ST RealWorld MonoTy
@@ -127,7 +127,7 @@ collapse (ArrowTy t1 t2)     = ArrowTy <$> collapse t1 <*> collapse t2
 collapse (TEPair t1 t2)      = TEPair <$> collapse t1 <*> collapse t2
 collapse TInt                = return TInt
 collapse (ConTy name monos)  = ConTy name <$> mapM collapse monos
-collapse v@(TypeDictTy name) = return v
+collapse v@(TypeDictTy _)    = return v
 
 unify :: MonoTy -> MonoTy -> ST RealWorld ()
 unify t01 t02 = do
@@ -148,7 +148,7 @@ unify t01 t02 = do
      if n1 /= n2
      then error $ "Can't unify different type constructors. Tried unifying: " ++ show n1 ++ " and " ++ show n2
      else  do
-       monos <- mapM (\(m1,m2) -> unify m1 m2) $ zip mono1 mono2
+       _monos <- mapM (\(m1,m2) -> unify m1 m2) $ zip mono1 mono2
        return () -- Pretty sure this is correct but double check it
    (TypeDictTy n1, TypeDictTy n2) ->
      if n1 == n2
@@ -189,14 +189,14 @@ kconsLookup :: [KCons] -> KName -> Maybe KCons
 kconsLookup (d@KCons{..} : ds) name = if conName == (name :: Var)
                                   then Just d
                                   else kconsLookup ds name
-kconsLookup [] name = Nothing
+kconsLookup [] _name = Nothing
 
 ddefLookup :: [DDef] -> KName -> Maybe (DDef, KCons)
 ddefLookup (d@DDef{..} : ds) name =
   case kconsLookup cases name of
     Nothing -> ddefLookup ds name
     Just k  -> Just (d, k)
-ddefLookup [] name = Nothing
+ddefLookup [] _name = Nothing
 
 inferExp :: [DDef] -> Env -> Exp -> ST RealWorld MonoTy
 inferExp ddef env expr = case expr of
@@ -242,8 +242,8 @@ inferExp ddef env expr = case expr of
   ECaseDict expr (tname,[tvar],exps) alt -> undefined
   -- Need to discuss what exactly this does before I proceed any further.
   EIfTyEq (e1,e2) t f                -> do --undefined
-    e1typ <- inferExp ddef env e1
-    e2typ <- inferExp ddef env e2
+    _e1typ <- inferExp ddef env e1
+    _e2typ <- inferExp ddef env e2
     ttyp  <- inferExp ddef env t
     ftyp  <- inferExp ddef env f
     unify ttyp ftyp
