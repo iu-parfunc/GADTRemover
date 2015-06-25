@@ -20,6 +20,7 @@ library
                        Ghostbuster.Interp
                        Ghostbuster.TypeCheck
                        Ghostbuster.KindCheck
+                       Ghostbuster.Ambiguity
                        Ghostbuster.Examples.Feldspar
   -- other-modules:
   -- other-extensions:
@@ -28,6 +29,7 @@ library
                      , bytestring >= 0.10
                      , pretty >= 1.1.1.1
                      , containers >= 0.5.5
+                     , atomic-primops >= 0.6
   hs-source-dirs:      src
   default-language:    Haskell2010
 

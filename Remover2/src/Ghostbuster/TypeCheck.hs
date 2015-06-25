@@ -15,6 +15,8 @@ import qualified Data.Set as S
 import qualified Ghostbuster.Types as Ghost
 import System.IO.Unsafe (unsafePerformIO, unsafeDupablePerformIO)
 
+import Prelude hiding (foldr)
+
 --- Replicating the data types for now since it's a pain trying to add in
 --  the stref stuff to the types. This should all go away soon once I switch
 --  over to using DDefs for the primitive types.
@@ -142,7 +144,7 @@ unify t01 t02 = do
    (ArrowTy t1 t2, ArrowTy t1' t2') -> do unify t1 t1'; unify t2 t2'
    (TEPair t1 t2, TEPair t1' t2') -> do unify t1 t1'; unify t2 t2'
    (TInt, TInt) -> return ()
-   (ConTy n1 mono1, ConTy n2 mono2) -> 
+   (ConTy n1 mono1, ConTy n2 mono2) ->
      if n1 /= n2
      then error $ "Can't unify different type constructors. Tried unifying: " ++ show n1 ++ " and " ++ show n2
      else  do
@@ -319,17 +321,17 @@ primitiveTypes :: [DDef]
 primitiveTypes =
   [ DDef "->" [("a",Star), ("b",Star)] [] [] []]
 
------------------------------- PREVIUUS VERSION ------------------------------ 
+------------------------------ PREVIUUS VERSION ------------------------------
 
 -- {-# LANGUAGE TupleSections #-}
---- 
+---
 -- -- Large portions of this are from this repo:
 -- -- https://github.com/mgrabmueller/AlgorithmW.git
--- 
+--
 -- -- | FYI: Everywhere where we see 'map fst' we are losing kinding info
 -- module Ghostbuster.TypeCheck
 --       (typeExp, typeDef, typeProg) where
--- 
+--
 -- import           Ghostbuster.Types
 -- import           Control.Monad.Error
 -- import           Control.Monad.Reader
@@ -338,83 +340,83 @@ primitiveTypes =
 -- import qualified Data.Map              as Map
 -- import qualified Data.Set              as Set
 -- import qualified Text.PrettyPrint      as PP
--- 
+--
 -- -- | Type check a value definition given a set of in-scope data type
 -- -- definitions.
 -- typeDef :: [DDef] -> VDef -> Maybe TypeError
 -- typeDef = undefined
--- 
+--
 -- typeExp :: [DDef] -> Exp -> Maybe TypeError
 -- typeExp = undefined
--- 
+--
 -- typeProg :: Prog -> Maybe TypeError
 -- typeProg = undefined
--- 
+--
 -- -------------------------------- TypeChecker for Ghostbuster -------------------
--- 
+--
 -- ------------------------------ Types and data defs ------------------------------
--- 
+--
 -- type Subst = Map.Map TyVar MonoTy
--- 
+--
 -- -- | Mapping from a TermVar to it's type Sigma
 -- newtype TypeEnv = TypeEnv (Map.Map TermVar Sigma)
--- 
+--
 -- data TIEnv = TIEnv  {}
--- 
+--
 -- data TIState = TIState {  tiSupply :: Int
 --                        ,  tiSubst  :: Subst}
--- 
+--
 -- type TI a = ErrorT String (ReaderT TIEnv (StateT TIState IO)) a
--- 
+--
 -- class Types a where
 --   ftv   :: a -> Set.Set TyVar
 --   {-ftv   :: a -> Set.Set B.ByteString-}
 --   apply :: Subst -> a -> a
--- 
+--
 -- ------------------------------ Instantiations -----------------------------
--- 
+--
 -- instance Types MonoTy where
 --   ftv (VarTy var)         = Set.singleton var
 --   ftv (ArrowTy mt1 mt2)   = ftv mt1 `Set.union` ftv mt2
 --   ftv (ConTy name mtList) = Set.unions $ map ftv mtList
 --   ftv (TypeDictTy tyName)   = Set.empty
--- 
+--
 --   apply s v@(VarTy var)        = case Map.lookup var s of
 --                                  Nothing -> v
 --                                  Just newVar -> newVar
 --   apply s (ArrowTy mt1 mt2)    = ArrowTy (apply s mt1) (apply s mt2)
 --   apply s (ConTy name mtList)  = ConTy name (map (apply s) mtList)
 --   apply s td@(TypeDictTy tyName) = td -- Should we do something else here?
--- 
+--
 -- instance Types Sigma where
 --   ftv (ForAll vars t) = (ftv t) `Set.difference` (Set.fromList (map fst vars))
 --   apply s (ForAll vars t) = ForAll vars (apply (foldr Map.delete s (map fst vars)) t)
--- 
+--
 -- instance Types a => Types [a] where
 --   ftv l = foldr Set.union Set.empty (map ftv l)
 --   apply s = map (apply s)
--- 
+--
 -- instance Types TypeEnv where
 --   ftv (TypeEnv env) = ftv (Map.elems env)
 --   apply s (TypeEnv env) = TypeEnv (Map.map (apply s) env)
--- 
--- 
+--
+--
 -- ------------------------------ Utility Functions ------------------------------
--- 
+--
 -- nullSubst :: Subst
 -- nullSubst = Map.empty
--- 
+--
 -- composeSubst :: Subst -> Subst -> Subst
 -- composeSubst s1 s2 = (Map.map (apply s1) s2) `Map.union` s1
--- 
+--
 -- remove :: TypeEnv -> TermVar -> TypeEnv
 -- remove (TypeEnv env) var = TypeEnv $ Map.delete var env
--- 
+--
 -- -- FIXME: We need to fix kinding here
 -- generalize :: TypeEnv -> MonoTy -> Sigma
 -- generalize env t = ForAll vars t
 --   where vars = map (,Star) $ Set.toList $ (ftv t) `Set.difference` (ftv env)
--- 
+--
 -- runTI :: TI a -> IO (Either String a, TIState)
 -- runTI t =
 --     do (res, st) <- runStateT (runReaderT (runErrorT t) initTIEnv) initTIState
@@ -422,21 +424,21 @@ primitiveTypes =
 --   where initTIEnv = TIEnv{}
 --         initTIState = TIState{tiSupply = 0,
 --                               tiSubst = Map.empty}
--- 
+--
 -- newTyVar :: String -> TI MonoTy
 -- newTyVar prefix =
 --     do  s <- get
 --         put s{tiSupply = tiSupply s + 1}
 --         return (VarTy $ Var $  B.pack (prefix ++ show (tiSupply s)))
--- 
+--
 -- ----------------- The Actual Type Inference/Checking ------------------
--- 
+--
 -- instantiate :: Sigma -> TI MonoTy
 -- instantiate (ForAll vars t) =
 --   do  nvars <- mapM (\ _ -> newTyVar "a") vars
 --       let s = Map.fromList (zip (map fst vars) nvars)
 --       return $ apply s t
--- 
+--
 -- unify :: MonoTy -> MonoTy -> TI Subst
 -- unify (ArrowTy l r)  (ArrowTy l' r') =
 --   do s1 <- unify l l'
@@ -444,18 +446,18 @@ primitiveTypes =
 --      return $ s1 `composeSubst` s2
 -- unify (VarTy u) t = varBind u t
 -- unify t (VarTy u) = varBind u t
--- 
+--
 -- unify (TypeDictTy t1) (TypeDictTy t2) = return $ nullSubst -- unify t1 t2          -- FIXME
 -- unify (ConTy name mtypes) t = undefined                -- Punt on this for now
 -- unify t (ConTy name mtypes) = undefined                -- Punt on this for now
 -- unify t1 t2 = throwError $ "Types are unable to be unified: " ++ show t1 ++ " and " ++ show t2
--- 
+--
 -- varBind :: TyVar -> MonoTy -> TI Subst
 -- varBind u t  | t == VarTy u           =  return nullSubst
 --              | u `Set.member` ftv t  =  throwError $ "occurs check failed, with " ++ show u ++
 --                                          " and " ++ show t
 --              | otherwise             =  return (Map.singleton u t)
--- 
+--
 -- inferExp :: TypeEnv -> Exp -> TI (Subst, MonoTy)
 -- inferExp (TypeEnv env) (EVar var) =
 --   case Map.lookup var env of
@@ -484,27 +486,27 @@ primitiveTypes =
 -- inferExp _ _ = undefined
 -- -- TODO:
 -- --   CASE, DICT, CASEDICT, IFTYEQ
--- 
+--
 -- typeInference :: Map.Map TermVar Sigma -> Exp -> TI MonoTy
 -- typeInference env e =
 --     do  (s, t) <- inferExp (TypeEnv env) e
 --         return (apply s t)
--- 
+--
 -- e0  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
 --                                        (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
 --                                        (ELam (Var (B.pack "x"), VarTy (Var (B.pack "b"))) (EVar (Var (B.pack "x")))))
 --         (EVar (Var (B.pack "id")))
--- 
+--
 -- e1  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
 --                                        (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
 --                                        (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EVar (Var (B.pack "x")))))
 --         (EApp (EVar (Var (B.pack "id"))) (EVar (Var (B.pack "id"))))
--- 
+--
 -- e2  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
 --                                        (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
 --                                        EVar (Var (B.pack "x")))
 --         (EApp (EVar (Var (B.pack "id"))) (EVar (Var (B.pack "id"))))
--- 
+--
 -- e3  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
 --                                        (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
 --                                        (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EApp (EVar (Var (B.pack "x"))) (EVar (Var (B.pack "x"))))))
@@ -513,14 +515,14 @@ primitiveTypes =
 --                                        (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
 --                                        (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EVar (Var (B.pack "x")))))
 --         (EVar (Var (B.pack "id")))
--- 
+--
 -- test :: Exp -> IO ()
 -- test e =
 --     do  (res, _) <- runTI (typeInference Map.empty e)
 --         case res of
 --           Left err  ->  putStrLn $ "error: " ++ err
 --           Right t   ->  putStrLn $ " :: " ++ show t
--- 
+--
 -- main :: IO ()
 -- main = mapM_ test [e0,e1,e2,e3]
--- 
+--
