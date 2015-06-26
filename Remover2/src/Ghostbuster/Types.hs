@@ -164,6 +164,15 @@ maybeDOutBad = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
         [ KCons "Just" ["a"] ["b", "a"]
         , KCons "Nothing" [] ["a", "b"]
         ]
+
+kindTyScheme1 :: TyScheme
+kindTyScheme1 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "b")
+
+kindTyScheme2 :: TyScheme
+kindTyScheme2 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "a")
+
+kindTyScheme3 :: TyScheme
+kindTyScheme3 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "c")
 --------------------------------------------------------------------------------
 -- Misc Helpers
 

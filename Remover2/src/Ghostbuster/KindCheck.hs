@@ -46,6 +46,9 @@ kindConstr parent@DDef{..} env constr@KCons{..} =
                           show tyName ++ " Expected " ++ show tConstrKinds ++ " but received " ++ show ks
         Left err -> Left $ "Unable to infer kind for " ++ err ++ " in constructor " ++ show conName
 
+-- kindType Map.empty Map.empty kindTyScheme1
+-- kindType Map.empty Map.empty kindTyScheme2
+-- kindType Map.empty Map.empty kindTyScheme3
 kindType :: DEnv -> TKEnv -> TyScheme -> Either TypeError Kind
 kindType env tenv tscheme =
   case tscheme of
