@@ -66,7 +66,7 @@ data KCons = KCons { conName :: Var
 -- | (possibly open) Monomorphic types.
 data MonoTy = VarTy TyVar
             | ArrowTy MonoTy MonoTy
-            | ConTy KName [MonoTy]
+            | ConTy TName [MonoTy]
             | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 
