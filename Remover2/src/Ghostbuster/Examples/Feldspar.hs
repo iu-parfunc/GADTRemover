@@ -35,7 +35,7 @@ tup :: MonoTy -> MonoTy -> MonoTy
 tup a b = ConTy ","  [a,b]
 
 arr :: MonoTy -> MonoTy -> MonoTy
-arr a b = ConTy "->" [a,b]
+arr = ArrowTy
 
 int :: MonoTy
 int = ConTy "Int" []
