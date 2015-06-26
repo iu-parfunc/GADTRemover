@@ -57,7 +57,7 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
       ]
 
 feldspar_gadt :: [DDef]
-feldspar_gadt = [ints,dd1,dd2,dd3]
+feldspar_gadt = [dd1,dd2,dd3]
 
 --------------------------------------------------------------------------------
 
