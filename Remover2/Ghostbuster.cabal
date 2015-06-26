@@ -19,6 +19,7 @@ library
   exposed-modules:     Ghostbuster.Types
                        Ghostbuster.Interp
                        Ghostbuster.TypeCheck
+                       Ghostbuster.TypeCheck1
                        Ghostbuster.KindCheck
                        Ghostbuster.Ambiguity
                        Ghostbuster.Examples.Feldspar
@@ -30,6 +31,7 @@ library
                      , pretty >= 1.1.1.1
                      , containers >= 0.5.5
                      , atomic-primops >= 0.6
+                     , mtl
   hs-source-dirs:      src
   default-language:    Haskell2010
 
