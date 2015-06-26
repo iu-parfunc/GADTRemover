@@ -1,5 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
--- | TODO: need to make this handle mutually recursive data definitions
+-- | TODO: Need to make this handle mutually recursive data definitions
+-- | TODO: How to deal with type variables that aren't bound by a quantifier? (ie., implicit foralls?)
+--         OR can we always assume that any type variables will either be bound somewhere?
 
 module Ghostbuster.KindCheck where
 
@@ -14,12 +16,17 @@ type DEnv = Map.Map Var DDef
 -- Our environment mapping types to kinds
 type TKEnv = Map.Map Var Kind
 
-kindCheck :: DDef -> DEnv -> Either TypeError ()
-kindCheck d@DDef{..} env =
+toDEnv :: [DDef] -> DEnv
+toDEnv ls = Map.fromList $ zip (map tyName ls) ls
+
+-- Check it out!
+-- mapM (kindCheck (toDEnv primitiveTypes) (Map.fromList [(mkVar "b", Star)])) feldspar_gadt
+kindCheck ::DEnv -> TKEnv -> DDef -> Either TypeError ()
+kindCheck env tenv d@DDef{..} =
   -- All kept and synthesized vars must be of kind *
   if (allStars cVars) && (allStars sVars)
   -- Now check all the constructors for this datatype
-  then case mapM (kindConstr d env) cases of
+  then case mapM (kindConstr d env tenv) cases of
          Left a  -> Left $ "Failed to kindCheck data constructor: " ++ show a
          Right k -> Right ()
   else Left "Failed to infer proper kinds for C and S args for data constructor"
@@ -27,12 +34,12 @@ kindCheck d@DDef{..} env =
    allStars :: [(TyVar, Kind)] -> Bool
    allStars x = foldl (&&) True $ map ((== Star) . snd) x
 
-kindConstr :: DDef -> DEnv -> KCons -> Either TypeError ()
-kindConstr parent@DDef{..} env constr@KCons{..} =
+kindConstr :: DDef -> DEnv -> TKEnv -> KCons -> Either TypeError ()
+kindConstr parent@DDef{..} env tenv constr@KCons{..} =
   -- Get the kind for each of the taus that lead up to this guy
-  let flds   = mapM (kindType env (Map.fromList (kVars ++ cVars ++ sVars))) (map MonTy fields)
+  let flds   = mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars)))) (map MonTy fields)
       -- Get the kinds for all the output types
-      outpts = mapM (kindType env (Map.fromList (kVars ++ cVars ++ sVars))) (map MonTy outputs)
+      outpts = mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars)))) (map MonTy outputs)
       -- Now get the kinds that we expect for all the outputs
       tConstrKinds = map snd $ kVars ++ cVars ++ sVars
    in case outpts of
@@ -76,7 +83,14 @@ kindType env tenv tscheme =
       if kindt /= Star
       then Left $ "TypeDict constructor requires types of kind *, but we received a type of kind " ++ show kindt
       else Right Star
-    MonTy (ConTy kname monotys) -> error $ "ConTy is not implemented yet!"
+    MonTy (ConTy tname monotys) -> do
+      kinds <- mapM (kindType env tenv) $ map MonTy monotys
+      case Map.lookup tname env of
+        Nothing   -> Left $ "Unbound type constructor found! " ++ show tname
+        Just ddef -> let tnameKinds = getTyArgs [ddef] tname
+                     in if kinds == tnameKinds
+                        then return Star -- Only allow fully applied type constructors for now
+                        else Left $ "Invalide type constructor application: " ++ show kinds
 
 kindProg :: Prog -> DEnv -> Either TypeError ()
 kindProg = undefined

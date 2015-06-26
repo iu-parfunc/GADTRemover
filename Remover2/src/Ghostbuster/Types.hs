@@ -96,7 +96,10 @@ data Exp = EK KName
 -- | Built-in type environment.
 primitiveTypes :: [DDef]
 primitiveTypes =
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []]
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []
+  , DDef ","  [("a",Star), ("b",Star)] [] [] []
+  , ints
+  ]
 
 --------------------------------------------------------------------------------
 -- Values, for use by any interpreters:
