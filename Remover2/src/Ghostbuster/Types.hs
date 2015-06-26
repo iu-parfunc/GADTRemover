@@ -30,11 +30,14 @@ type TName = Var
 type KName = Var    -- ^ This corresponds to "K" in the paper.
 type TermVar = Var  -- ^ x,y,z
 type TyVar = Var    -- ^ a,b,c
-newtype Var = Var B.ByteString
+newtype Var = Var { unVar :: B.ByteString }
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
 mkVar :: String -> Var
 mkVar = Var . B.pack
+
+unMkVar :: Var -> String
+unMkVar = B.unpack . unVar
 
 -- | A program is a list of declarations followed by a "main" expression.
 data Prog = Prog [DDef] [VDef] Exp
