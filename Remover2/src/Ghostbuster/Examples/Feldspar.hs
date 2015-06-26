@@ -106,8 +106,12 @@ feldspar_adt = [dd1',dd2',dd3']
 -- Testing: Manually written up-function:
 
 sealedExp :: DDef
-sealedExp = DDef "SealeExp" [("e",Star)] [] []
-            [ KCons "SealeExp" [(TypeDictTy "a"), ConTy "Exp" ["e","a"]] ["e"] ]
+sealedExp =
+  DDef "SealedExp" [("e",Star)] [] []
+    [ KCons "SealedExp"
+            [TypeDictTy "a", ConTy "Exp" ["e","a"]]
+            [ConTy "SealedExp" ["e"]]
+    ]
 
 -- Can't get this to typecheck unless we have Int lits:
 exp1 :: Exp
