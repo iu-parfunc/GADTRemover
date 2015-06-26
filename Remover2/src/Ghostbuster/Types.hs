@@ -51,7 +51,7 @@ data DDef = DDef { tyName :: Var
 
 -- | Top-level value definitions
 data VDef = VDef { valName :: Var
-                 , valTy   :: Sigma
+                 , valTy   :: TyScheme
                  , valExp  :: Exp
                  }
   deriving (Eq,Ord,Show,Read,Generic)
@@ -74,7 +74,7 @@ data Kind = Star | ArrowKind Kind Kind
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | Type Schemes
-data Sigma = ForAll [(TyVar,Kind)] MonoTy | MonTy MonoTy
+data TyScheme = ForAll [(TyVar,Kind)] MonoTy | MonTy MonoTy
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Pat = Pat KName [TermVar]
@@ -84,7 +84,7 @@ data Exp = EK KName
          | EVar TermVar
          | ELam (TermVar,MonoTy) Exp
          | EApp Exp Exp
-         | ELet (TermVar,Sigma,Exp) Exp
+         | ELet (TermVar,TyScheme,Exp) Exp
          | ECase Exp [(Pat,Exp)]
          | EDict TName
          | ECaseDict Exp (TName,[TermVar],Exp) Exp
@@ -140,6 +140,30 @@ maybeD = DDef "Maybe" [("a", Star)] [] []
         [ KCons "Just" ["a"] ["a"]
         , KCons "Nothing" [] ["a"]
         ]
+
+maybeDGoodOut :: DDef
+maybeDGoodOut = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b", "a"]
+        , KCons "Nothing" [] ["b", TypeDictTy "a"]
+        ]
+
+maybeDbad :: DDef
+maybeDbad = DDef "Maybe" [("a", Star)] [("b", ArrowKind Star Star)] []
+        [ KCons "Just" ["a"] ["b"]
+        , KCons "Nothing" [] ["a"]
+        ]
+
+maybeDbadOut :: DDef
+maybeDbadOut = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b"]
+        , KCons "Nothing" [] ["a"]
+        ]
+
+maybeDOutBad :: DDef
+maybeDOutBad = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b", "a"]
+        , KCons "Nothing" [] ["a", "b"]
+        ]
 --------------------------------------------------------------------------------
 -- Misc Helpers
 
@@ -184,7 +208,7 @@ instance Out Var where
 instance Out KCons
 instance Out MonoTy
 instance Out Kind
-instance Out Sigma
+instance Out TyScheme
 instance Out Pat
 instance Out Exp
 instance Out DDef
