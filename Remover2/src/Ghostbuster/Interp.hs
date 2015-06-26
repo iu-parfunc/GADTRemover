@@ -12,7 +12,7 @@ import Debug.Trace
 import Ghostbuster.Types
 import Prelude as P hiding (exp)
 import Text.PrettyPrint.GenericPretty (Out(doc))
-
+import Ghostbuster.Utils
 
 -- | This interprets the program with a call-by-need semantics.
 interp :: Prog -> Val

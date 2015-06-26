@@ -5,7 +5,8 @@ module Ghostbuster.KindCheck where
 
 import           Ghostbuster.Types
 import           Ghostbuster.Examples.Feldspar
-import qualified Ghostbuster.TypeCheck as GTC 
+import qualified Ghostbuster.TypeCheck as GTC
+import           Ghostbuster.Utils (getTyArgs)
 import qualified Data.Map as Map
 
 -- Our environment for data constructors

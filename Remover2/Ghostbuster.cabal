@@ -22,6 +22,7 @@ library
                        Ghostbuster.TypeCheck1
                        Ghostbuster.KindCheck
                        Ghostbuster.Ambiguity
+                       Ghostbuster.Utils
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
