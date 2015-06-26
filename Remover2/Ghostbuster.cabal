@@ -23,6 +23,7 @@ library
                        Ghostbuster.KindCheck
                        Ghostbuster.Ambiguity
                        Ghostbuster.Examples.Feldspar
+                       Ghostbuster.CodeGen.DDef
   -- other-modules:
   -- other-extensions:
   build-depends:       GenericPretty >= 1.2
@@ -32,6 +33,8 @@ library
                      , containers >= 0.5.5
                      , atomic-primops >= 0.6
                      , mtl
+                     , haskell-src-exts >= 1.16
+
   hs-source-dirs:      src
   default-language:    Haskell2010
 
