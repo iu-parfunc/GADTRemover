@@ -3,6 +3,7 @@
 set -xe
 
 # This is specific to our testing setup at IU:
+if [ "$JENKINS_GHC" == ""  ]; then JENKINS_GHC=7.8.4; fi
 ENVSCRIPT=$HOME/rn_jenkins_scripts/acquire_ghc.sh
 if [ -f "$ENVSCRIPT" ]; then source "$ENVSCRIPT"; fi
 if [ "$CABAL" == ""  ]; then CABAL=cabal; fi
