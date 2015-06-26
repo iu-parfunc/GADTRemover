@@ -26,7 +26,7 @@ dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
                     , exp ["e", int]]                   [exp ["e",int]]
       , KCons "Var" [ ConTy "Var" ["e","a"]]            [exp ["e","a"]]
       , KCons "Abs" [ ConTy "Typ" ["a"]
-                    , exp [tup2 "e" "a", "b"]]          [exp ["e",arr "a" "b"]]
+                    , exp [tup "e" "a", "b"]]          [exp ["e",arr "a" "b"]]
       , KCons "App" [ exp ["e", arr "a" "b"]
                     , exp ["e", "a"]]                   [exp ["e","b"]]
       ]
@@ -35,6 +35,9 @@ dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
 
 tup2 :: MonoTy -> MonoTy -> MonoTy
 tup2 a b = TupleTy [a,b]
+
+tup :: MonoTy -> MonoTy -> MonoTy
+tup a b = ConTy "," [a,b]
 
 arr :: MonoTy -> MonoTy -> MonoTy
 arr = ArrowTy
@@ -46,7 +49,7 @@ int = ConTy "Int" []
 dd2 :: DDef
 dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
       [ KCons "Zro" []                      [ConTy "Var" ["e","a"]]
-      , KCons "Suc" [ConTy "Var" ["e","a"]] [ConTy "Var" [tup2 "e" "b", "a"]]
+      , KCons "Suc" [ConTy "Var" ["e","a"]] [ConTy "Var" [tup "e" "b", "a"]]
       ]
 
 dd3 :: DDef
@@ -57,7 +60,7 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
       ]
 
 feldspar_gadt :: [DDef]
-feldspar_gadt = [dd1,dd2,dd3]
+feldspar_gadt = [dd3,dd2,dd1]
 
 --------------------------------------------------------------------------------
 
