@@ -12,22 +12,22 @@ varName = name . unMkVar
 -- Generate a type variable declaration, with kind annotation if not simply kind
 -- star.
 --
-toTyVarBind :: Var -> G.Kind -> H.TyVarBind
-toTyVarBind v G.Star = UnkindedVar (varName v)
-toTyVarBind v k      = KindedVar (varName v) (toKind k)
+mkTyVarBind :: Var -> G.Kind -> H.TyVarBind
+mkTyVarBind v G.Star = UnkindedVar (varName v)
+mkTyVarBind v k      = KindedVar (varName v) (mkKind k)
 
 -- Convert a Ghostbuster kind to a haskell-src-exts kind
 --
-toKind :: G.Kind -> H.Kind
-toKind G.Star              = KindStar
-toKind (G.ArrowKind k1 k2) = KindFn (toKind k1) (toKind k2)
+mkKind :: G.Kind -> H.Kind
+mkKind G.Star              = KindStar
+mkKind (G.ArrowKind k1 k2) = KindFn (mkKind k1) (mkKind k2)
 
 -- Convert a Ghostbuster type to a haskell-src-exts type
 --
-toType :: MonoTy -> Type
-toType (VarTy v)        = TyVar (varName v)
-toType (ArrowTy a b)    = TyFun (toType a) (toType b)
-toType (TupleTy tup)    = TyTuple Boxed (map toType tup)
-toType (ConTy c tys)    = foldl TyApp (TyCon (UnQual (varName c))) (map toType tys)
-toType (TypeDictTy _v)  = error "toType.TypeDictTy"     -- TLM: ???
+mkType :: MonoTy -> Type
+mkType (VarTy v)        = TyVar (varName v)
+mkType (ArrowTy a b)    = TyFun (mkType a) (mkType b)
+mkType (TupleTy tup)    = TyTuple Boxed (map mkType tup)
+mkType (ConTy c tys)    = foldl TyApp (TyCon (UnQual (varName c))) (map mkType tys)
+mkType (TypeDictTy v)   = mkType (ConTy "TypeDict" [VarTy v])
 

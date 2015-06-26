@@ -22,23 +22,23 @@ gadtOfDDef DDef{..} =
     DataType                                    -- data type or newtype declaration
     []                                          -- context, class assertions
     (varName tyName)
-    (map (uncurry toTyVarBind) vars)
+    (map (uncurry mkTyVarBind) vars)
     Nothing                                     -- TLM: Maybe Kind ???
-    (map toGADTConstr cases)                    -- GADT constructors
+    (map mkGADTCtor cases)                      -- GADT constructors
     []                                          -- [deriving]
 
 
 -- Generate the declaration for a single GADT constructor
 --
-toGADTConstr :: KCons -> GadtDecl
-toGADTConstr KCons{..} =
+mkGADTCtor :: KCons -> GadtDecl
+mkGADTCtor KCons{..} =
   GadtDecl
     noLoc                       -- source location
     (varName conName)
     []                          -- TLM ???
     theType
   where
-    theType     = case map toType (fields ++ outputs) of
+    theType     = case map mkType (fields ++ outputs) of
                     [x] -> x
                     xs  -> foldr1 TyFun xs
 
