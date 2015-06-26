@@ -74,12 +74,12 @@ feldspar_gadt = [ints,dd1,dd2,dd3]
 
 dd1' :: DDef
 dd1' = DDef "Exp" [] [] []
-       [ KCons "Con'" [int]            []
-       , KCons "Add'" [exp', exp']     []
-       , KCons "Mul'" [exp', exp']     []
-       , KCons "Var'" [ConTy "Var'" []]       []
-       , KCons "Abs'" [ConTy "Typ'" [], exp'] []
-       , KCons "App'" [exp', exp'] []
+       [ KCons "Con'" [int]                     [exp']
+       , KCons "Add'" [exp', exp']              [exp']
+       , KCons "Mul'" [exp', exp']              [exp']
+       , KCons "Var'" [ConTy "Var'" []]         [exp']
+       , KCons "Abs'" [ConTy "Typ'" [], exp']   [exp']
+       , KCons "App'" [exp', exp']              [exp']
        ]
   where
   exp' = ConTy "Exp'" []
@@ -87,14 +87,15 @@ dd1' = DDef "Exp" [] [] []
 
 dd2' :: DDef
 dd2' = DDef "Var'" [] [] []
-       [ KCons "Zro'" [] []
-       , KCons "Suc'" [ConTy "Var'" []] []
+       [ KCons "Zro'" []                [ConTy "Var'" []]
+       , KCons "Suc'" [ConTy "Var'" []] [ConTy "Var'" []]
        ]
 
 dd3' :: DDef
 dd3' = DDef "Typ'" [] [] []
-       [ KCons "Int'" [] []
-       , KCons "Arr'" [ConTy "Typ'" [], ConTy "Typ'" []] []
+       [ KCons "Int'" []                        [ConTy "Typ'" []]
+       , KCons "Arr'" [ ConTy "Typ'" []
+                      , ConTy "Typ'" []]        [ConTy "Typ'" []]
        ]
 
 feldspar_adt :: [DDef]
