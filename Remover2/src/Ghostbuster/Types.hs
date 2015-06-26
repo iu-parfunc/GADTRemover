@@ -25,11 +25,11 @@ import qualified Data.List as L
 type TypeError = String
 
 -- | We could distinguish our different classes variables: T,K,a, etc,
--- but we don't do that here:
+-- but we don't do that here.  This corresponds to "T":
 type TName = Var
-type KName = Var
-type TermVar = Var
-type TyVar = Var
+type KName = Var    -- ^ This corresponds to "K" in the paper.
+type TermVar = Var  -- ^ x,y,z
+type TyVar = Var    -- ^ a,b,c
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
@@ -41,7 +41,7 @@ data Prog = Prog [DDef] [VDef] Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | A single datatype definition.
-data DDef = DDef { tyName :: Var
+data DDef = DDef { tyName :: TName
                  , kVars :: [(TyVar,Kind)]
                  , cVars :: [(TyVar,Kind)]
                  , sVars :: [(TyVar,Kind)]
@@ -73,8 +73,9 @@ data MonoTy = VarTy TyVar
 data Kind = Star | ArrowKind Kind Kind
   deriving (Eq,Ord,Show,Read,Generic)
 
--- | Type Schemes
-data TyScheme = ForAll [(TyVar,Kind)] MonoTy | MonTy MonoTy
+-- | Type Schemes, Sigma in the paper.
+data TyScheme = ForAll [(TyVar,Kind)] MonoTy
+              | MonTy MonoTy
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Pat = Pat KName [TermVar]
