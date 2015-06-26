@@ -23,6 +23,7 @@ library
                        Ghostbuster.KindCheck
                        Ghostbuster.Ambiguity
                        Ghostbuster.Examples.Feldspar
+                       Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
   -- other-modules:
   -- other-extensions:
