@@ -46,11 +46,9 @@ kindConstr parent@DDef{..} env tenv constr@KCons{..} =
         Right ks ->
           -- Now make sure that all the kinds that we expect the type
           -- constructor to be applied to are actually applied to it
-          let allCorrect = foldl (\ b (expected,actual) -> b && (expected == actual))
-                                 True $ zip tConstrKinds ks
-          in if allCorrect then Right ()
-             else Left $ "Invalid Kinds for type constructor " ++
-                          show tyName ++ " Expected " ++ show tConstrKinds ++ " but received " ++ show ks
+          if tConstrKinds == ks then Right ()
+          else Left $ "Invalid Kinds for type constructor " ++
+                       show tyName ++ " Expected " ++ show tConstrKinds ++ " but received " ++ show ks
         Left err -> Left $ "Unable to infer kind for " ++ err ++ " in constructor " ++ show conName
 
 -- kindType Map.empty Map.empty kindTyScheme1
