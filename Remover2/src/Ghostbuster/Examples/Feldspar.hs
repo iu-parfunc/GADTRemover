@@ -19,17 +19,19 @@ data Exp (e :: *) (a :: *) where
 -}
 dd1 :: DDef
 dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
-      [ KCons "Con" [int]                          ["e",int]
-      , KCons "Add" [exp "e" int, exp "e" int]     ["e",int]
-      , KCons "Mul" [exp "e" int, exp "e" int]     ["e",int]
-      , KCons "Var" [ConTy "Var" ["e","a"]]        ["e","a"]
-      , KCons "Abs" [ConTy "Typ" ["a"], exp (tup2 "e" "a") "b"]
-                                                   (["e",arr "a" "b"])
-      , KCons "App" [exp "e" (arr "a" "b"), exp "e" "a"]
-                                                   (["e","b"])
+      [ KCons "Con" [int]                               [exp ["e",int]]
+      , KCons "Add" [ exp ["e", int]
+                    , exp ["e", int]]                   [exp ["e",int]]
+      , KCons "Mul" [ exp ["e", int]
+                    , exp ["e", int]]                   [exp ["e",int]]
+      , KCons "Var" [ ConTy "Var" ["e","a"]]            [exp ["e","a"]]
+      , KCons "Abs" [ ConTy "Typ" ["a"]
+                    , exp [tup2 "e" "a", "b"]]          [exp ["e",arr "a" "b"]]
+      , KCons "App" [ exp ["e", arr "a" "b"]
+                    , exp ["e", "a"]]                   [exp ["e","b"]]
       ]
   where
-  exp a b = ConTy "Exp"   [a,b]
+  exp ts = ConTy "Exp" ts
 
 tup2 :: MonoTy -> MonoTy -> MonoTy
 tup2 a b = TupleTy [a,b]
@@ -43,15 +45,15 @@ int = ConTy "Int" []
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
 dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
-      [ KCons "Zro" [] (["e","a"])
-      , KCons "Suc" [ConTy "Var" ["e","a"]] ([tup2 "e" "b", "a"])
+      [ KCons "Zro" []                      [ConTy "Var" ["e","a"]]
+      , KCons "Suc" [ConTy "Var" ["e","a"]] [ConTy "Var" [tup2 "e" "b", "a"]]
       ]
 
 dd3 :: DDef
 dd3 = DDef "Typ" [] [] [("a",Star)]
-      [ KCons "Int" [] ([int])
-      , KCons "Arr" [ConTy "Typ" ["a"], ConTy "Typ" ["b"]]
-                    ([arr "a" "b"])
+      [ KCons "Int" []                          [ConTy "Typ" [int]]
+      , KCons "Arr" [ ConTy "Typ" ["a"]
+                    , ConTy "Typ" ["b"]]        [ConTy "Typ" [arr "a" "b"]]
       ]
 
 feldspar_gadt :: [DDef]
