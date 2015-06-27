@@ -26,23 +26,32 @@ ambCheck defs = loop defs
        loop rest
 
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()
-checkKCons myT getStatus KCons{conName,fields,outputs} =
+checkKCons myT getStatus KCons{fields,outputs} =
   do -- First, check that synthesized info can be recovered:
      forM_ ss $ \synthTau ->
        forM_ (S.toList (ftv synthTau)) $ \free ->
           checkSynthVar free
      -- Second, check that checked-arguments to recursive calls can be created:
-
+     _ <- foldM (\acc field ->
+                 do forM_ (S.toList $ inCheckedContext getStatus field) $ \checkedVar ->
+                      checkChecked acc checkedVar
+                    return $ S.union acc (ftv field)
+                ) S.empty fields
+     return ()
      -- map (checkSynthVar) ss
   where
-  (ks,cs,ss) = splitTyArgs myStatus outputs
-
-  myStatus = getStatus myT
-
-  varsInKeep = ftv ks
+  (ks,cs,ss)    = splitTyArgs myStatus outputs
+  myStatus      = getStatus myT
+  varsInKeep    = ftv ks
   varsInChecked = ftv cs
 
-  fieldInputs = S.unions $ L.map (fvNonChecked getStatus) fields
+  -- everything but checked, in ALL fields:
+  fieldInputs   = S.unions $ L.map (fvNonChecked getStatus) fields
+
+  -- Non-erased vars:
+  allNonErased  = S.unions $
+                  varsInKeep :
+                  map (nonErased getStatus) fields
 
   checkSynthVar v
     | S.member v varsInKeep    = return ()
@@ -53,6 +62,17 @@ checkKCons myT getStatus KCons{conName,fields,outputs} =
              "\nNot found in kept output vars: "++show varsInKeep++
              "\nNot found in checked output vars: "++show varsInChecked++
              "\nNot found in relavant vars from fields: "++show fieldInputs
+
+  checkChecked varsToTheLeft tyvar
+    | S.member tyvar varsToTheLeft = return ()
+    | S.member tyvar allNonErased = return ()
+    | S.member tyvar varsInChecked = return ()
+    | otherwise =
+      Left $ "Ambiguous tyvar in checked poisiton within field: "++show tyvar++
+             "\nNot found in type vars in fields on the left: "++show varsToTheLeft++
+             "\nNot found in checked 'inputs': "++show varsInChecked++
+             "\nNot found in non-erased vars: "++show allNonErased
+
 
 -- | Partition type variables into (kept,checked,synth)
 splitTyArgs :: [TyStatus] -> [t] -> ([t],[t],[t])
@@ -79,3 +99,33 @@ fvNonChecked getStatus mt =
     (TypeDictTy _tau) -> S.empty
  where
  lp = fvNonChecked getStatus
+
+-- | Opposite of fvNonChecked, this returns type variables mentioned
+-- in checked context.
+inCheckedContext :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
+inCheckedContext getStatus mt =
+  case mt of
+    (VarTy _) -> S.empty
+    (ArrowTy x1 x2) -> S.union (lp x1) (lp x2)
+    (ConTy ty args) ->
+      -- return EVERYTHING under this checked branch:
+      let (_,cs,_) = splitTyArgs (getStatus ty) args
+      in ftv cs
+    (TupleTy xs) -> S.unions $ map lp xs
+    (TypeDictTy _tau) -> S.empty
+ where
+ lp = inCheckedContext getStatus
+
+-- | Include nothing under checked or synth contexts.
+nonErased :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
+nonErased getStatus mt =
+  case mt of
+    (VarTy x) -> S.singleton x
+    (ArrowTy x1 x2) -> S.union (lp x1) (lp x2)
+    (ConTy ty args) ->
+      let (k,_,_) = splitTyArgs (getStatus ty) args
+      in S.unions (map lp k)
+    (TupleTy xs) -> S.unions $ map lp xs
+    (TypeDictTy _tau) -> S.empty
+ where
+ lp = nonErased getStatus
