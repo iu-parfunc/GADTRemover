@@ -9,7 +9,7 @@ module Ghostbuster.Ambiguity
 import           Control.Monad
 import qualified Data.List as L
 import qualified Data.Set as S
-import           Debug.Trace
+-- import           Debug.Trace
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
 
@@ -39,8 +39,8 @@ addToErr _ (Right x)  = Right x
 
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()
 checkKCons myT getStatus KCons{conName,fields,outputs} =
-  trace ("Splitting for constructor "++show myT++
-         " with status "++show myStatus++ "\n  and outs "++show outputs) $
+--  trace ("Splitting for constructor "++show myT++
+--         " with status "++show myStatus++ "\n  and outs "++show outputs) $
   addToErr ("When type checking data constructor: "++show conName++"\n") $
   do -- First, check that synthesized info can be recovered:
      forM_ ss $ \synthTau ->

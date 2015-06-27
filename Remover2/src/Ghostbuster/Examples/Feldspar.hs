@@ -48,7 +48,7 @@ int = ConTy "Int" []
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
 dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
-      [ KCons "Zro" []                      ["e","a"]
+      [ KCons "Zro" []                      [tup "e" "a","a"]
       , KCons "Suc" [ConTy "Var" ["e","a"]] [tup "e" "b", "a"]
       ]
 
@@ -60,7 +60,7 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
       ]
 
 feldspar_gadt :: [DDef]
-feldspar_gadt = [dd3,dd2,dd1]
+feldspar_gadt = tupsD ++ [ints, dd3,dd2,dd1]
 
 --------------------------------------------------------------------------------
 
@@ -76,7 +76,7 @@ feldspar_gadt = [dd3,dd2,dd1]
 --  deriving (Show, Generic)
 
 dd1' :: DDef
-dd1' = DDef "Exp" [] [] []
+dd1' = DDef "Exp'" [] [] []
        [ KCons "Con'" [int]                     []
        , KCons "Add'" [exp', exp']              []
        , KCons "Mul'" [exp', exp']              []
@@ -102,7 +102,7 @@ dd3' = DDef "Typ'" [] [] []
        ]
 
 feldspar_adt :: [DDef]
-feldspar_adt = [dd1',dd2',dd3']
+feldspar_adt = tupsD ++ [ints,dd1',dd2',dd3']
 
 --------------------------------------------------------------------------------
 

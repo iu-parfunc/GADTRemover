@@ -141,6 +141,14 @@ maybeD = DDef "Maybe" [("a", Star)] [] []
         , KCons "Nothing" [] ["a"]
         ]
 
+tupsD :: [DDef]
+tupsD = [ DDef "Tup2" [("a", Star), ("b", Star)] [] []
+          [ KCons "Tup2" ["a","b"] ["a","b"]]
+
+        -- If needed, add more:
+        -- , DDef "Tup3" [("a", Star),("b", Star),("c", Star)] [] []
+        ]
+
 --------------------------------------------------------------------------------
 -- Tests:
 
