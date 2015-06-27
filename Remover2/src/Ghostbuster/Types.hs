@@ -104,8 +104,8 @@ data Exp = EK KName
 -- | Built-in type environment.
 primitiveTypes :: [DDef]
 primitiveTypes =
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []
-  , DDef ","  [("a",Star), ("b",Star)] [] [] []
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []         -- TLM: change to ArrowTy ???
+  , DDef ","  [("a",Star), ("b",Star)] [] [] []         -- TLM: change to TupleTy ???
   , ints
   ]
 
