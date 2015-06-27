@@ -9,6 +9,7 @@ module Ghostbuster.TypeCheck1
        main) where
 
 import           Ghostbuster.Types
+import           Ghostbuster.Utils
 import           Control.Monad.Error
 import           Control.Monad.Reader
 import           Control.Monad.State
@@ -16,6 +17,7 @@ import qualified Data.ByteString.Char8 as B
 import qualified Data.Map              as Map
 import qualified Data.Set              as Set
 -- import qualified Text.PrettyPrint      as PP
+
 
 -- | Type check a value definition given a set of in-scope data type
 -- definitions.
@@ -28,11 +30,13 @@ typeExp = undefined
 typeProg :: Prog -> Maybe TypeError
 typeProg = undefined
 
+instance Types TypeEnv where
+  ftv (TypeEnv env) = ftv (Map.elems env)
+  apply s (TypeEnv env) = TypeEnv (Map.map (apply s) env)
+
 -------------------------------- TypeChecker for Ghostbuster -------------------
 
 ------------------------------ Types and data defs ------------------------------
-
-type Subst = Map.Map TyVar MonoTy
 
 -- | Mapping from a TermVar to it's type TyScheme
 newtype TypeEnv = TypeEnv (Map.Map TermVar TyScheme)
@@ -43,39 +47,6 @@ data TIState = TIState { tiSupply :: Int
                        ,  tiSubst  :: Subst}
 
 type TI a = ErrorT String (ReaderT TIEnv (StateT TIState IO)) a
-
-class Types a where
-  ftv   :: a -> Set.Set TyVar
-  {-ftv   :: a -> Set.Set B.ByteString-}
-  apply :: Subst -> a -> a
-
------------------------------- Instantiations -----------------------------
-
-instance Types MonoTy where
-  ftv (VarTy var)         = Set.singleton var
-  ftv (ArrowTy mt1 mt2)   = ftv mt1 `Set.union` ftv mt2
-  ftv (ConTy _name mtList) = Set.unions $ map ftv mtList
-  ftv (TypeDictTy _tyName) = Set.empty
-
-  apply s v@(VarTy var)        = case Map.lookup var s of
-                                 Nothing -> v
-                                 Just newVar -> newVar
-  apply s (ArrowTy mt1 mt2)    = ArrowTy (apply s mt1) (apply s mt2)
-  apply s (ConTy name mtList)  = ConTy name (map (apply s) mtList)
-  apply _ td@(TypeDictTy _tyName) = td -- Should we do something else here?
-
-instance Types TyScheme where
-  ftv (ForAll vars t) = (ftv t) `Set.difference` (Set.fromList (map fst vars))
-  apply s (ForAll vars t) = ForAll vars (apply (foldr Map.delete s (map fst vars)) t)
-
-instance Types a => Types [a] where
-  ftv l = foldr Set.union Set.empty (map ftv l)
-  apply s = map (apply s)
-
-instance Types TypeEnv where
-  ftv (TypeEnv env) = ftv (Map.elems env)
-  apply s (TypeEnv env) = TypeEnv (Map.map (apply s) env)
-
 
 ------------------------------ Utility Functions ------------------------------
 

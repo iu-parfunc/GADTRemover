@@ -4,12 +4,9 @@
 module Ghostbuster.Utils where
 
 import Data.Map.Lazy as M
-
+import qualified Data.Set              as Set
+import qualified Data.Map              as Map
 import qualified Data.Set as S
-
-
-
-
 import qualified Data.List as L
 import Ghostbuster.Types
 
@@ -36,6 +33,8 @@ getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
 
 freeVars :: Exp -> S.Set Var
 freeVars = undefined
+
+
 
 
 -- | Sometimes it's convenient to convert back to expression:
@@ -68,3 +67,35 @@ getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
                   replicate (length cVars) Check ++
                   replicate (length sVars) Synth
   | otherwise = getArgStatus rest t
+
+--------------------------------------------------------------------------------
+
+class Types a where
+  ftv   :: a -> Set.Set TyVar
+  {-ftv   :: a -> Set.Set B.ByteString-}
+  apply :: Subst -> a -> a
+
+type Subst = Map.Map TyVar MonoTy
+
+------------------------------ Instantiations -----------------------------
+
+instance Types MonoTy where
+  ftv (VarTy var)         = Set.singleton var
+  ftv (ArrowTy mt1 mt2)   = ftv mt1 `Set.union` ftv mt2
+  ftv (ConTy _name mtList) = Set.unions $ L.map ftv mtList
+  ftv (TypeDictTy _tyName) = Set.empty
+
+  apply s v@(VarTy var)        = case Map.lookup var s of
+                                 Nothing -> v
+                                 Just newVar -> newVar
+  apply s (ArrowTy mt1 mt2)    = ArrowTy (apply s mt1) (apply s mt2)
+  apply s (ConTy name mtList)  = ConTy name (L.map (apply s) mtList)
+  apply _ td@(TypeDictTy _tyName) = td -- Should we do something else here?
+
+instance Types TyScheme where
+  ftv (ForAll vars t) = (ftv t) `Set.difference` (Set.fromList (L.map fst vars))
+  apply s (ForAll vars t) = ForAll vars (apply (L.foldr Map.delete s (L.map fst vars)) t)
+
+instance Types a => Types [a] where
+  ftv l = L.foldr Set.union Set.empty (L.map ftv l)
+  apply s = L.map (apply s)
