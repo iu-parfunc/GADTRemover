@@ -1,22 +1,30 @@
 {-# LANGUAGE RecordWildCards #-}
 -- | TODO: Need to make this handle mutually recursive data definitions
 
-module Ghostbuster.KindCheck where
+module Ghostbuster.KindCheck
+       ( kindProg
+       , kindClosedDefs
+       ) where
 
 import           Ghostbuster.Types
-import           Ghostbuster.Examples.Feldspar
-import qualified Ghostbuster.TypeCheck as GTC
+-- import           Ghostbuster.Examples.Feldspar
+-- import qualified Ghostbuster.TypeCheck as GTC
 import           Ghostbuster.Utils (getTyArgs)
 import qualified Data.Map as Map
 
 -- Our environment for data constructors
-type DEnv = Map.Map Var DDef
+type DEnv = Map.Map TName DDef
 
--- Our environment mapping types to kinds
-type TKEnv = Map.Map Var Kind
+-- Our environment mapping type variables to kinds
+type TKEnv = Map.Map TyVar Kind
 
 toDEnv :: [DDef] -> DEnv
 toDEnv ls = Map.fromList $ zip (map tyName ls) ls
+
+kindClosedDefs :: [DDef] -> Either TypeError ()
+kindClosedDefs defs =
+  do _ <- kindCheckDDefs (toDEnv defs) Map.empty defs
+     return ()
 
 -- | This is for checking multiple DDefs at once that we see. We assume for
 --   now that something will not be refered to until it has been defined.
@@ -25,7 +33,7 @@ kindCheckDDefs :: DEnv -> TKEnv -> [DDef] -> Either TypeError DEnv
 kindCheckDDefs denv tkenv (ddef : defs) = do
   newEnv <- kindCheck denv tkenv ddef
   kindCheckDDefs newEnv tkenv defs
-kindCheckDDefs denv tkenv [] = return $ denv
+kindCheckDDefs denv _tkenv [] = return $ denv
 
 -- Check it out!
 -- mapM (kindCheck (toDEnv (dd2 : dd3 : primitiveTypes)) (Map.fromList [(mkVar "b", Star)])) feldspar_gadt
@@ -85,7 +93,8 @@ kindType env tenv tscheme =
       -- enforce that here
       kindt <- kindType env tenv (MonTy (VarTy tname))
       if kindt /= Star
-      then Left $ "TypeDict constructor requires types of kind *, but we received a type of kind " ++ show kindt
+      then Left $ "TypeDict constructor requires types of kind *, but we received a type of kind "
+                  ++ show kindt
       else Right Star
     MonTy (ConTy tname monotys) -> do
       kinds <- mapM (kindType env tenv) $ map MonTy monotys
@@ -97,7 +106,9 @@ kindType env tenv tscheme =
                         else Left $ "Invalide type constructor application: " ++ show kinds
     t -> error $ "FOund " ++ show t
 
-kindProg :: Prog -> DEnv -> Either TypeError ()
-kindProg = undefined
+-- | Convenience: verify that the data defs that come with a program kind-check.
+kindProg :: Prog -> Either TypeError ()
+kindProg (Prog ddefs _ _) = kindClosedDefs ddefs
+
  -- Typecheck/infer
  -- Once we get the types go and run kindType on it
