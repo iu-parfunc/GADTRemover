@@ -23,7 +23,8 @@ ambCheck defs = loop defs
   where
   loop [] = return ()
   loop (DDef {tyName, cases} : rest) =
-    do sequence_ $ map (checkKCons tyName (getArgStatus defs)) cases
+    do addToErr ("When type checking type constructor: "++show tyName++"\n") $
+         sequence_ $ map (checkKCons tyName (getArgStatus defs)) cases
        loop rest
 
 ambCheckErr :: [DDef] -> ()
@@ -32,11 +33,15 @@ ambCheckErr defs =
     Left e -> error e
     Right () -> ()
 
+addToErr :: String -> Either String x -> Either String x
+addToErr s (Left err) = Left (s++err)
+addToErr _ (Right x)  = Right x
 
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()
-checkKCons myT getStatus KCons{fields,outputs} =
+checkKCons myT getStatus KCons{conName,fields,outputs} =
   trace ("Splitting for constructor "++show myT++
          " with status "++show myStatus++ "\n  and outs "++show outputs) $
+  addToErr ("When type checking data constructor: "++show conName++"\n") $
   do -- First, check that synthesized info can be recovered:
      forM_ ss $ \synthTau ->
        forM_ (S.toList (ftv synthTau)) $ \free ->
