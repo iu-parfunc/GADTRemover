@@ -57,10 +57,10 @@ val2Exp (VClo vt env bod) = loop (M.toList env)
 --------------------------------------------------------------------------------
 
 -- | The status of a given type argument.
-data TyArgStatus = Keep | Check | Synth
+data TyStatus = Keep | Check | Synth
 
 -- | Get the "status signature" for a type constructor.
-getArgStatus :: [DDef] -> TName -> [TyArgStatus]
+getArgStatus :: [DDef] -> TName -> [TyStatus]
 getArgStatus [] t = error $ "getArgStatus: could not find type constructor "++show t
 getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
   | t == tyName = replicate (length kVars) Keep ++
