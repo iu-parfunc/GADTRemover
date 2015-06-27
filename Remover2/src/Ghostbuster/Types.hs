@@ -69,12 +69,14 @@ data KCons = KCons { conName :: Var
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
--- | (possibly open) Monomorphic types.
-data MonoTy = VarTy TyVar
-            | ArrowTy MonoTy MonoTy
-            | ConTy TName [MonoTy]
-            | TupleTy [MonoTy]
-            | TypeDictTy TName
+-- | Monomorphic types (possibly open).
+--
+data MonoTy
+  = VarTy TyVar                 -- ^ type variable
+  | ArrowTy MonoTy MonoTy       -- ^ function type
+  | ConTy TName [MonoTy]        -- ^ named type or type constructor combined with type application
+  | TupleTy [MonoTy]            -- ^ tuple type (boxed)
+  | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Kind = Star | ArrowKind Kind Kind
@@ -103,8 +105,8 @@ data Exp = EK KName
 -- | Built-in type environment.
 primitiveTypes :: [DDef]
 primitiveTypes =
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []
-  , DDef ","  [("a",Star), ("b",Star)] [] [] []
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []         -- TLM: change to ArrowTy ???
+  , DDef ","  [("a",Star), ("b",Star)] [] [] []         -- TLM: change to TupleTy ???
   , ints
   ]
 

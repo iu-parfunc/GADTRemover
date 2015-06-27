@@ -31,3 +31,4 @@ mkType (ArrowTy a b)    = TyFun (mkType a) (mkType b)
 mkType (TupleTy tup)    = TyTuple Boxed (map mkType tup)
 mkType (ConTy c tys)    = foldl TyApp (TyCon (UnQual (varName c))) (map mkType tys)
 mkType (TypeDictTy v)   = mkType (ConTy "TypeDict" [VarTy v])   -- TLM: ???
+
