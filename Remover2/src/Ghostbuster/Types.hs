@@ -31,8 +31,11 @@ type TName = Var
 type KName = Var    -- ^ This corresponds to "K" in the paper.
 type TermVar = Var  -- ^ x,y,z
 type TyVar = Var    -- ^ a,b,c
-newtype Var = Var { unVar :: B.ByteString }
+newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
+
+unVar :: Var -> B.ByteString
+unVar (Var v) = v
 
 mkVar :: String -> Var
 mkVar = Var . B.pack

@@ -19,16 +19,16 @@ data Exp (e :: *) (a :: *) where
 -}
 dd1 :: DDef
 dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
-      [ KCons "Con" [int]                               [exp ["e",int]]
+      [ KCons "Con" [int]                               ["e",int]
       , KCons "Add" [ exp ["e", int]
-                    , exp ["e", int]]                   [exp ["e",int]]
+                    , exp ["e", int]]                   ["e",int]
       , KCons "Mul" [ exp ["e", int]
-                    , exp ["e", int]]                   [exp ["e",int]]
-      , KCons "Var" [ ConTy "Var" ["e","a"]]            [exp ["e","a"]]
+                    , exp ["e", int]]                   ["e",int]
+      , KCons "Var" [ ConTy "Var" ["e","a"]]            ["e","a"]
       , KCons "Abs" [ ConTy "Typ" ["a"]
-                    , exp [tup "e" "a", "b"]]          [exp ["e",arr "a" "b"]]
+                    , exp [tup "e" "a", "b"]]           ["e",arr "a" "b"]
       , KCons "App" [ exp ["e", arr "a" "b"]
-                    , exp ["e", "a"]]                   [exp ["e","b"]]
+                    , exp ["e", "a"]]                   ["e","b"]
       ]
   where
   exp ts = ConTy "Exp" ts
@@ -48,15 +48,15 @@ int = ConTy "Int" []
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
 dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
-      [ KCons "Zro" []                      [ConTy "Var" ["e","a"]]
-      , KCons "Suc" [ConTy "Var" ["e","a"]] [ConTy "Var" [tup "e" "b", "a"]]
+      [ KCons "Zro" []                      ["e","a"]
+      , KCons "Suc" [ConTy "Var" ["e","a"]] [tup "e" "b", "a"]
       ]
 
 dd3 :: DDef
 dd3 = DDef "Typ" [] [] [("a",Star)]
-      [ KCons "Int" []                          [ConTy "Typ" [int]]
+      [ KCons "Int" []                          [int]
       , KCons "Arr" [ ConTy "Typ" ["a"]
-                    , ConTy "Typ" ["b"]]        [ConTy "Typ" [arr "a" "b"]]
+                    , ConTy "Typ" ["b"]]        [arr "a" "b"]
       ]
 
 feldspar_gadt :: [DDef]
@@ -77,12 +77,12 @@ feldspar_gadt = [dd3,dd2,dd1]
 
 dd1' :: DDef
 dd1' = DDef "Exp" [] [] []
-       [ KCons "Con'" [int]                     [exp']
-       , KCons "Add'" [exp', exp']              [exp']
-       , KCons "Mul'" [exp', exp']              [exp']
-       , KCons "Var'" [ConTy "Var'" []]         [exp']
-       , KCons "Abs'" [ConTy "Typ'" [], exp']   [exp']
-       , KCons "App'" [exp', exp']              [exp']
+       [ KCons "Con'" [int]                     []
+       , KCons "Add'" [exp', exp']              []
+       , KCons "Mul'" [exp', exp']              []
+       , KCons "Var'" [ConTy "Var'" []]         []
+       , KCons "Abs'" [ConTy "Typ'" [], exp']   []
+       , KCons "App'" [exp', exp']              []
        ]
   where
   exp' = ConTy "Exp'" []
@@ -90,15 +90,15 @@ dd1' = DDef "Exp" [] [] []
 
 dd2' :: DDef
 dd2' = DDef "Var'" [] [] []
-       [ KCons "Zro'" []                [ConTy "Var'" []]
-       , KCons "Suc'" [ConTy "Var'" []] [ConTy "Var'" []]
+       [ KCons "Zro'" []                []
+       , KCons "Suc'" [ConTy "Var'" []] []
        ]
 
 dd3' :: DDef
 dd3' = DDef "Typ'" [] [] []
-       [ KCons "Int'" []                        [ConTy "Typ'" []]
+       [ KCons "Int'" []                        []
        , KCons "Arr'" [ ConTy "Typ'" []
-                      , ConTy "Typ'" []]        [ConTy "Typ'" []]
+                      , ConTy "Typ'" []]        []
        ]
 
 feldspar_adt :: [DDef]
@@ -113,7 +113,7 @@ sealedExp =
   DDef "SealedExp" [("e",Star)] [] []
     [ KCons "SealedExp"
             [TypeDictTy "a", ConTy "Exp" ["e","a"]]
-            [ConTy "SealedExp" ["e"]]
+            ["e"]
     ]
 
 -- Can't get this to typecheck unless we have Int lits:

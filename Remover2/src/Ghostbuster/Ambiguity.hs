@@ -3,14 +3,15 @@
 
 -- |
 
-module Ghostbuster.Ambiguity where
+module Ghostbuster.Ambiguity
+       (ambCheck, ambCheckErr, AmbError) where
 
-import Control.Monad
-import qualified Data.Set as S
-import Ghostbuster.Types
-import Ghostbuster.Utils
+import           Control.Monad
 import qualified Data.List as L
-
+import qualified Data.Set as S
+import           Debug.Trace
+import           Ghostbuster.Types
+import           Ghostbuster.Utils
 
 type AmbError = TypeError
 
@@ -25,8 +26,17 @@ ambCheck defs = loop defs
     do sequence_ $ map (checkKCons tyName (getArgStatus defs)) cases
        loop rest
 
+ambCheckErr :: [DDef] -> ()
+ambCheckErr defs =
+  case ambCheck defs of
+    Left e -> error e
+    Right () -> ()
+
+
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()
 checkKCons myT getStatus KCons{fields,outputs} =
+  trace ("Splitting for constructor "++show myT++
+         " with status "++show myStatus++ "\n  and outs "++show outputs) $
   do -- First, check that synthesized info can be recovered:
      forM_ ss $ \synthTau ->
        forM_ (S.toList (ftv synthTau)) $ \free ->
@@ -75,9 +85,12 @@ checkKCons myT getStatus KCons{fields,outputs} =
 
 
 -- | Partition type variables into (kept,checked,synth)
-splitTyArgs :: [TyStatus] -> [t] -> ([t],[t],[t])
+splitTyArgs :: Show t => [TyStatus] -> [t] -> ([t],[t],[t])
 splitTyArgs myStatus outputs
-  | length myStatus /= length outputs = error "splitTyArgs: mismatched lengths."
+  | length myStatus /= length outputs =
+    error $ "splitTyArgs: mismatched lengths: "++ show (length myStatus, length outputs)++
+            "\n  "++ show myStatus ++
+            "\n  "++ show outputs
   | otherwise  = (ks,cs,ss)
   where
   ks = [ x | (Keep,x)  <- wStatus ]

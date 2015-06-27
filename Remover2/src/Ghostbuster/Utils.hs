@@ -1,14 +1,16 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- |
 
 module Ghostbuster.Utils where
 
-import Data.Map.Lazy as M
-import qualified Data.Set              as Set
-import qualified Data.Map              as Map
-import qualified Data.Set as S
 import qualified Data.List as L
-import Ghostbuster.Types
+import qualified Data.Map as Map
+import           Data.Map.Lazy as M
+import qualified Data.Set as Set
+import qualified Data.Set as S
+import           GHC.Generics (Generic)
+import           Ghostbuster.Types
 
 --------------------------------------------------------------------------------
 -- Misc Helpers
@@ -58,6 +60,7 @@ val2Exp (VClo vt env bod) = loop (M.toList env)
 
 -- | The status of a given type argument.
 data TyStatus = Keep | Check | Synth
+  deriving (Show,Read,Eq,Ord,Generic)
 
 -- | Get the "status signature" for a type constructor.
 getArgStatus :: [DDef] -> TName -> [TyStatus]

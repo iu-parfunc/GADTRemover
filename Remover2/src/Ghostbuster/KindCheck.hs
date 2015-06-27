@@ -45,11 +45,13 @@ kindCheck env tenv d@DDef{..} =
    newEnv = (Map.union (toDEnv [d]) env)
 
 kindConstr :: DDef -> DEnv -> TKEnv -> KCons -> Either TypeError ()
-kindConstr parent@DDef{..} env tenv constr@KCons{..} = do
+kindConstr DDef{..} env tenv KCons{..} = do
   -- Get the kind for each of the taus that lead up to this guy and make sure they all check out
-  flds <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars)))) (map MonTy fields)
+  _flds <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
+                (map MonTy fields)
       -- Get the kinds for all the output types and make sure that the kinds check out there too
-  outpts <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars)))) (map MonTy outputs)
+  _outpts <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
+                  (map MonTy outputs)
   return ()
 
 -- kindType Map.empty Map.empty kindTyScheme1
