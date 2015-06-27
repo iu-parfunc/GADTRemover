@@ -45,6 +45,9 @@ case_AmbCheck2 = assertEqual "Feldspar adt passes ambiguity check"
 
 ------------------------------------------------------------
 
+case_KindFeldspar0 :: Assertion
+case_KindFeldspar0 = assertEqual "" (Right ()) (K.kindClosedDefs [ints,dd3])
+
 case_KindFeldspar1 :: Assertion
 case_KindFeldspar1 = assertEqual "" (Right ()) (K.kindClosedDefs feldspar_gadt)
 

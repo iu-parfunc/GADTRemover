@@ -15,6 +15,11 @@ import           Ghostbuster.Types
 --------------------------------------------------------------------------------
 -- Misc Helpers
 
+-- | Add something to any error message that comes through.
+addToErr :: String -> Either String x -> Either String x
+addToErr s (Left err) = Left (s++err)
+addToErr _ (Right x)  = Right x
+
 getConArgs :: [DDef] -> KName -> [MonoTy]
 getConArgs [] k = error $ "getConArgs: cannot find definition for constructor "++show k
 getConArgs (DDef {cases} : rst) k =
