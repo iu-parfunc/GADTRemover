@@ -45,14 +45,17 @@ kindCheck env tenv d@DDef{..} =
    newEnv = (Map.union (toDEnv [d]) env)
 
 kindConstr :: DDef -> DEnv -> TKEnv -> KCons -> Either TypeError ()
-kindConstr DDef{..} env tenv KCons{..} = do
+kindConstr ddef@DDef{..} env tenv KCons{..} = do
   -- Get the kind for each of the taus that lead up to this guy and make sure they all check out
   _flds <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
                 (map MonTy fields)
       -- Get the kinds for all the output types and make sure that the kinds check out there too
-  _outpts <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
+  outpts <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
                   (map MonTy outputs)
-  return ()
+  let tKinds = getTyArgs [ddef] tyName
+  if tKinds /= outpts
+  then Left $ "Invalid Type constructor application, expected " ++ show tKinds ++ " but receieved " ++ show outpts ++ "in data constructor " ++ show conName
+  else return ()
 
 -- kindType Map.empty Map.empty kindTyScheme1
 -- kindType Map.empty Map.empty kindTyScheme2
