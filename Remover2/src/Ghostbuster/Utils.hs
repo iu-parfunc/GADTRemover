@@ -6,10 +6,10 @@ module Ghostbuster.Utils where
 import Data.Map.Lazy as M
 
 import qualified Data.Set as S
-import qualified Data.ByteString.Char8 as B
-import           Data.String (IsString(..))
-import qualified Text.PrettyPrint as PP
-import           Text.PrettyPrint.GenericPretty (Out(doc,docPrec), Generic)
+
+
+
+
 import qualified Data.List as L
 import Ghostbuster.Types
 
@@ -53,3 +53,18 @@ val2Exp (VClo vt env bod) = loop (M.toList env)
    -- Need type recovery or typed environments at runttime to finish this:
    loop ((x,val):tl) = ELet (x,error "FINISHME-val2Exp",val2Exp val)
                             (loop tl)
+
+
+--------------------------------------------------------------------------------
+
+-- | The status of a given type argument.
+data TyArgStatus = Keep | Check | Synth
+
+-- | Get the "status signature" for a type constructor.
+getArgStatus :: [DDef] -> TName -> [TyArgStatus]
+getArgStatus [] t = error $ "getArgStatus: could not find type constructor "++show t
+getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
+  | t == tyName = replicate (length kVars) Keep ++
+                  replicate (length cVars) Check ++
+                  replicate (length sVars) Synth
+  | otherwise = getArgStatus rest t

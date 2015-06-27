@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Types for all Ghostbuster related tools.
 
