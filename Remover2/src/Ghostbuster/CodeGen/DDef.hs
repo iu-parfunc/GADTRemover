@@ -24,21 +24,22 @@ gadtOfDDef DDef{..} =
     (varName tyName)
     (map (uncurry mkTyVarBind) vars)
     Nothing                                     -- TLM: Maybe Kind ???
-    (map mkGADTCtor cases)                      -- GADT constructors
+    (map (mkGADTCtor tyName) cases)             -- GADT constructors
     []                                          -- [deriving]
 
 
 -- Generate the declaration for a single GADT constructor
 --
-mkGADTCtor :: KCons -> GadtDecl
-mkGADTCtor KCons{..} =
+mkGADTCtor :: TName -> KCons -> GadtDecl
+mkGADTCtor tyName KCons{..} =
   GadtDecl
     noLoc                       -- source location
     (varName conName)
     []                          -- TLM ???
     theType
   where
-    theType     = case map mkType (fields ++ outputs) of
+    resultType  = ConTy tyName outputs
+    theType     = case map mkType (fields ++ [resultType]) of
                     [x] -> x
                     xs  -> foldr1 TyFun xs
 
