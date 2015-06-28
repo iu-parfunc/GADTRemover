@@ -71,6 +71,10 @@ getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
                   replicate (length sVars) Synth
   | otherwise = getArgStatus rest t
 
+addToErr :: String -> Either String x -> Either String x
+addToErr s (Left err) = Left (s++err)
+addToErr _ (Right x)  = Right x
+
 --------------------------------------------------------------------------------
 
 class Types a where

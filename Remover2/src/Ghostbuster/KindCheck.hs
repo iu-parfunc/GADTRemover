@@ -8,6 +8,7 @@ import           Ghostbuster.Examples.Feldspar
 import qualified Ghostbuster.TypeCheck as GTC
 import           Ghostbuster.Utils (getTyArgs)
 import qualified Data.Map as Map
+import Control.Monad
 
 -- Our environment for data constructors
 type DEnv = Map.Map Var DDef
@@ -25,37 +26,48 @@ kindCheckDDefs :: DEnv -> TKEnv -> [DDef] -> Either TypeError DEnv
 kindCheckDDefs denv tkenv (ddef : defs) = do
   newEnv <- kindCheck denv tkenv ddef
   kindCheckDDefs newEnv tkenv defs
-kindCheckDDefs denv tkenv [] = return $ denv
+kindCheckDDefs denv _ [] = return denv
 
 -- Check it out!
 -- mapM (kindCheck (toDEnv (dd2 : dd3 : primitiveTypes)) (Map.fromList [(mkVar "b", Star)])) feldspar_gadt
 kindCheck :: DEnv -> TKEnv -> DDef -> Either TypeError DEnv
 kindCheck env tenv d@DDef{..} =
   -- All checked and synthesized vars must be of kind *
-  if (allStars cVars) && (allStars sVars)
+  if allStars cVars && allStars sVars
   -- Now check all the constructors for this datatype
-  then case mapM (kindConstr d newEnv tenv) cases of
+  then case mapM (kindConstr d newEnv newTenv) cases of
          Left a  -> Left $ "Failed to kindCheck data constructor: " ++ show a
-         Right k -> Right newEnv
+         Right _ -> Right newEnv
   else Left "Failed to infer proper kinds for C and S args for data constructor"
  where
    allStars :: [(TyVar, Kind)] -> Bool
    allStars x = foldl (&&) True $ map ((== Star) . snd) x
    newEnv :: DEnv
-   newEnv = (Map.union (toDEnv [d]) env)
+   newEnv = Map.union (toDEnv [d]) env
+   newTenv :: TKEnv
+   newTenv = Map.union (Map.fromList (kVars ++ cVars ++ sVars)) tenv
+
+getVars :: [MonoTy] -> Either TypeError TKEnv
+getVars (mt : mtys) = case mt of
+                        VarTy tyVar     -> Map.insert tyVar Star <$> getVars mtys
+                        ArrowTy mt1 mt2 -> getVars $ mt1:mt2:mtys
+                        ConTy _ monoTys -> getVars $ monoTys ++ mtys
+                        TupleTy monoTys -> getVars $ monoTys ++ mtys
+                        TypeDictTy _    -> getVars mtys
+getVars [] = return Map.empty
 
 kindConstr :: DDef -> DEnv -> TKEnv -> KCons -> Either TypeError ()
 kindConstr ddef@DDef{..} env tenv KCons{..} = do
+  -- All constructors have an implicit forall in front of them binding any free variables
+  newTenv <- Map.union tenv <$> getVars (fields ++ outputs)
   -- Get the kind for each of the taus that lead up to this guy and make sure they all check out
-  _flds <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
-                (map MonTy fields)
+  _flds <- mapM (kindType env (newTenv `Map.union` Map.fromList (kVars ++ cVars ++ sVars)) . MonTy) fields
       -- Get the kinds for all the output types and make sure that the kinds check out there too
-  outpts <- mapM (kindType env (tenv `Map.union` (Map.fromList (kVars ++ cVars ++ sVars))))
-                  (map MonTy outputs)
+  outpts <- mapM (kindType env (newTenv `Map.union` Map.fromList (kVars ++ cVars ++ sVars)) . MonTy) outputs
   let tKinds = getTyArgs [ddef] tyName
-  if tKinds /= outpts
-  then Left $ "Invalid Type constructor application, expected " ++ show tKinds ++ " but receieved " ++ show outpts ++ "in data constructor " ++ show conName
-  else return ()
+  when (tKinds /= outpts) $
+    Left $ "Invalid Type constructor application, expected " ++ show tKinds ++ 
+           " but receieved " ++ show outpts ++ "in data constructor " ++ show conName
 
 -- kindType Map.empty Map.empty kindTyScheme1
 -- kindType Map.empty Map.empty kindTyScheme2
@@ -66,9 +78,9 @@ kindType env tenv tscheme =
     ForAll tks mty       ->
       -- Add the variables bound by the forall into our type->kind env
       -- and recur with that info
-      case kindType env ((Map.fromList tks) `Map.union` tenv) (MonTy mty) of
+      case kindType env (Map.fromList tks `Map.union` tenv) (MonTy mty) of
         Left err -> Left err
-        Right k -> Right $ foldr ArrowKind k $ (map snd tks)
+        Right k -> Right $ foldr (ArrowKind . snd) k tks
     MonTy (VarTy tyVar) ->
         -- Lookup this guy in our type->kind environment and see what we
         -- get. We should always find him, otherwise we have an unbound
@@ -79,7 +91,7 @@ kindType env tenv tscheme =
     MonTy (ArrowTy monoTy1 monoTy2) -> do
       Star <- kindType env tenv (MonTy monoTy1)
       Star <- kindType env tenv (MonTy monoTy2)
-      return $ Star -- ArrowKind mtk1 mtk2
+      return Star -- ArrowKind mtk1 mtk2
     MonTy (TypeDictTy tname)        -> do
       -- According to our typing rules, this guy had better have kind * so
       -- enforce that here
@@ -88,7 +100,7 @@ kindType env tenv tscheme =
       then Left $ "TypeDict constructor requires types of kind *, but we received a type of kind " ++ show kindt
       else Right Star
     MonTy (ConTy tname monotys) -> do
-      kinds <- mapM (kindType env tenv) $ map MonTy monotys
+      kinds <- mapM (kindType env tenv . MonTy) monotys
       case Map.lookup tname env of
         Nothing   -> Left $ "Unbound type constructor found! " ++ show tname
         Just ddef -> let tnameKinds = getTyArgs [ddef] tname

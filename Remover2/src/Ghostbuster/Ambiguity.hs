@@ -33,10 +33,6 @@ ambCheckErr defs =
     Left e -> error e
     Right () -> ()
 
-addToErr :: String -> Either String x -> Either String x
-addToErr s (Left err) = Left (s++err)
-addToErr _ (Right x)  = Right x
-
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()
 checkKCons myT getStatus KCons{conName,fields,outputs} =
 --  trace ("Splitting for constructor "++show myT++
