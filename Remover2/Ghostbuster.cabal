@@ -26,6 +26,7 @@ library
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
+                       Ghostbuster.CodeGen.VDef
   -- other-modules:
   -- other-extensions:
   build-depends:       GenericPretty >= 1.2
