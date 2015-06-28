@@ -23,12 +23,13 @@ lowerDicts (Prog ddefs vdefs main) =
   dictGADT =
     DDef "TypeDict" [("a",Star)] [] []
     [ KCons name
-            [ ConTy "TypeDict" [VarTy $ mkVar [c]]
+            [ ConTy "TypeDict" [VarTy $ mkVar c]
             | (c) <- letters ]
-            [ (ConTy name []) ]
+            [ (ConTy name (map (VarTy . mkVar) letters)) ]
     | tn <- allDicts
     , let name = (dictConsName tn)
-          letters = map fst $ zip ['a' ..] (getArgStatus ddefs tn)
+          letters = map (\(c,_) -> [c]) $
+                    zip ['a' ..] (getArgStatus ddefs tn)
    ]
 
 -- | Keep the output a little smaller by not generating dictionaries

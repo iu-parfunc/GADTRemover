@@ -143,14 +143,14 @@ ti3 :: Val
 ti3 = interp $ Prog [ints] [] p3
 
 p4 :: Exp
-p4 = EApp (EApp (EDict ("->")) p3) p3
+p4 = EApp (EApp (EDict ("ArrowTy")) p3) p3
 
 ti4 :: Val
 ti4 = interp $ Prog [] [] p4
 
 p5 :: Exp
 p5 = ECaseDict p4
-      ("->",["a","b"],
+      ("ArrowTy",["a","b"],
        ECaseDict "a" ("Int", [], EK "One")
                  (EK "Two")
       ) (EK "Three")

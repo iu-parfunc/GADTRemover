@@ -108,8 +108,8 @@ data Exp = EK KName
 primitiveTypes :: [DDef]
 primitiveTypes =
 -- RRN: For a convention, I'm not sure if we want "(->)" or "->":
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []   -- TLM: change to ArrowTy ???
-  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
+  [ DDef "ArrowTy" [("a",Star), ("b",Star)] [] [] []
+--  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
 -- RRN: that tuple type doesn't expose any constructors...
 -- Tup2 below does... we can use comma or Tup2, either way.
 
