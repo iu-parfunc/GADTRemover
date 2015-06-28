@@ -68,13 +68,19 @@ data TyStatus = Keep | Check | Synth
   deriving (Show,Read,Eq,Ord,Generic)
 
 -- | Get the "status signature" for a type constructor.
+--   It must be in the provided list of defs OR
+--   the type constructor can be defined in `primitiveTypes`.
 getArgStatus :: [DDef] -> TName -> [TyStatus]
-getArgStatus [] t = error $ "getArgStatus: could not find type constructor "++show t
+getArgStatus [] t
+  | L.any (== t) (L.map tyName primitiveTypes) = getArgStatus primitiveTypes t
+  | otherwise = error $ "getArgStatus: could not find type constructor "++show t
 getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
   | t == tyName = replicate (length kVars) Keep ++
                   replicate (length cVars) Check ++
                   replicate (length sVars) Synth
   | otherwise = getArgStatus rest t
+
+
 
 --------------------------------------------------------------------------------
 

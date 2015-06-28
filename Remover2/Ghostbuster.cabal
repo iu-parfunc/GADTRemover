@@ -21,6 +21,7 @@ library
                        Ghostbuster.TypeCheck
                        Ghostbuster.TypeCheck1
                        Ghostbuster.KindCheck
+                       Ghostbuster.LowerDicts
                        Ghostbuster.Ambiguity
                        Ghostbuster.Utils
                        Ghostbuster.Examples.Feldspar

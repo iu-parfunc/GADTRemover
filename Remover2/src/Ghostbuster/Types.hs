@@ -102,13 +102,23 @@ data Exp = EK KName
   deriving (Eq,Ord,Show,Read,Generic)
 
 
--- | Built-in type environment.
+-- | Built-in type environment.  The idea is to use this for only
+-- types which MUST be present to type the native forms of the
+-- language such as ELam.
 primitiveTypes :: [DDef]
 primitiveTypes =
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []         -- TLM: change to ArrowTy ???
-  , DDef ","  [("a",Star), ("b",Star)] [] [] []         -- TLM: change to TupleTy ???
-  , ints
-  ]
+-- RRN: For a convention, I'm not sure if we want "(->)" or "->":
+  [ DDef "->" [("a",Star), ("b",Star)] [] [] []   -- TLM: change to ArrowTy ???
+  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
+-- RRN: that tuple type doesn't expose any constructors...
+-- Tup2 below does... we can use comma or Tup2, either way.
+
+-- Only arrow really needs to be here.  We CAN put other types here
+-- for convenience, but the original plan was to include only the
+-- types that must truly be built-in here...
+  , ints, maybeD
+  ] ++
+  tupsD
 
 --------------------------------------------------------------------------------
 -- Values, for use by any interpreters:
@@ -138,6 +148,7 @@ maybeD = DDef "Maybe" [("a", Star)] [] []
         , KCons "Nothing" [] ["a"]
         ]
 
+-- RRN: We can use "," or "Tup2" as the constructor.
 tupsD :: [DDef]
 tupsD = [ DDef "Tup2" [("a", Star), ("b", Star)] [] []
           [ KCons "Tup2" ["a","b"] ["a","b"]]
@@ -151,11 +162,11 @@ tupsD = [ DDef "Tup2" [("a", Star), ("b", Star)] [] []
 -- | Test mutually recursive data definitions
 -- data Foo (a :: *) where
 --   Bar :: Baz a -> Foo a
--- 
+--
 -- data Baz (a :: *) where
 --  Qux :: Foo a -> Baz a
 mutRecurseDDefsGood :: [DDef]
-mutRecurseDDefsGood = 
+mutRecurseDDefsGood =
   [
     DDef "Foo" [("a", Star)] [] []
       [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]
@@ -189,7 +200,7 @@ maybeDOutBad = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
 
 -- One of the type constructors is applied to too few enough arguments
 mutRecurseDDefsBad1 :: [DDef]
-mutRecurseDDefsBad1 = 
+mutRecurseDDefsBad1 =
   [
     DDef "Foo" [("a", Star)] [] []
       [KCons "Bar" [ConTy "Baz" []] ["a"]]
@@ -200,7 +211,7 @@ mutRecurseDDefsBad1 =
 
 -- Wrong kinding of variables
 mutRecurseDDefsBad2 :: [DDef]
-mutRecurseDDefsBad2 = 
+mutRecurseDDefsBad2 =
   [
     DDef "Foo" [("a", ArrowKind Star Star)] [] []
       [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]

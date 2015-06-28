@@ -6,6 +6,7 @@
 module Ghostbuster.Interp
        ( interp
        , ti1, ti2, ti3, ti4, ti5, ti6, ti7
+       , p2, p3, p4, p5, p6, p7
        ) where
 
 import Data.Map.Lazy as M
