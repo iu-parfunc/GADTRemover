@@ -127,17 +127,33 @@ mayb a = ConTy "Maybe" [a]
 
 upExp :: VDef
 upExp =
-     VDef "upExp" (ForAll [] (arr exp' (mayb (ConTy "SealeExp" ["e"])))) $
+     VDef "upExp" (ForAll [("e", Star)] (arr exp' (mayb (ConTy "SealeExp" ["e"])))) $
       ELam ("x", exp') $
        ECase "x" $
-        [ (Pat "Add'" ["e1", "e2"],
-           ECase (EApp "upExp" "e1")
+        [ (Pat "Add'" ["e1", "e2"]
+          ,ECase (EApp "upExp" "e1")
             [ (Pat "SealedExp" ["dict1", "e1'"],
                ECaseDict undefined undefined undefined)
-            ])
+            ]
+          )
         ]
  where
    exp' = ConTy "Exp'" []
+
+upTyp :: VDef
+upTyp
+  = VDef "upTyp" (MonTy (ConTy "Typ'" [] `ArrowTy` ConTy "SealedTyp" []))
+  $ ELam ("x", ConTy "Typ'" [])
+  $ ECase "x"
+  [ ( Pat "Int" []
+    , EApp (EK "SealedTyp") (EK "Int")
+    )
+  , ( Pat "Arr" ["x1", "x2"]
+    , ECase (EApp "upTyp" "x1") [ (Pat "SealedTyp" ["a"],
+      ECase (EApp "upTyp" "x2") [ (Pat "SealedTyp" ["b"],
+        EApp (EApp "SealedTyp" "a") "b" )])]
+    )
+  ]
 
 
 -- | Test: run the upExp conversion against the sample value.
