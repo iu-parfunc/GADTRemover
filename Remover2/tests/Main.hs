@@ -58,6 +58,9 @@ case_KindFeldspar1 = assertEqual "" (Right ()) (K.kindClosedDefs feldspar_gadt)
 case_KindFeldspar2 :: Assertion
 case_KindFeldspar2 = assertEqual "" (Right ()) (K.kindClosedDefs feldspar_adt)
 
+case_KindMutRecurseDDefs :: Assertion
+case_KindMutRecurseDDefs = assertEqual "" (Right ()) (K.kindClosedDefs mutRecurseDDefsGood)
+
 ------------------------------------------------------------
 
 main :: IO ()

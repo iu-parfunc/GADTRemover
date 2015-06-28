@@ -148,6 +148,20 @@ tupsD = [ DDef "Tup2" [("a", Star), ("b", Star)] [] []
 
 --------------------------------------------------------------------------------
 -- Tests:
+-- | Test mutually recursive data definitions
+-- data Foo (a :: *) where
+--   Bar :: Baz a -> Foo a
+-- 
+-- data Baz (a :: *) where
+--  Qux :: Foo a -> Baz a
+mutRecurseDDefsGood :: [DDef]
+mutRecurseDDefsGood = 
+  [
+    DDef "Foo" [("a", Star)] [] []
+      [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
 
 maybeDGoodOut :: DDef
 maybeDGoodOut = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
@@ -172,6 +186,28 @@ maybeDOutBad = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
         [ KCons "Just" ["a"] ["b", "a"]
         , KCons "Nothing" [] ["a", "b"]
         ]
+
+-- One of the type constructors is applied to too few enough arguments
+mutRecurseDDefsBad1 :: [DDef]
+mutRecurseDDefsBad1 = 
+  [
+    DDef "Foo" [("a", Star)] [] []
+      [KCons "Bar" [ConTy "Baz" []] ["a"]]
+
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
+
+-- Wrong kinding of variables
+mutRecurseDDefsBad2 :: [DDef]
+mutRecurseDDefsBad2 = 
+  [
+    DDef "Foo" [("a", ArrowKind Star Star)] [] []
+      [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]
+
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
 
 kindTyScheme1 :: TyScheme
 kindTyScheme1 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "b")

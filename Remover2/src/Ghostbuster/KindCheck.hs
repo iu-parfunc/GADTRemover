@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
--- | TODO: Need to make this handle mutually recursive data definitions
 
 module Ghostbuster.KindCheck
        ( kindProg
@@ -119,7 +118,10 @@ kindMonoType env tenv ty =
         Just ddef -> let tnameKinds = getTyArgs [ddef] tname
                      in if kinds == tnameKinds
                         then return Star -- Only allow fully applied type constructors for now
-                        else Left $ "Invalide type constructor application: " ++ show kinds
+                        else Left $ "Invalid type constructor application: " ++ show kinds
+                                    ++ " Expected " ++ show tnameKinds ++ " for type constructor "
+                                    ++ show tname
+                                  
 
 -- | Convenience: verify that the data defs that come with a program kind-check.
 kindProg :: Prog -> Either TypeError ()
@@ -127,3 +129,4 @@ kindProg (Prog ddefs _ _) = kindClosedDefs ddefs
 
  -- Typecheck/infer
  -- Once we get the types go and run kindType on it
+
