@@ -13,18 +13,18 @@ $CABAL --version
 
 $CABAL sandbox init
 
-OPTS=" -j --ghc-options=-j3 --run-tests "
+OPTS=" -j --ghc-options=-j3 --enable-tests --only-dependencies "
 
 PKGS="./GADTRemover ./CastChallenge ./Remover2"
 
 # Install and run-tests in one step:
 $CABAL install $PKGS $OPTS
 
-# top=`pwd`
-# for pkg in $PKGS; do
-#     cd "$pkg"
-#     $CABAL sandbox init --sandbox=../.cabal-sandbox/
-#     $CABAL configure --enable-tests
-#     $CABAL test
-#     cd "$top"
-# done
+top=`pwd`
+for pkg in $PKGS; do
+    cd "$pkg"
+    $CABAL sandbox init --sandbox=../.cabal-sandbox/
+    $CABAL configure --enable-tests
+    $CABAL test --show-details=always
+    cd "$top";
+done
