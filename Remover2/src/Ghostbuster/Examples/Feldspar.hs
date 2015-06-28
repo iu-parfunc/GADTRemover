@@ -142,7 +142,7 @@ upExp =
 
 upTyp :: VDef
 upTyp
-  = VDef "upTyp" (MonTy (ConTy "Typ'" [] `ArrowTy` ConTy "SealedTyp" []))
+  = VDef "upTyp" (ForAll [] (ConTy "Typ'" [] `ArrowTy` ConTy "SealedTyp" []))
   $ ELam ("x", ConTy "Typ'" [])
   $ ECase "x"
   [ ( Pat "Int" []

@@ -28,11 +28,9 @@ declOfVDef VDef{..} =
 -- Convert a type scheme into a type signature
 --
 mkTypeSig :: Var -> TyScheme -> Decl
-mkTypeSig ident scheme
+mkTypeSig ident (ForAll a t)
   = TypeSig noLoc [varName ident]
-  $ case scheme of
-      MonTy t    -> mkType t
-      ForAll a t -> TyForall (Just (map (uncurry mkTyVarBind) a)) [] (mkType t)
+  $ TyForall (Just (map (uncurry mkTyVarBind) a)) [] (mkType t)
 
 
 topLevelFun :: Var -> G.Pat -> G.Exp -> Match
