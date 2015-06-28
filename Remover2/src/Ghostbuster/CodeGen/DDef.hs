@@ -38,8 +38,6 @@ mkGADTCtor tyName KCons{..} =
     []                          -- TLM ???
     theType
   where
-    resultType  = ConTy tyName outputs
-    theType     = case map mkType (fields ++ [resultType]) of
-                    []  -> error "GADT constructor with empty type"
-                    xs  -> foldr1 TyFun xs
+    theType     = foldr1 TyFun
+                $ map mkType (fields ++ [ConTy tyName outputs])
 
