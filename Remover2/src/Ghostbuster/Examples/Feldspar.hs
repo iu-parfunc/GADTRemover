@@ -37,7 +37,7 @@ tup2 :: MonoTy -> MonoTy -> MonoTy
 tup2 a b = TupleTy [a,b]
 
 tup :: MonoTy -> MonoTy -> MonoTy
-tup a b = ConTy "," [a,b]
+tup a b = ConTy "Tup2" [a,b]
 
 arr :: MonoTy -> MonoTy -> MonoTy
 arr = ArrowTy
