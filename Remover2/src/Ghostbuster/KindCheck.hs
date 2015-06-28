@@ -6,12 +6,13 @@ module Ghostbuster.KindCheck
        , kindClosedDefs
        ) where
 
+import           Control.Applicative
 import           Ghostbuster.Types
 -- import           Ghostbuster.Examples.Feldspar
 -- import qualified Ghostbuster.TypeCheck as GTC
 import           Ghostbuster.Utils (getTyArgs)
 import qualified Data.Map as Map
-import Control.Monad
+import           Control.Monad
 
 -- Our environment for data constructors
 type DEnv = Map.Map TName DDef
@@ -74,7 +75,7 @@ kindConstr ddef@DDef{..} env tenv KCons{..} = do
   outpts <- mapM (kindType env (newTenv `Map.union` Map.fromList (kVars ++ cVars ++ sVars)) . MonTy) outputs
   let tKinds = getTyArgs [ddef] tyName
   when (tKinds /= outpts) $
-    Left $ "Invalid Type constructor application, expected " ++ show tKinds ++ 
+    Left $ "Invalid Type constructor application, expected " ++ show tKinds ++
            " but receieved " ++ show outpts ++ "in data constructor " ++ show conName
 
 -- kindType Map.empty Map.empty kindTyScheme1
