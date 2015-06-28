@@ -87,7 +87,6 @@ data Kind = Star | ArrowKind Kind Kind
 
 -- | Type Schemes, Sigma in the paper.
 data TyScheme = ForAll [(TyVar,Kind)] MonoTy
-              | MonTy MonoTy
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Pat = Pat KName [TermVar]

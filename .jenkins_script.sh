@@ -18,7 +18,7 @@ OPTS=" -j --ghc-options=-j3 --enable-tests --only-dependencies "
 PKGS="./GADTRemover ./CastChallenge ./Remover2"
 
 # Install and run-tests in one step:
-$CABAL install $PKGS $OPTS
+$CABAL install $PKGS $OPTS $@
 
 top=`pwd`
 for pkg in $PKGS; do
