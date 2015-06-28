@@ -40,6 +40,6 @@ mkGADTCtor tyName KCons{..} =
   where
     resultType  = ConTy tyName outputs
     theType     = case map mkType (fields ++ [resultType]) of
-                    [x] -> x
+                    []  -> error "GADT constructor with empty type"
                     xs  -> foldr1 TyFun xs
 
