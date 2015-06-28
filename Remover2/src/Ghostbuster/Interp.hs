@@ -5,7 +5,8 @@
 
 module Ghostbuster.Interp
        ( interp
-       , ti1, ti2, ti3, ti4, ti5, ti6) where
+       , ti1, ti2, ti3, ti4, ti5, ti6, ti7
+       ) where
 
 import Data.Map.Lazy as M
 import Debug.Trace
@@ -166,3 +167,12 @@ p6 = ECaseDict p3
 
 ti6 :: Val
 ti6 = interp $ Prog [ints] [] p6
+
+p7 :: Exp
+p7 = EApp (ELam ("v",intTy) "v") (EK "Three")
+
+intTy :: MonoTy
+intTy = ConTy "Int" []
+
+ti7 :: Val
+ti7 = interp $ Prog [ints] [] p7

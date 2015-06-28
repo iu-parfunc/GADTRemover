@@ -33,6 +33,10 @@ case_I6 :: Assertion
 case_I6 = assertEqual "take a false CaseDict branch"
                       (VK (Var "Three") []) ti6
 
+case_I7 :: Assertion
+case_I7 = assertEqual "apply identity function"
+                      (VK "Three" []) ti7
+
 ------------------------------------------------------------
 
 case_AmbCheck1 :: Assertion
