@@ -67,8 +67,6 @@ data VDef = VDef { valName :: Var
 data KCons = KCons { conName :: Var
                    , fields  :: [MonoTy] -- ^ The \tau_1 through \tau_p arguments
                    , outputs :: [MonoTy] -- ^ The type params fed to 'T' in the RHS
-                        -- TLM: This is a bit strange, shouldn't there only be one
-                        -- output type?
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
