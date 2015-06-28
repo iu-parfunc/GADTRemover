@@ -10,7 +10,7 @@
 module List_Examples where
 
 import Data.Dynamic
-import Data.Typeable
+-- import Data.Typeable
 import Text.Printf
 
 --------------------------------------------------------------------------------

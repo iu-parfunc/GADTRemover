@@ -71,16 +71,18 @@ eval :: Exp -> Val
 eval = fn []
  where
   fn :: [Val] -> Exp -> Val
-  fn env (Const v) = v
+  fn _   (Const v) = v
   fn env (Add a b) = plus (fn env a) (fn env b)
   fn env (If a b c) = case fn env a of
                         BVal True  -> fn env b
                         BVal False -> fn env c
+                        IVal _     -> error "impossible"
   fn env (Var _ ix) = env !! ix
   fn env (Let e1 e2) = fn (fn env e1 : env) e2
 
 plus :: Val -> Val -> Val
 plus (IVal a) (IVal b) = IVal (a+b)
+plus _ _ = error "plus"
 
 
 --------------------------------------------------------------------------------
