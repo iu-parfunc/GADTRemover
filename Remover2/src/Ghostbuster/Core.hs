@@ -13,10 +13,9 @@ import qualified Data.Map as HM
 type Equations = (HM.Map TyVar [TyVar])
 type Patterns = (HM.Map TyVar MonoTy)
 
+toSealedName = \tyName -> mkVar ("Sealed" ++ (unMkVar tyName))
 
-toSealedName = \tyName -> case tyName of Var name -> Var ("Sealed" ++ name)
-
-ghostbuster :: DDef -> Prog
+ghostbuster :: [DDef] -> Prog
 ghostbuster ddef = Prog [sealed] [] "dummyvar" 
   where
   (ddefNoEquals, equalities) =  equalityRemoval ddef
@@ -26,13 +25,13 @@ ghostbuster ddef = Prog [sealed] [] "dummyvar"
 
 generateSealed :: DDef -> DDef
 generateSealed (DDef tyName k c s cases) = DDef (toSealedName tyName) k [] []
-  [KCons (toSealedName tyName) [((map typeDictForSynth synthVars) ++ conTy)] (keepVars ++ checkVars)]
+  [KCons (toSealedName tyName) ((map typeDictForSynth synthVars) ++ conTy) (map toVarTy (keepVars ++ checkVars))]
   where
   keepVars = map fst k
   checkVars = map fst c
   synthVars = map fst s
   typeDictForSynth = \var -> (TypeDictTy var)
-  conTy = ConTy tyName (keepVars ++ checkVars ++ synthVars)
+  conTy = [ConTy tyName (map toVarTy (keepVars ++ checkVars ++ synthVars))]
 
 equalityRemoval :: DDef -> (DDef, [Equations])
 equalityRemoval = undefined
