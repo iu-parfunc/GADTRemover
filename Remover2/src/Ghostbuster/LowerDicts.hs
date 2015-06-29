@@ -14,8 +14,12 @@ import Ghostbuster.Utils
 -- `ECaseDict`
 lowerDicts :: Prog -> Prog
 lowerDicts (Prog ddefs vdefs main) =
-  Prog [dictGADT] [] main
+  Prog (dictGADT : reflDef : ddefs)
+       (mkTeq allDicts : vdefs')
+       main
   where
+  vdefs' = [ VDef v t (doExp e) | VDef v t e <- vdefs ]
+
   allDicts = S.toList $ S.unions $
              gatherDicts main :
              [ gatherDicts valExp | VDef {valExp} <- vdefs ]
@@ -53,8 +57,47 @@ gatherDicts e =
                  gatherDicts x3, gatherDicts x4 ]
 
 
+doExp :: Exp -> Exp
+doExp e =
+  case e of
+    (EDict x) -> EK $ dictConsName x
+    (ECaseDict x1 x2 x3) -> undefined
+    (EIfTyEq x1 x2 x3) -> undefined
+
+    -- Boilerplate:
+    ----------------------------
+    (EK x)       -> EK x
+    (EVar x)     -> EVar x
+    (ELam x1 x2) -> ELam x1 (go x2)
+    (EApp x1 x2) -> EApp (go x1) (go x2)
+    (ELet (v,t,x1) x2) -> ELet (v,t,go x1) (go x2)
+    (ECase x1 x2) -> ECase (go x1) [ (p,go x) | (p,x) <- x2]
+ where
+  go = doExp
+
+-- Generate a definition for a type-equality-checking function.
+mkTeq :: [TName] -> VDef
+mkTeq tns = VDef "checkTEQ" typesig $
+            ELam ("x", typeDict "a") $
+            ELam ("y", typeDict "b") $
+            EK "UNFINISHED"
+ where
+ typesig = ForAll [] (typeDict "t" `ArrowTy`
+                      typeDict "u" `ArrowTy`
+                      ConTy "Maybe" [ConTy "TyEquality" ["t","u"]])
+
+
+reflDef :: DDef
+reflDef = DDef "TyEquality" [("a",Star),("b",Star)] [] []
+          [KCons "Refl" [] ["a","a"]]
+
+
 --------------------------------------------------------------------------------
 -- Naming conventions
 
 dictConsName :: Var -> Var
 dictConsName (Var v) = Var (v `B.append` "Dict")
+
+
+typeDict :: MonoTy -> MonoTy
+typeDict x = ConTy "TypeDict" [x]
