@@ -202,4 +202,3 @@ downExp = cvt
     cvtT :: G.Typ a -> Typ
     cvtT G.Int       = Int
     cvtT (G.Arr a b) = Arr (cvtT a) (cvtT b)
-

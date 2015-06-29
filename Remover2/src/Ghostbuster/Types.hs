@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Types for all Ghostbuster related tools.
 
@@ -15,7 +16,7 @@ module Ghostbuster.Types
 -- import Data.Atom.Simple
 
 import Data.Map.Lazy as M
-import qualified Data.Set as S
+
 import qualified Data.ByteString.Char8 as B
 import           Data.String (IsString(..))
 import qualified Text.PrettyPrint as PP
@@ -25,23 +26,29 @@ import qualified Data.List as L
 type TypeError = String
 
 -- | We could distinguish our different classes variables: T,K,a, etc,
--- but we don't do that here:
+-- but we don't do that here.  This corresponds to "T":
 type TName = Var
-type KName = Var
-type TermVar = Var
-type TyVar = Var
+type KName = Var    -- ^ This corresponds to "K" in the paper.
+type TermVar = Var  -- ^ x,y,z
+type TyVar = Var    -- ^ a,b,c
 newtype Var = Var B.ByteString
    deriving (Eq, Ord, Show, Read, IsString, Generic)
 
+unVar :: Var -> B.ByteString
+unVar (Var v) = v
+
 mkVar :: String -> Var
 mkVar = Var . B.pack
+
+unMkVar :: Var -> String
+unMkVar = B.unpack . unVar
 
 -- | A program is a list of declarations followed by a "main" expression.
 data Prog = Prog [DDef] [VDef] Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | A single datatype definition.
-data DDef = DDef { tyName :: Var
+data DDef = DDef { tyName :: TName
                  , kVars :: [(TyVar,Kind)]
                  , cVars :: [(TyVar,Kind)]
                  , sVars :: [(TyVar,Kind)]
@@ -51,7 +58,7 @@ data DDef = DDef { tyName :: Var
 
 -- | Top-level value definitions
 data VDef = VDef { valName :: Var
-                 , valTy   :: Sigma
+                 , valTy   :: TyScheme
                  , valExp  :: Exp
                  }
   deriving (Eq,Ord,Show,Read,Generic)
@@ -63,18 +70,21 @@ data KCons = KCons { conName :: Var
                    }
   deriving (Eq,Ord,Show,Read,Generic)
 
--- | (possibly open) Monomorphic types.
-data MonoTy = VarTy TyVar
-            | ArrowTy MonoTy MonoTy
-            | ConTy KName [MonoTy]
-            | TypeDictTy TName
+-- | Monomorphic types (possibly open).
+--
+data MonoTy
+  = VarTy TyVar                 -- ^ type variable
+  | ArrowTy MonoTy MonoTy       -- ^ function type
+  | ConTy TName [MonoTy]        -- ^ named type or type constructor combined with type application
+  | TupleTy [MonoTy]            -- ^ tuple type (boxed)
+  | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Kind = Star | ArrowKind Kind Kind
   deriving (Eq,Ord,Show,Read,Generic)
 
--- | Type Schemes
-data Sigma = ForAll [(TyVar,Kind)] MonoTy | MonTy MonoTy
+-- | Type Schemes, Sigma in the paper.
+data TyScheme = ForAll [(TyVar,Kind)] MonoTy
   deriving (Eq,Ord,Show,Read,Generic)
 
 data Pat = Pat KName [TermVar]
@@ -84,7 +94,7 @@ data Exp = EK KName
          | EVar TermVar
          | ELam (TermVar,MonoTy) Exp
          | EApp Exp Exp
-         | ELet (TermVar,Sigma,Exp) Exp
+         | ELet (TermVar,TyScheme,Exp) Exp
          | ECase Exp [(Pat,Exp)]
          | EDict TName
          | ECaseDict Exp (TName,[TermVar],Exp) Exp
@@ -92,10 +102,27 @@ data Exp = EK KName
   deriving (Eq,Ord,Show,Read,Generic)
 
 
--- | Built-in type environment.
+-- | Built-in type environment.  The idea is to use this for only
+-- types which MUST be present to type the native forms of the
+-- language such as ELam.
 primitiveTypes :: [DDef]
 primitiveTypes =
-  [ DDef "->" [("a",Star), ("b",Star)] [] [] []]
+-- RRN: For a convention, I'm not sure if we want "(->)" or "->":
+  [ DDef "ArrowTy" [("a",Star), ("b",Star)] [] [] []
+--  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
+-- RRN: that tuple type doesn't expose any constructors...
+-- Tup2 below does... we can use comma or Tup2, either way.
+-- TLM: I would vote for (,) then. The code generator might need to special case
+--      this to output Haskell tuples in the generated code, and "(,*)" is
+--      easier to search for. Even if we don't special case this, Haskell might
+--      be able to deal with the prefix "(,) a b" notation as is.
+
+-- Only arrow really needs to be here.  We CAN put other types here
+-- for convenience, but the original plan was to include only the
+-- types that must truly be built-in here...
+  , ints, maybeD
+  ] ++
+  tupsD
 
 --------------------------------------------------------------------------------
 -- Values, for use by any interpreters:
@@ -108,24 +135,8 @@ data Val = VK KName [Val]    -- ^ Data constructors are parameterized by values.
          | VDict TName [Val] -- ^ A dict value may be partially or fully applied.
   deriving (Eq,Ord,Show,Read,Generic)
 
--- | Sometimes it's convenient to convert back to expression:
-val2Exp :: Val -> Exp
-val2Exp (VK k []) = EK k
-val2Exp (VK k ls) = EApp (val2Exp (VK k (init ls)))
-                         (val2Exp (last ls))
-val2Exp (VDict t []) = EDict t
-val2Exp (VDict t ls) = EApp (val2Exp (VDict t (init ls)))
-                            (val2Exp (last ls))
-val2Exp (VClo vt env bod) = loop (M.toList env)
-  -- FIXME: we could just bind the variables that are actually free in the bod:
- where
-   loop [] = (ELam vt bod)
-   -- Need type recovery or typed environments at runttime to finish this:
-   loop ((x,val):tl) = ELet (x,error "FINISHME-val2Exp",val2Exp val)
-                            (loop tl)
-
 --------------------------------------------------------------------------------
--- General prerequisites:
+-- General prerequisites for doing useful things in the core language:
 
 ints :: DDef
 ints = DDef "Int" [] [] []
@@ -140,29 +151,88 @@ maybeD = DDef "Maybe" [("a", Star)] [] []
         [ KCons "Just" ["a"] ["a"]
         , KCons "Nothing" [] ["a"]
         ]
+
+-- RRN: We can use "," or "Tup2" as the constructor.
+tupsD :: [DDef]
+tupsD = [ DDef "Tup2" [("a", Star), ("b", Star)] [] []
+          [ KCons "Tup2" ["a","b"] ["a","b"]]
+
+        -- If needed, add more:
+        -- , DDef "Tup3" [("a", Star),("b", Star),("c", Star)] [] []
+        ]
+
 --------------------------------------------------------------------------------
--- Misc Helpers
+-- Tests:
+-- | Test mutually recursive data definitions
+-- data Foo (a :: *) where
+--   Bar :: Baz a -> Foo a
+--
+-- data Baz (a :: *) where
+--  Qux :: Foo a -> Baz a
+mutRecurseDDefsGood :: [DDef]
+mutRecurseDDefsGood =
+  [
+    DDef "Foo" [("a", Star)] [] []
+      [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
 
-getConArgs :: [DDef] -> KName -> [MonoTy]
-getConArgs [] k = error $ "getConArgs: cannot find definition for constructor "++show k
-getConArgs (DDef {cases} : rst) k =
-  case loop cases of
-    Just x  -> x
-    Nothing -> getConArgs rst k
-  where
-  loop [] = Nothing
-  loop (KCons {conName,fields} : rest)
-    | conName == k = Just fields
-    | otherwise = loop rest
+maybeDGoodOut :: DDef
+maybeDGoodOut = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b", "a"]
+        , KCons "Nothing" [] ["b", TypeDictTy "a"]
+        ]
 
-getTyArgs :: [DDef] -> TName -> [Kind]
-getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
-getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
-  | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
-  | otherwise = getTyArgs rst k
+maybeDbad :: DDef
+maybeDbad = DDef "Maybe" [("a", Star)] [("b", ArrowKind Star Star)] []
+        [ KCons "Just" ["a"] ["b"]
+        , KCons "Nothing" [] ["a"]
+        ]
 
-freeVars :: Exp -> S.Set Var
-freeVars = undefined
+maybeDbadOut :: DDef
+maybeDbadOut = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b"]
+        , KCons "Nothing" [] ["a"]
+        ]
+
+maybeDOutBad :: DDef
+maybeDOutBad = DDef "Maybe" [("b", ArrowKind Star Star)] [("a", Star)] []
+        [ KCons "Just" ["a"] ["b", "a"]
+        , KCons "Nothing" [] ["a", "b"]
+        ]
+
+-- One of the type constructors is applied to too few enough arguments
+mutRecurseDDefsBad1 :: [DDef]
+mutRecurseDDefsBad1 =
+  [
+    DDef "Foo" [("a", Star)] [] []
+      [KCons "Bar" [ConTy "Baz" []] ["a"]]
+
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
+
+-- Wrong kinding of variables
+mutRecurseDDefsBad2 :: [DDef]
+mutRecurseDDefsBad2 =
+  [
+    DDef "Foo" [("a", ArrowKind Star Star)] [] []
+      [KCons "Bar" [ConTy "Baz" ["a"]] ["a"]]
+
+  , DDef "Baz" [("a", Star)] [] []
+      [KCons "Qux" [ConTy "Foo" ["a"]] ["a"]]
+  ]
+
+kindTyScheme1 :: TyScheme
+kindTyScheme1 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "b")
+
+kindTyScheme2 :: TyScheme
+kindTyScheme2 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "a")
+
+kindTyScheme3 :: TyScheme
+kindTyScheme3 = ForAll [("a", Star), ("b", ArrowKind Star Star)] (VarTy "c")
+
 
 --------------------------------------------------------------------------------
 -- Instances
@@ -184,7 +254,7 @@ instance Out Var where
 instance Out KCons
 instance Out MonoTy
 instance Out Kind
-instance Out Sigma
+instance Out TyScheme
 instance Out Pat
 instance Out Exp
 instance Out DDef

@@ -7,7 +7,7 @@ module ADT3
   where
 
 import Prelude                                  hiding ( exp )
-import Control.Applicative                      ( (<$>) )
+-- import Control.Applicative                      ( (<$>) )
 import Data.Typeable
 import Text.Printf
 

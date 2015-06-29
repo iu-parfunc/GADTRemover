@@ -1,0 +1,8 @@
+#!/bin/bash
+
+# Run me to locally validate before committing.
+
+set -xe
+
+# Right now this just runs the same thing as the continuous integration:
+./.jenkins_script.sh
