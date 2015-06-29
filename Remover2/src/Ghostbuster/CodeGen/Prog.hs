@@ -23,14 +23,15 @@ moduleOfProg (Prog ddefs vdefs e) =
     imports                             -- import declarations
     decls                               -- top-level module declarations
   where
-    pragmas     = [ LanguagePragma noLoc [ Ident "GADTs"
-                                         , Ident "ScopedTypeVariables"
-                                         ]
+    pragmas     = [ LanguagePragma noLoc [ Ident "GADTs" ]
+                  , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
+                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
+                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
                   ]
 
-    imports     = mkImport "Prelude"       {- hiding -} ["Maybe", "Bool", "Int"]
-                : mkImport "Data.Typeable" {- hiding -} ["(:~:)"]
-                : []
+    imports     = [ mkImport "Prelude"       {- hiding -} ["Maybe", "Bool", "Int"]
+                  , mkImport "Data.Typeable" {- hiding -} ["(:~:)"]
+                  ]
 
     mkImport name hiding
       = ImportDecl noLoc (ModuleName name) False False False Nothing Nothing
