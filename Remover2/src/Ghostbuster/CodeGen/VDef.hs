@@ -19,10 +19,12 @@ declOfVDef VDef{..} =
   ]
   where
     body = case valExp of
-             ELam (x,_) (ECase x' es)
-              | G.EVar x == x' -> map (uncurry (topLevelFun valName)) es
+      -- If we have a top-level (f = \x -> case x of ...), unfold this
+      -- into a series of top-level pattern matches.
+      ELam (x,_) (ECase x' es)
+        | G.EVar x == x' -> map (uncurry (topLevelCase valName)) es
 
-             _ -> error "TODO"
+      _ -> [topLevelFun valName valExp]
 
 
 -- Convert a type scheme into a type signature
@@ -33,8 +35,8 @@ mkTypeSig ident (ForAll a t)
   $ TyForall (Just (map (uncurry mkTyVarBind) a)) [] (mkType t)
 
 
-topLevelFun :: Var -> G.Pat -> G.Exp -> Match
-topLevelFun fn p e =
+topLevelCase :: Var -> G.Pat -> G.Exp -> Match
+topLevelCase fn p e =
   Match
     noLoc                       -- source location
     (varName fn)                -- name of the function
@@ -43,10 +45,20 @@ topLevelFun fn p e =
     (mkRhs e)                   -- the right hand side of the function, pattern, or case alternative
     (BDecls [])                 -- binding group for let or where clause
 
+topLevelFun :: Var -> G.Exp -> Match
+topLevelFun fn e =
+  Match
+    noLoc
+    (varName fn)
+    []
+    Nothing
+    (mkRhs e)
+    (BDecls [])
+
 mkExp :: G.Exp -> H.Exp
-mkExp (G.EK n)          = var (varName n)        -- TLM ???
+mkExp (G.EK n)          = var (varName n)                               -- TLM ???
 mkExp (G.EVar n)        = var (varName n)
--- mkExp (G.ELam (x,_) b)  = lamE noLoc undefined undefined
+mkExp (G.ELam (x,_) b)  = lamE noLoc [mkPat (Pat x [])] (mkExp b)       -- TLM: add local type signature?
 mkExp (G.EApp a b)      = app (mkExp a) (mkExp b)
 mkExp (G.ECase e ps)    = caseE (mkExp e) (map (uncurry mkAlt) ps)
 mkExp _                 = error "TODO"
@@ -56,7 +68,7 @@ mkAlt p e =
   Alt noLoc (mkPat p) (mkRhs e) (BDecls [])
 
 mkPat :: G.Pat -> H.Pat
-mkPat (Pat pn pv) = pParen $ pApp (varName pn) (map (pvar . varName) pv)
+mkPat (Pat pn pv) = pApp (varName pn) (map (pvar . varName) pv)
 
 mkRhs :: G.Exp -> H.Rhs
 mkRhs = UnGuardedRhs . mkExp
