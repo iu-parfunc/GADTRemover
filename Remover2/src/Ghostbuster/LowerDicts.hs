@@ -5,20 +5,27 @@
 
 module Ghostbuster.LowerDicts where
 
-import qualified Data.Set as S
+import           Control.Exception
 import qualified Data.ByteString.Char8 as B
-import Ghostbuster.Types
-import Ghostbuster.Utils
-import Data.List as L
+import           Data.Char (isAlpha)
+import           Data.List as L
+import qualified Data.Set as S
+-- import           Debug.Trace
+import           Ghostbuster.Types
+import           Ghostbuster.Utils
 
 -- | This operates on a whole program, processing all occurences of
 -- `ECaseDict`
 lowerDicts :: Prog -> Prog
 lowerDicts (Prog ddefs vdefs main) =
-  Prog (dictGADT : reflDef : ddefs)
-       (mkTeq allDicts : vdefs')
-       main
+  -- trace ("LowerDicts: allDicts = "++show allDicts ) $
+  assert (length ddefSubset == length allDicts) $
+  finalProg
   where
+  finalProg = Prog (dictGADT : reflDef : ddefs)
+                   (mkTeq ddefSubset : vdefs')
+                   (doExp ddefSubset main)
+
   vdefs' = [ VDef v t (doExp ddefSubset e)
            | VDef v t e <- vdefs ]
 
@@ -27,7 +34,7 @@ lowerDicts (Prog ddefs vdefs main) =
                 gatherDicts main :
                 [ gatherDicts valExp
                 | VDef {valExp} <- vdefs ]
-  ddefSubset = [ dd | dd@DDef{tyName} <- ddefs
+  ddefSubset = [ dd | dd@DDef{tyName} <- ddefs ++ primitiveTypes
                     , S.member tyName allDictsSet ]
 
   dictGADT =
@@ -86,13 +93,9 @@ doExp ddefs e =
     -- (3) Equality tests call the out-of-line library function that
     -- we generate on the side.
     (EIfTyEq (x0,x1) x2 x3) ->
-      let fresh = freshenVar "refltmp"
-      in ECase (app2 "checkTEQ" (go x0) (go x1))
-               [ ( Pat "Just" [fresh]
-                 , ECase (EVar fresh)
-                    [ (Pat "Refl" [], go x2)] )
-               , ( Pat "Nothing" []
-                 , go x3 ) ]
+      unpackJustRefl (app2 "checkTEQ" (go x0) (go x1))
+                     (go x2)
+                     (go x3)
 
     -- Boilerplate:
     ----------------------------
@@ -107,20 +110,66 @@ doExp ddefs e =
   go = doExp ddefs
 
 
+unpackJustRefl :: Exp -> Exp -> Exp -> Exp
+unpackJustRefl ex conseq altern =
+  let fresh = freshenVar "refltmp"
+  in ECase ex
+           [ ( Pat "Just" [fresh]
+             , ECase (EVar fresh)
+                [ (Pat "Refl" [], conseq)] )
+           , ( Pat "Nothing" []
+             , altern ) ]
+
+
 app2 :: Exp -> Exp -> Exp -> Exp
 app2 f x y = EApp (EApp f x) y
 
--- Generate a definition for a type-equality-checking function.
-mkTeq :: [TName] -> VDef
-mkTeq tns = VDef "checkTEQ" typesig $
-            ELam ("x", typeDict "a") $
-            ELam ("y", typeDict "b") $
-            EK "UNFINISHED"
- where
- typesig = ForAll [] (typeDict "t" `ArrowTy`
-                      typeDict "u" `ArrowTy`
-                      ConTy "Maybe" [ConTy "TyEquality" ["t","u"]])
 
+-- | Potentially infinite list of temporary pattern vars:
+-- TODO: replace with freshenVar of a single root name.
+patVars :: [Var]
+patVars = map (\c -> mkVar [c]) $
+          filter isAlpha ['a'..]
+
+-- | Generate a definition for a type-equality-checking function.
+--   Takes only the DDefs which are modeled in TypeDict.
+--
+--   The code size here will be quadratic in the number of constructors of TypeDict.
+mkTeq :: [DDef] -> VDef
+mkTeq ddefs = VDef "checkTEQ" typesig $
+              ELam ("x", typeDict "a") $
+              ELam ("y", typeDict "b") $
+              ECase "x"
+               [ (Pat tyName patVs, makeInner tyName patVs)
+               | dd@DDef{tyName} <- ddefs
+               , let patVs = (mkPatVars dd "1")
+               ]
+ where
+
+ mkPatVars DDef{kVars,cVars,sVars} suff =
+   let arity = length kVars + length cVars + length sVars
+   in map (+++ suff) $ take arity patVars
+
+ -- Construct the inner of the two-step pattern match:
+ makeInner outerT outerPatVs =
+   ECase "y" [ (Pat tn innerPatVs
+               , if tn == outerT
+                    then doRecurs $ zip outerPatVs innerPatVs
+                    else (EK "Nothing"))
+             | dd@DDef{tyName=tn} <- ddefs
+             , let innerPatVs = (mkPatVars dd "2")
+                   doRecurs [] = justRefl
+                   doRecurs ((a,b):rst) =
+                     unpackJustRefl (app2 "checkTEQ" (EVar a) (EVar b))
+                                    (doRecurs rst)
+                                    (EK "Nothing")
+             ]
+
+ justRefl = EApp (EK "Just") (EK "Refl")
+
+ typesig = ForAll [] (typeDict "t" `ArrowTy`
+                     (typeDict "u" `ArrowTy`
+                      ConTy "Maybe" [ConTy "TyEquality" ["t","u"]]))
 
 reflDef :: DDef
 reflDef = DDef "TyEquality" [("a",Star),("b",Star)] [] []
@@ -136,3 +185,7 @@ dictConsName (Var v) = Var (v `B.append` "Dict")
 
 typeDict :: MonoTy -> MonoTy
 typeDict x = ConTy "TypeDict" [x]
+
+
+(+++) :: Var -> Var -> Var
+(+++) (Var x) (Var y) = Var (x `B.append` y)

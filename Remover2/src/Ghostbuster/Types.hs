@@ -93,14 +93,16 @@ data TyScheme = ForAll [(TyVar,Kind)] MonoTy
 data Pat = Pat KName [TermVar]
   deriving (Eq,Ord,Show,Read,Generic)
 
-data Exp = EK KName
-         | EVar TermVar
+data Exp = EK KName                   -- ^ Data constructor ref.  Could be combined with EVar.
+         | EVar TermVar               -- ^ Variable reference.
          | ELam (TermVar,MonoTy) Exp
          | EApp Exp Exp
          | ELet (TermVar,TyScheme,Exp) Exp
          | ECase Exp [(Pat,Exp)]
-         | EDict TName
+
+         | EDict TName                -- ^ Dictionary reification for the named type constr.
          | ECaseDict Exp (TName,[TermVar],Exp) Exp
+            -- ^ Two-branch case on a dictionary.
          | EIfTyEq (Exp,Exp) Exp Exp
   deriving (Eq,Ord,Show,Read,Generic)
 
@@ -112,13 +114,16 @@ primitiveTypes :: [DDef]
 primitiveTypes =
 -- RRN: For a convention, I'm not sure if we want "(->)" or "->":
   [ DDef "ArrowTy" [("a",Star), ("b",Star)] [] [] []
---  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
+--  , DDef "(,)"  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
 -- RRN: that tuple type doesn't expose any constructors...
 -- Tup2 below does... we can use comma or Tup2, either way.
 -- TLM: I would vote for (,) then. The code generator might need to special case
 --      this to output Haskell tuples in the generated code, and "(,*)" is
 --      easier to search for. Even if we don't special case this, Haskell might
 --      be able to deal with the prefix "(,) a b" notation as is.
+-- RRN: See gchat comments about getting intro trouble with name-mangling
+--      infix/punctuation names.  Easier to avoid for now.
+
 
 -- Only arrow really needs to be here.  We CAN put other types here
 -- for convenience, but the original plan was to include only the
