@@ -5,8 +5,6 @@
 
 module Ghostbuster.Interp
        ( interp
-       , ti1, ti2, ti3, ti4, ti5, ti6, ti7
-       , p2, p3, p4, p5, p6, p7
        ) where
 
 import Data.Map.Lazy as M
@@ -98,6 +96,27 @@ exp defs env exp0 =
            | otherwise -> exp defs env x3
         (bad1,bad2) -> tyErr $ "EIfTyEq must take two VDict values, got: "++show (bad1,bad2)
 
+
+
+--------------------------------------------------------------------------------
+-- Helpers
+
+
+(#) :: (Ord k, Show k, Show v) => Map k v -> k -> v
+m # k = case M.lookup k m of
+          Nothing -> error$ "Map does not contain key: "++show k++"\nFull map:\n"++show m
+          Just x  -> x
+
+
+tyErr :: String -> t
+tyErr s = error ("<Runtime Type Error>: "++s)
+
+--------------------------------------------------------------------------------
+-- Old/unused
+
+_ti1 :: Exp
+_ti1 = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
+
 applyList :: (Exp) -> [MonoTy] -> Exp
 applyList f ls = loop [] ls
   where
@@ -112,68 +131,3 @@ applyList f ls = loop [] ls
 
   loop2 [] = f
   loop2 (hd:tl) = EApp (loop2 tl) hd
-
-
-
-(#) :: (Ord k, Show k, Show v) => Map k v -> k -> v
-m # k = case M.lookup k m of
-          Nothing -> error$ "Map does not contain key: "++show k++"\nFull map:\n"++show m
-          Just x  -> x
-
-
-tyErr :: String -> t
-tyErr s = error ("<Runtime Type Error>: "++s)
-
---------------------------------------------------------------------------------
--- Tests and examples:
-
-ti1 :: Exp
-ti1 = applyList (EK "FOO") [VarTy "a", VarTy "b", VarTy "c"]
-
-p2 :: Exp
-p2 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
-
-ti2 :: Val
-ti2 = interp $ Prog [ints] [] p2
-
-p3 :: Exp
-p3 = EDict ("Int")
-
-ti3 :: Val
-ti3 = interp $ Prog [ints] [] p3
-
-p4 :: Exp
-p4 = EApp (EApp (EDict ("ArrowTy")) p3) p3
-
-ti4 :: Val
-ti4 = interp $ Prog [] [] p4
-
-p5 :: Exp
-p5 = ECaseDict p4
-      ("ArrowTy",["a","b"],
-       ECaseDict "a" ("Int", [], EK "One")
-                 (EK "Two")
-      ) (EK "Three")
-
-ti5 :: Val
-ti5 = interp $ Prog [ints] [] p5
-
--- | Take a false branch
-p6 :: Exp
-p6 = ECaseDict p3
-      ("->",["a","b"],
-       ECaseDict "a" ("Int", [], EK "One")
-                 (EK "Two")
-      ) (EK "Three")
-
-ti6 :: Val
-ti6 = interp $ Prog [ints] [] p6
-
-p7 :: Exp
-p7 = EApp (ELam ("v",intTy) "v") (EK "Three")
-
-intTy :: MonoTy
-intTy = ConTy "Int" []
-
-ti7 :: Val
-ti7 = interp $ Prog [ints] [] p7

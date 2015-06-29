@@ -25,6 +25,7 @@ library
                        Ghostbuster.Ambiguity
                        Ghostbuster.Utils
                        Ghostbuster.Examples.Feldspar
+                       Ghostbuster.Examples.Tiny
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
                        Ghostbuster.CodeGen.Exp

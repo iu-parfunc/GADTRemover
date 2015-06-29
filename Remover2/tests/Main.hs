@@ -8,6 +8,7 @@ module Main where
 import Ghostbuster.LowerDicts
 import Ghostbuster.Ambiguity as A
 import Ghostbuster.Examples.Feldspar
+import Ghostbuster.Examples.Tiny
 import Ghostbuster.Interp as I
 import Ghostbuster.KindCheck as K
 import Ghostbuster.Types
@@ -18,13 +19,31 @@ import Test.Tasty.TH
 
 ------------------------------------------------------------
 
+ti2 :: Val
+ti2 = interp $ Prog [ints] [] p2
+
+ti3 :: Val
+ti3 = interp $ Prog [ints] [] p3
+
+ti4 :: Val
+ti4 = interp $ Prog [] [] p4
+
+ti5 :: Val
+ti5 = interp $ Prog [ints] [] p5
+
+ti6 :: Val
+ti6 = interp $ Prog [ints] [] p6
+
+ti7 :: Val
+ti7 = interp $ Prog [ints] [] p7
+
 case_I2 :: Assertion
 case_I2 = assertEqual "interp_case"
-                      (VK (Var "Two") []) I.ti2
+                      (VK (Var "Two") []) ti2
 
 case_I3 :: Assertion
 case_I3 = assertEqual "interp dict"
-            (VDict (Var "Int") []) I.ti3
+            (VDict (Var "Int") []) ti3
 
 case_I5 :: Assertion
 case_I5 = assertEqual "nested casedict"
