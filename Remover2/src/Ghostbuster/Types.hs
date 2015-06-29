@@ -112,6 +112,10 @@ primitiveTypes =
 --  , DDef ","  [("a",Star), ("b",Star)] [] [] [] -- TLM: change to TupleTy ???
 -- RRN: that tuple type doesn't expose any constructors...
 -- Tup2 below does... we can use comma or Tup2, either way.
+-- TLM: I would vote for (,) then. The code generator might need to special case
+--      this to output Haskell tuples in the generated code, and "(,*)" is
+--      easier to search for. Even if we don't special case this, Haskell might
+--      be able to deal with the prefix "(,) a b" notation as is.
 
 -- Only arrow really needs to be here.  We CAN put other types here
 -- for convenience, but the original plan was to include only the
