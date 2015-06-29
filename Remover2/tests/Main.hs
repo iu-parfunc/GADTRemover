@@ -172,7 +172,7 @@ codegenAllProgs =
   [ testCase ("codegenAllProgs"++show ix) $
     -- putStrLn $
     evaluate $ rnf $ show $
-     prettyPrint $ CG.moduleOfProg prg
+     prettyPrint $ CG.moduleOfProg $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]

@@ -133,7 +133,8 @@ checkPat denv tenv ty (Pat name tvars) = do
   (subst, ConTy name' tvs') <- inferExp denv tenv (EK name)
   -- This guy had better be a constructor, which means we better get a nullSubst back out
   unless (Map.null subst) $
-    throwError $ "Invalid pattern match! We MUST have a constructor to match on, but " ++ show name ++ " isn't a constructor"
+    throwError $ "Invalid pattern match! We MUST have a constructor to match on, but " ++
+                 show name ++ " isn't a constructor"
   -- Get the substitutions that we need, and ensure that they can all unify with the type constructor
   -- If it all works out, return it.
   unify ty (ConTy name' tvs')

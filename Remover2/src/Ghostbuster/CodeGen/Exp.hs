@@ -19,6 +19,9 @@ mkExp (G.EApp a b)              = app (mkExp a) (mkExp b)
 mkExp (G.ECase e ps)            = caseE (mkExp e) (map (uncurry mkAlt) ps)
 mkExp (G.ELet (v,t,bnd) body)   = letE [ mkTypeSig v t, mkDeclOfExp v bnd ] (mkExp body)
 -- mkExp _                 = error "TODO"
+mkExp (G.EDict{})      = error "EDict: not handled by codegen"
+mkExp (G.ECaseDict {}) = error "ECaseDict: not handled by codegen"
+mkExp (G.EIfTyEq {})   = error "EIfTyEq: not handled by codegen"
 
 mkAlt :: G.Pat -> G.Exp -> H.Alt
 mkAlt p e =
@@ -71,4 +74,3 @@ matchOfExp fn e =
     Nothing
     (mkRhs e)
     (BDecls [])
-
