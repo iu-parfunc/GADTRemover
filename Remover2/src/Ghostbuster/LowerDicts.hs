@@ -17,10 +17,12 @@ import           Ghostbuster.Utils
 -- | This operates on a whole program, processing all occurences of
 -- `ECaseDict`
 lowerDicts :: Prog -> Prog
-lowerDicts (Prog ddefs vdefs main) =
+lowerDicts origprog@(Prog ddefs vdefs main) =
   -- trace ("LowerDicts: allDicts = "++show allDicts ) $
   assert (length ddefSubset == length allDicts) $
-  finalProg
+  if null allDicts
+     then origprog
+     else finalProg
   where
   finalProg = Prog (dictGADT : reflDef : ddefs)
                    (mkTeq ddefSubset : vdefs')
