@@ -56,7 +56,7 @@ mkAlt p e =
   Alt noLoc (mkPat p) (mkRhs e) (BDecls [])
 
 mkPat :: G.Pat -> H.Pat
-mkPat (Pat pn pv) = pParen $ pApp (varName pn) (map (pvar . varName) pv)
+mkPat (Pat pn pv) = pApp (varName pn) (map (pvar . varName) pv)
 
 mkRhs :: G.Exp -> H.Rhs
 mkRhs = UnGuardedRhs . mkExp
