@@ -32,5 +32,5 @@ moduleOfProg (Prog ddefs vdefs e) =
 
     decls       = map gadtOfDDef ddefs
                ++ concatMap declOfVDef vdefs
-               ++ [ declOfExp "ghostbuster" e ]
+               ++ [ declOfExp "ghostbuster" e ]         -- TLM: ???
 

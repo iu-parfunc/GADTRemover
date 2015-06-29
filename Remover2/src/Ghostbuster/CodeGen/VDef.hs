@@ -16,50 +16,6 @@ import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 declOfVDef :: VDef -> [Decl]
 declOfVDef VDef{..} =
   [ mkTypeSig valName valTy
-  , declOfExp valName valExp
+  , mkDeclOfExp valName valExp
   ]
-
-
--- Create a top-level declaration from an expression
---
-declOfExp :: Var -> G.Exp -> Decl
-declOfExp n e
-  = FunBind
-  $ case e of
-      -- If we have a top-level (f = \x -> case x of ...), unfold this
-      -- into a series of top-level pattern matches.
-      ELam (x,_) (ECase x' es)
-        | G.EVar x == x' -> map (uncurry (topLevelCase n)) es
-
-      -- Otherwise, proceed as normal
-      _ -> [topLevelFun n e]
-
-
--- Convert a type scheme into a type signature
---
-mkTypeSig :: Var -> TyScheme -> Decl
-mkTypeSig ident (ForAll a t)
-  = TypeSig noLoc [varName ident]
-  $ TyForall (Just (map (uncurry mkTyVarBind) a)) [] (mkType t)
-
-
-topLevelCase :: Var -> G.Pat -> G.Exp -> Match
-topLevelCase fn p e =
-  Match
-    noLoc                       -- source location
-    (varName fn)                -- name of the function
-    [mkPat p]                   -- patterns, to be matched against a value
-    Nothing                     -- type signature
-    (mkRhs e)                   -- the right hand side of the function, pattern, or case alternative
-    (BDecls [])                 -- binding group for let or where clause
-
-topLevelFun :: Var -> G.Exp -> Match
-topLevelFun fn e =
-  Match
-    noLoc
-    (varName fn)
-    []
-    Nothing
-    (mkRhs e)
-    (BDecls [])
 
