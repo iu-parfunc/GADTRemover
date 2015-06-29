@@ -29,7 +29,7 @@ moduleOfProg (Prog ddefs vdefs e) =
                   ]
 
     imports     = mkImport "Prelude"       {- hiding -} ["Maybe", "Bool", "Int"]
-                : mkImport "Data.Typeable" {- hiding -} ["Refl"]
+                : mkImport "Data.Typeable" {- hiding -} ["(:~:)"]
                 : []
 
     mkImport name hiding
