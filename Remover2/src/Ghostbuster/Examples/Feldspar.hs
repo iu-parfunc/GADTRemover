@@ -145,13 +145,13 @@ upTyp
   = VDef "upTyp" (ForAll [] (ConTy "Typ'" [] `ArrowTy` ConTy "SealedTyp" []))
   $ ELam ("x", ConTy "Typ'" [])
   $ ECase "x"
-  [ ( Pat "Int" []
+  [ ( Pat "Int'" []
     , EApp (EK "SealedTyp") (EK "Int")
     )
-  , ( Pat "Arr" ["x1", "x2"]
+  , ( Pat "Arr'" ["x1", "x2"]
     , ECase (EApp "upTyp" "x1") [ (Pat "SealedTyp" ["a"],
       ECase (EApp "upTyp" "x2") [ (Pat "SealedTyp" ["b"],
-        EApp (EApp "SealedTyp" "a") "b" )])]
+        (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))])]
     )
   ]
 
