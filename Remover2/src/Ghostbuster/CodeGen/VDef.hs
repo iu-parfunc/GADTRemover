@@ -16,16 +16,23 @@ import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 declOfVDef :: VDef -> [Decl]
 declOfVDef VDef{..} =
   [ mkTypeSig valName valTy
-  , FunBind body
+  , declOfExp valName valExp
   ]
-  where
-    body = case valExp of
+
+
+-- Create a top-level declaration from an expression
+--
+declOfExp :: Var -> G.Exp -> Decl
+declOfExp n e
+  = FunBind
+  $ case e of
       -- If we have a top-level (f = \x -> case x of ...), unfold this
       -- into a series of top-level pattern matches.
       ELam (x,_) (ECase x' es)
-        | G.EVar x == x' -> map (uncurry (topLevelCase valName)) es
+        | G.EVar x == x' -> map (uncurry (topLevelCase n)) es
 
-      _ -> [topLevelFun valName valExp]
+      -- Otherwise, proceed as normal
+      _ -> [topLevelFun n e]
 
 
 -- Convert a type scheme into a type signature
