@@ -26,10 +26,10 @@ e05 = ECaseDict e04
                   (EK "Two")
        ) (EK "Three")
 
--- | Take a false branch
+-- | Perform a BAD caseDict to take a false branch.  Returns "Three"
 e06 :: Exp
 e06 = ECaseDict e03
-        ("->",["a","b"],
+        ("ArrowTy",["a","b"],
          ECaseDict "a" ("Int", [], EK "One")
                    (EK "Two")
         ) (EK "Three")

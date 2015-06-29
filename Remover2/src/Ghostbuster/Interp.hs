@@ -58,22 +58,7 @@ exp defs env exp0 =
     (ELet (v,_,x1) x2) -> let x1' = exp defs env x1
                               env' = M.insert v x1' env
                           in exp defs env' x2
-    (ECase x1 []) -> let v = exp defs env x1
-                     in error $ "value did not match any patterns in ECase: "
-                          ++show v
-    (ECase x1 ((Pat kname vars, rhs ) : rst)) ->
-      case exp defs env x1 of
-        v@(VK k2 args) | k2 == kname ->
-                         if length vars == length args
-                          then exp defs (M.union (M.fromList (zip vars args))
-                                                 env) rhs
-                          else tyErr $ "bad number of constructor args." ++
-                               "\nExpected: " ++show vars ++
-                               "\nReceived: " ++show args
-                       | otherwise  -> exp defs env (ECase (val2Exp v) rst)
-        v@(VClo{}) -> tyErr$ "cannot case on a lambda!: "++show v
-        v@(VDict{}) -> tyErr $ "cannot perform a regular ECase on a Dict value, use ECaseDict: "
-                               ++ show v
+    (ECase x1 ls) -> doCases (exp defs env x1) ls
     (EDict x) -> VDict x []
       -- exp defs env $
       -- applyList (EDict x)
@@ -101,6 +86,25 @@ exp defs env exp0 =
            | k1 == k2 && a1 == a2  -> exp defs env x2
            | otherwise -> exp defs env x3
         (bad1,bad2) -> tyErr $ "EIfTyEq must take two VDict values, got: "++show (bad1,bad2)
+ where
+ doCases val [] =
+   error $ "value did not match any patterns in ECase: " ++show val
+
+ doCases val ((Pat kname vars, rhs ) : rst) =
+    case val of
+      (VK k2 args) | k2 == kname ->
+                       if length vars == length args
+                        then exp defs (M.union (M.fromList (zip vars args))
+                                               env) rhs
+                        else tyErr $ "bad number of constructor args for K="++show k2 ++
+                             "\nExpected: " ++show vars ++
+                             "\nReceived: " ++show args ++
+                             "\nExpression: "++ show (doc exp0)
+                   | otherwise  -> doCases val rst
+      v@(VClo{}) -> tyErr$ "cannot case on a lambda!: "++show v
+      v@(VDict{}) -> tyErr $ "cannot perform a regular ECase on a Dict value, use ECaseDict: "
+                             ++ show v
+
 
 
 
