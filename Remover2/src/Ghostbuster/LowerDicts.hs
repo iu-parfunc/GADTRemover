@@ -61,7 +61,19 @@ doExp :: Exp -> Exp
 doExp e =
   case e of
     (EDict x) -> EK $ dictConsName x
-    (ECaseDict x1 x2 x3) -> undefined
+    (ECaseDict x1 (name,vars,x2) x3) ->
+      -- If we don't have "_ ->" fall-through cases, then we would need
+      -- to provide a pattern for ALL of the cases of TypeDict, and so we
+      -- probably want to let-bind "x3" if it's non-trivial.
+      --
+      -- TODO: refactor this into a combinator for let-binding-non-trivial.
+      -- TODO: this pass also needs to be in a monad that can generate names.
+      ELet ("otherwise", recoverType, go x3) $
+      ECase (go x1)
+            [ (Pat (dictConsName name) vars , go x2)
+             -- TODO: otherwise case for EVERY other dictionary.
+            ]
+
     (EIfTyEq x1 x2 x3) -> undefined
 
     -- Boilerplate:
@@ -74,6 +86,10 @@ doExp e =
     (ECase x1 x2) -> ECase (go x1) [ (p,go x) | (p,x) <- x2]
  where
   go = doExp
+
+-- If we hoist things out with ELet, then we need to have their type.
+-- This should go in the type checking module.
+recoverType = undefined
 
 -- Generate a definition for a type-equality-checking function.
 mkTeq :: [TName] -> VDef
