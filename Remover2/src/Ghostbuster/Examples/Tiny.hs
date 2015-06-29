@@ -9,32 +9,41 @@ import Ghostbuster.Types
 --------------------------------------------------------------------------------
 -- Just expressions:
 
-p2 :: Exp
-p2 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
+e02 :: Exp
+e02 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
 
-p3 :: Exp
-p3 = EDict ("Int")
+e03 :: Exp
+e03 = EDict ("Int")
 
-p4 :: Exp
-p4 = EApp (EApp (EDict ("ArrowTy")) p3) p3
+-- | Construct arrow dictionary
+e04 :: Exp
+e04 = EApp (EApp (EDict ("ArrowTy")) e03) e03
 
-p5 :: Exp
-p5 = ECaseDict p4
-      ("ArrowTy",["a","b"],
-       ECaseDict "a" ("Int", [], EK "One")
-                 (EK "Two")
-      ) (EK "Three")
+e05 :: Exp
+e05 = ECaseDict e04
+       ("ArrowTy",["a","b"],
+        ECaseDict "a" ("Int", [], EK "One")
+                  (EK "Two")
+       ) (EK "Three")
 
 -- | Take a false branch
-p6 :: Exp
-p6 = ECaseDict p3
-      ("->",["a","b"],
-       ECaseDict "a" ("Int", [], EK "One")
-                 (EK "Two")
-      ) (EK "Three")
+e06 :: Exp
+e06 = ECaseDict e03
+        ("->",["a","b"],
+         ECaseDict "a" ("Int", [], EK "One")
+                   (EK "Two")
+        ) (EK "Three")
 
-p7 :: Exp
-p7 = EApp (ELam ("v",intTy) "v") (EK "Three")
+-- | True dict comparison
+e07 :: Exp
+e07 = EIfTyEq (e04,e04) (EK "True") (EK "False")
+
+-- | False dict comparison
+e08 :: Exp
+e08 = EIfTyEq (e03,e04) (EK "True") (EK "False")
+
+e10 :: Exp
+e10 = EApp (ELam ("v",intTy) "v") (EK "Three")
 
 intTy :: MonoTy
 intTy = ConTy "Int" []

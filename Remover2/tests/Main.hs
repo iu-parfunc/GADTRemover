@@ -20,52 +20,47 @@ import System.Environment (withArgs, getArgs)
 
 ------------------------------------------------------------
 
-ti2 :: Val
-ti2 = interp $ Prog [ints] [] p2
+case_E02 :: Assertion
+case_E02 = assertEqual "interp_case"
+                       (VK (Var "Two") []) (interp $ Prog [ints] [] e02)
 
-ti3 :: Val
-ti3 = interp $ Prog [ints] [] p3
+case_E03 :: Assertion
+case_E03 = assertEqual "interp dict"
+             (VDict (Var "Int") []) (interp $ Prog [ints] [] e03)
 
-ti4 :: Val
-ti4 = interp $ Prog [] [] p4
+case_E04 :: Assertion
+case_E04 = assertEqual "construct arrow dict"
+             (VDict (Var "ArrowTy") [VDict (Var "Int") [],VDict (Var "Int") []])
+             (interp $ Prog [] [] e04)
 
-ti5 :: Val
-ti5 = interp $ Prog [ints] [] p5
+case_E05 :: Assertion
+case_E05 = assertEqual "nested casedict, return one"
+                       (VK "One" []) $
+                       interp $ Prog [ints] [] e05
 
-ti6 :: Val
-ti6 = interp $ Prog [ints] [] p6
+case_E06 :: Assertion
+case_E06 = assertEqual "take a false CaseDict branch"
+                       (VK (Var "Three") [])
+                       (interp $ Prog [ints] [] e06)
 
-ti7 :: Val
-ti7 = interp $ Prog [ints] [] p7
+case_E07 :: Assertion
+case_E07 = assertEqual ""
+                       (VK "True" []) $
+                       interp $ Prog [] [] e07
 
-case_I2 :: Assertion
-case_I2 = assertEqual "interp_case"
-                      (VK (Var "Two") []) ti2
+case_E08 :: Assertion
+case_E08 = assertEqual ""
+                       (VK "False" []) $
+                       interp $ Prog [] [] e08
 
-case_I3 :: Assertion
-case_I3 = assertEqual "interp dict"
-            (VDict (Var "Int") []) ti3
-
-case_I4 :: Assertion
-case_I4 = assertEqual "construct arrow dict"
-            (VDict (Var "ArrowTy") [VDict (Var "Int") [],VDict (Var "Int") []])
-            ti4
-
-case_I5 :: Assertion
-case_I5 = assertEqual "nested casedict"
-                      (VK (Var "One") []) ti5
-
-case_I6 :: Assertion
-case_I6 = assertEqual "take a false CaseDict branch"
-                      (VK (Var "Three") []) ti6
-
-case_I7 :: Assertion
-case_I7 = assertEqual "apply identity function"
-                      (VK "Three" []) ti7
+case_E10 :: Assertion
+case_E10 = assertEqual "apply identity function"
+                       (VK "Three" []) $
+                       interp $ Prog [ints] [] e10
 
 -- | This should NOT diverge (lazy evaluation):
-case_I8 :: Assertion
-case_I8 = assertEqual "" (VK "Nothing" []) (interp p8_unusedLoop)
+case_P8 :: Assertion
+case_P8 = assertEqual "" (VK "Nothing" []) (interp p8_unusedLoop)
 
 ------------------------------------------------------------
 
@@ -93,21 +88,37 @@ case_KindMutRecurseDDefs = assertEqual "" (Right ()) (K.kindClosedDefs mutRecurs
 
 ------------------------------------------------------------
 
-case_lowerP4 :: Assertion
-case_lowerP4 = assertEqual "lower dicts from a program "
+case_lowerE4 :: Assertion
+case_lowerE4 = assertEqual "lower dicts from a program "
                  result
-                 (progDDefs (lowerDicts (Prog [] [] p4)))
+                 (progDDefs (lowerDicts (Prog [] [] e04)))
  where
  result = [DDef {tyName = Var "TypeDict", kVars = [(Var "a",Star)], cVars = [], sVars = [], cases = [KCons {conName = Var "ArrowTyDict", fields = [ConTy (Var "TypeDict") [VarTy (Var "a")],ConTy (Var "TypeDict") [VarTy (Var "b")]], outputs = [ConTy (Var "ArrowTyDict") [VarTy (Var "a"),VarTy (Var "b")]]},KCons {conName = Var "IntDict", fields = [], outputs = [ConTy (Var "IntDict") []]}]},DDef {tyName = Var "TyEquality", kVars = [(Var "a",Star),(Var "b",Star)], cVars = [], sVars = [], cases = [KCons {conName = Var "Refl", fields = [], outputs = [VarTy (Var "a"),VarTy (Var "a")]}]}]
 
 progDDefs :: Prog -> [DDef]
 progDDefs (Prog d _ _) = d
 
-case_InterpLowered1 :: Assertion
-case_InterpLowered1 =
+case_InterpLowered_e4 :: Assertion
+case_InterpLowered_e4 =
   assertEqual ""
     (VK (Var "ArrowTyDict") [VK (Var "IntDict") [],VK (Var "IntDict") []])
-    (interp $ lowerDicts $ Prog [] [] p4)
+    (interp $ lowerDicts $ Prog [] [] e04)
+
+case_InterpLowered_e5 :: Assertion
+case_InterpLowered_e5 =
+  assertEqual ""
+    (VK "One" [])
+    (interp $ lowerDicts $ Prog [] [] e05)
+
+case_InterpLowered_e07 :: Assertion
+case_InterpLowered_e07 =
+  assertEqual "" (VK "True" [])
+             (interp $ lowerDicts $ Prog [] [] e07)
+
+case_InterpLowered_e08 :: Assertion
+case_InterpLowered_e08 =
+  assertEqual "" (VK "False" [])
+             (interp $ lowerDicts $ Prog [] [] e08)
 
 ------------------------------------------------------------
 

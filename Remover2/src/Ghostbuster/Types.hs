@@ -128,7 +128,9 @@ primitiveTypes =
 -- Only arrow really needs to be here.  We CAN put other types here
 -- for convenience, but the original plan was to include only the
 -- types that must truly be built-in here...
-  , ints, maybeD
+  , ints
+  , maybeD
+  , boolD
   ] ++
   tupsD
 
@@ -159,6 +161,12 @@ maybeD = DDef "Maybe" [("a", Star)] [] []
         [ KCons "Just" ["a"] ["a"]
         , KCons "Nothing" [] ["a"]
         ]
+
+boolD :: DDef
+boolD = DDef "Bool" [] [] []
+      [ KCons "True" [] []
+      , KCons "False" [] []
+      ]
 
 -- RRN: We can use "," or "Tup2" as the constructor.
 tupsD :: [DDef]

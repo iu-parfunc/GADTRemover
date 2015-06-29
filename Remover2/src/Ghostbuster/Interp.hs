@@ -59,7 +59,8 @@ exp defs env exp0 =
                               env' = M.insert v x1' env
                           in exp defs env' x2
     (ECase x1 []) -> let v = exp defs env x1
-                     in error $ "expression did not match any cases: "++show v
+                     in error $ "value did not match any patterns in ECase: "
+                          ++show v
     (ECase x1 ((Pat kname vars, rhs ) : rst)) ->
       case exp defs env x1 of
         v@(VK k2 args) | k2 == kname ->

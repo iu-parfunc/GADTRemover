@@ -140,7 +140,7 @@ mkTeq ddefs = VDef "checkTEQ" typesig $
               ELam ("x", typeDict "a") $
               ELam ("y", typeDict "b") $
               ECase "x"
-               [ (Pat tyName patVs, makeInner tyName patVs)
+               [ (Pat (dictConsName tyName) patVs, makeInner tyName patVs)
                | dd@DDef{tyName} <- ddefs
                , let patVs = (mkPatVars dd "1")
                ]
@@ -152,7 +152,7 @@ mkTeq ddefs = VDef "checkTEQ" typesig $
 
  -- Construct the inner of the two-step pattern match:
  makeInner outerT outerPatVs =
-   ECase "y" [ (Pat tn innerPatVs
+   ECase "y" [ (Pat (dictConsName tn) innerPatVs
                , if tn == outerT
                     then doRecurs $ zip outerPatVs innerPatVs
                     else (EK "Nothing"))
