@@ -9,6 +9,7 @@ import qualified Data.Set as S
 import qualified Data.ByteString.Char8 as B
 import Ghostbuster.Types
 import Ghostbuster.Utils
+import Data.List as L
 
 -- | This operates on a whole program, processing all occurences of
 -- `ECaseDict`
@@ -18,11 +19,16 @@ lowerDicts (Prog ddefs vdefs main) =
        (mkTeq allDicts : vdefs')
        main
   where
-  vdefs' = [ VDef v t (doExp e) | VDef v t e <- vdefs ]
+  vdefs' = [ VDef v t (doExp ddefSubset e)
+           | VDef v t e <- vdefs ]
 
-  allDicts = S.toList $ S.unions $
-             gatherDicts main :
-             [ gatherDicts valExp | VDef {valExp} <- vdefs ]
+  allDicts = S.toList allDictsSet
+  allDictsSet = S.unions $
+                gatherDicts main :
+                [ gatherDicts valExp
+                | VDef {valExp} <- vdefs ]
+  ddefSubset = [ dd | dd@DDef{tyName} <- ddefs
+                    , S.member tyName allDictsSet ]
 
   dictGADT =
     DDef "TypeDict" [("a",Star)] [] []
@@ -56,9 +62,9 @@ gatherDicts e =
       S.unions [ gatherDicts x1, gatherDicts x2,
                  gatherDicts x3, gatherDicts x4 ]
 
-
-doExp :: Exp -> Exp
-doExp e =
+-- | Takes only the DDefs which are modeled in TypeDict
+doExp :: [DDef] -> Exp -> Exp
+doExp ddefs e =
   case e of
     (EDict x) -> EK $ dictConsName x
     (ECaseDict x1 (name,vars,x2) x3) ->
@@ -66,13 +72,12 @@ doExp e =
       -- to provide a pattern for ALL of the cases of TypeDict, and so we
       -- probably want to let-bind "x3" if it's non-trivial.
       --
-      -- TODO: refactor this into a combinator for let-binding-non-trivial.
-      -- TODO: this pass also needs to be in a monad that can generate names.
-      ELet ("otherwise", recoverType, go x3) $
-      ECase (go x1)
-            [ (Pat (dictConsName name) vars , go x2)
-             -- TODO: otherwise case for EVERY other dictionary.
-            ]
+      letBindNonTriv (go x3) $ \x3' ->
+       ECase (go x1) $
+             [ (Pat (dictConsName name) vars , go x2)
+             ] ++ -- otherwise case for EVERY other dictionary:
+             [ (Pat (dictConsName oth) vars, x3')
+             | oth <- allDicts, oth /= name ]
 
     (EIfTyEq x1 x2 x3) -> undefined
 
@@ -85,11 +90,10 @@ doExp e =
     (ELet (v,t,x1) x2) -> ELet (v,t,go x1) (go x2)
     (ECase x1 x2) -> ECase (go x1) [ (p,go x) | (p,x) <- x2]
  where
-  go = doExp
+  allDicts = L.map tyName ddefs
+  go = doExp ddefs
 
--- If we hoist things out with ELet, then we need to have their type.
--- This should go in the type checking module.
-recoverType = undefined
+
 
 -- Generate a definition for a type-equality-checking function.
 mkTeq :: [TName] -> VDef

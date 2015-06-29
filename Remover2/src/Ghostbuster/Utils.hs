@@ -1,6 +1,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
--- |
+{-# LANGUAGE OverloadedStrings #-}
+
+-- | General utility functions for working with the core lang.
 
 module Ghostbuster.Utils where
 
@@ -81,6 +83,24 @@ getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
   | otherwise = getArgStatus rest t
 
 
+-- | A HOAS combinator to introduce a let-binding IFF the provided
+-- syntax is anything more complex than an identifier.
+--
+-- TODO: this needs to be in a monad that can generate names.
+letBindNonTriv :: Exp -> (Exp -> Exp) -> Exp
+letBindNonTriv e f =
+  case e of
+    (EK _)       -> f e
+    (EVar _)     -> f e
+    (EDict _)    -> f e
+    -----------------------------------------
+    -- TODO: the remaining cases really need let bindings;
+    _ -> f e  -- TEMP/FIXME
+    _ -> ELet ("fresh", recoverType e, e) (f "fresh")
+  where
+  -- If we hoist things out with ELet, then we need to have their type.
+  -- This should go in the type checking module.
+  recoverType = undefined
 
 --------------------------------------------------------------------------------
 

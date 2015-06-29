@@ -49,7 +49,6 @@ checkKCons myT getStatus KCons{conName,fields,outputs} =
                     return $ S.union acc (ftv field)
                 ) S.empty fields
      return ()
-     -- map (checkSynthVar) ss
   where
   (ks,cs,ss)    = splitTyArgs myStatus outputs
   myStatus      = getStatus myT
