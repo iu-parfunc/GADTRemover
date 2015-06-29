@@ -185,5 +185,5 @@ main =
         testGroup "" $
         [ testsAbove ] ++
         runAllProgs ++
---        runAllLoweredProgs
+        runAllLoweredProgs ++
         codegenAllProgs
