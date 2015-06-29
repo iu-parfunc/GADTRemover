@@ -14,7 +14,7 @@ type Equations = (HM.Map TyVar [TyVar])
 type Patterns = (HM.Map TyVar MonoTy)
 
 
-toSealedName = \tyName -> "Sealed" ++ tyName
+toSealedName = \tyName -> case tyName of Var name -> Var ("Sealed" ++ name)
 
 ghostbuster :: DDef -> Prog
 ghostbuster ddef = Prog [sealed] [] "dummyvar" 
@@ -25,8 +25,8 @@ ghostbuster ddef = Prog [sealed] [] "dummyvar"
 
 
 generateSealed :: DDef -> DDef
-generateSealed (DDef tyName k c s) = DDef (toSealedName tyName) k [] []
-  [Kcons (toSealedName tyName) [((map typeDictForSynth synthVars) ++ conTy)] (keepVars ++ checkVars)]
+generateSealed (DDef tyName k c s cases) = DDef (toSealedName tyName) k [] []
+  [KCons (toSealedName tyName) [((map typeDictForSynth synthVars) ++ conTy)] (keepVars ++ checkVars)]
   where
   keepVars = map fst k
   checkVars = map fst c
