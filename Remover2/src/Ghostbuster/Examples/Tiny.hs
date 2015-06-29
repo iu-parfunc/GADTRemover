@@ -48,6 +48,14 @@ e10 = EApp (ELam ("v",intTy) "v") (EK "Three")
 intTy :: MonoTy
 intTy = ConTy "Int" []
 
+-- | All expressions so that we can test them uniformly.
+allExprs :: [Exp]
+allExprs = [e02, e03, e04, e05, e06, e07, e08, e10]
+
+-- | The subset of expressions whose `lowerDicts` output value should
+-- be exactly the same as the original output value.
+allExprsSameLowered :: [Exp]
+allExprsSameLowered = [e02, e05, e06, e07, e08, e10]
 
 --------------------------------------------------------------------------------
 -- Whole programs:
@@ -57,6 +65,19 @@ intTy = ConTy "Int" []
 p8_unusedLoop :: Prog
 p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
                      (EK "Nothing")
+
+-- | All type-correct runnable progs.
+allProgs :: [Prog]
+allProgs =
+  -- The naked expression tests should only depend on types in the "Prelude"
+  [ Prog [] [] e | e <- allExprs] ++
+  [ p8_unusedLoop, existential1 ]
+
+-- | Analogous to (and including) allExprsSameLowered
+allProgsSameLowered :: [Prog]
+allProgsSameLowered =
+  [ Prog [] [] e | e <- allExprsSameLowered ] ++
+  [ p8_unusedLoop, existential1 ]
 
 --------------------------------------------------------------------------------
 -- Tests for the type checker
@@ -71,8 +92,8 @@ existential1 =
        (EApp (EK "Foo") (EK "One"))
 
 -- | Skolem type variable error.
-existential2 :: Prog
-existential2 =
+existential2_err :: Prog
+existential2_err =
   Prog [uselessExistential] [] $
     ECase (EApp (EK "Foo") (EK "One"))
           [ (Pat "Foo" ["x"], "x") ]

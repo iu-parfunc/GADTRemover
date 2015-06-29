@@ -56,8 +56,11 @@ Test-suite test-ghostbuster
   -- Standard stuff:
   build-depends: base >= 4.5, containers >= 0.5, bytestring >= 0.10
   -- Additional deps for testing:
-  build-depends: tasty >= 0.10,
-                 tasty-hunit,
-                 tasty-th
---                 QuickCheck >= 2.8
+  build-depends: tasty >= 0.10
+               , tasty-hunit
+               , tasty-th
+               , hint >= 0.4
+               , deepseq
+               , haskell-src-exts >= 1.16
+               , GenericPretty >= 1.2
   default-language:  Haskell2010

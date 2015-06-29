@@ -1,22 +1,30 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ParallelListComp #-}
 
 -- |
 
 module Main where
 
-import Ghostbuster.LowerDicts
-import Ghostbuster.Ambiguity as A
-import Ghostbuster.Examples.Feldspar
-import Ghostbuster.Examples.Tiny
-import Ghostbuster.Interp as I
-import Ghostbuster.KindCheck as K
-import Ghostbuster.Types
+import           Ghostbuster.LowerDicts
+import           Ghostbuster.Ambiguity as A
+import           Ghostbuster.Examples.Feldspar
+import           Ghostbuster.Examples.Tiny
+import           Ghostbuster.Interp as I
+import           Ghostbuster.KindCheck as K
+import           Ghostbuster.Types
 
--- import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import System.Environment (withArgs, getArgs)
+import           Control.DeepSeq
+import           Control.Exception (evaluate)
+import qualified Ghostbuster.CodeGen.Prog as CG
+import           Language.Haskell.Exts.Pretty (prettyPrint)
+import qualified Language.Haskell.Interpreter as Hint
+import           Text.PrettyPrint.GenericPretty (Out(doc))
+
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Test.Tasty.TH
+import           System.Environment (withArgs, getArgs)
 
 ------------------------------------------------------------
 
@@ -121,9 +129,61 @@ case_InterpLowered_e08 =
              (interp $ lowerDicts $ Prog [] [] e08)
 
 ------------------------------------------------------------
+-- Test codegen
+
+
+-- Hint can't seem to interpret a whole module from a string...
+
+--  Hint.interpret $
+_ = prettyPrint$ CG.moduleOfProg $ Prog [] [] e02
+
+------------------------------------------------------------
+
+testsAbove :: TestTree
+testsAbove = $(testGroupGenerator)
+
+-- | This creates a series of "dumb" tests, that run everything, but
+-- don't check the outputs.
+runAllProgs :: [TestTree]
+runAllProgs =
+  [ testCase ("runAllProgs"++show ix) $ evaluate $ rnf $ show $
+    interp prg
+  | prg <- allProgs
+  | ix <- [1::Int ..]
+  ]
+
+runAllLoweredProgs :: [TestTree]
+runAllLoweredProgs =
+  [ testCase ("runAllLoweredProgs"++show ix) $
+     do putStrLn "  Original:"
+        print $ doc prg
+        putStrLn "  Lowered:"
+        print $ doc $ lowerDicts prg
+        putStrLn "  Interpreted:"
+        print $ doc $ interp $ lowerDicts prg
+--        evaluate $ rnf $ show $ interp $ lowerDicts prg
+        return ()
+  | prg <- allProgs
+  | ix <- [1::Int ..]
+  ]
+
+codegenAllProgs :: [TestTree]
+codegenAllProgs =
+  [ testCase ("codegenAllProgs"++show ix) $
+    -- putStrLn $
+    evaluate $ rnf $ show $
+     prettyPrint $ CG.moduleOfProg prg
+  | prg <- allProgs
+  | ix <- [1::Int ..]
+  ]
 
 main :: IO ()
 main =
   do args <- getArgs
      withArgs (["-t","2"] ++ args) $
-      $(defaultMainGenerator)
+      defaultMain $
+        testGroup "" $
+        [ testsAbove ] ++
+        runAllProgs ++
+--        runAllLoweredProgs
+        codegenAllProgs
