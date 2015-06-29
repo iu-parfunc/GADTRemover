@@ -89,8 +89,11 @@ doExp ddefs e =
        ECase (go x1) $
              [ (Pat (dictConsName name) vars , go x2)
              ] ++ -- otherwise case for EVERY other dictionary:
-             [ (Pat (dictConsName oth) vars, x3')
-             | oth <- allDicts, oth /= name ]
+             [ (Pat (dictConsName oth) vars', x3')
+             | oth <- allDicts, oth /= name
+             , let vars' = take (length $ getArgStatus ddefs oth)
+                                (patVars)
+             ]
 
     -- (3) Equality tests call the out-of-line library function that
     -- we generate on the side.
