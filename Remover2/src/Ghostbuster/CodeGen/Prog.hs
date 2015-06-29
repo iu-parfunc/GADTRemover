@@ -4,6 +4,7 @@ module Ghostbuster.CodeGen.Prog
   where
 
 import Ghostbuster.Types
+import Ghostbuster.CodeGen.Exp
 import Ghostbuster.CodeGen.DDef
 import Ghostbuster.CodeGen.VDef
 
@@ -32,5 +33,5 @@ moduleOfProg (Prog ddefs vdefs e) =
 
     decls       = map gadtOfDDef ddefs
                ++ concatMap declOfVDef vdefs
-               ++ [ declOfExp "ghostbuster" e ]         -- TLM: ???
+               ++ [ mkDeclOfExp "ghostbuster" e ]         -- TLM: ???
 
