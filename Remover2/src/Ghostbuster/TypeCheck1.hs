@@ -1,12 +1,19 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -- Large portions of this are from this repo:
 -- https://github.com/mgrabmueller/AlgorithmW.git
 
 -- | FYI: Everywhere where we see 'map fst' we are losing kinding info
 module Ghostbuster.TypeCheck1
-      (typeExp, typeDef, typeProg,
-       main) where
+      ( typeExp, typeDef, typeProg
+
+      -- * Temporary exports:
+      , main, typeInference, test
+      , e0, e1, e2
+      , terr2, terr3, terr4
+      )
+      where
 
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
@@ -140,29 +147,47 @@ typeInference env e =
     do  (s, t) <- inferExp (TypeEnv env) e
         return (apply s t)
 
-e0  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
-                                       (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
-                                       (ELam (Var (B.pack "x"), VarTy (Var (B.pack "b"))) (EVar (Var (B.pack "x")))))
-        (EVar (Var (B.pack "id")))
+-- | Let-bind "id" and then run the body
+letId :: Exp -> Exp
+letId ex = ELet ("id",
+           ForAll [("a",Star)]
+             (ArrowTy (VarTy "a") (VarTy "a")),
+             (ELam ("x", VarTy "b") (EVar "x")))
+                ex
 
-e1  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
-                                       (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
-                                       (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EVar (Var (B.pack "x")))))
-        (EApp (EVar (Var (B.pack "id"))) (EVar (Var (B.pack "id"))))
+--------------------------------------------------------------------------------
+-- Type-Correct tests:
+e0 :: Exp
+e0  =  letId (EVar "id")
 
-e2  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
-                                       (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
-                                       EVar (Var (B.pack "x")))
-        (EApp (EVar (Var (B.pack "id"))) (EVar (Var (B.pack "id"))))
+-- | Apply identity to itself.
+e1 :: Exp
+e1  =  letId (EApp "id" "id")
 
-e3  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
-                                       (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
-                                       (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EApp (EVar (Var (B.pack "x"))) (EVar (Var (B.pack "x"))))))
-        (EVar (Var (B.pack "id")))
-e4  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
-                                       (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
-                                       (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EVar (Var (B.pack "x")))))
-        (EVar (Var (B.pack "id")))
+-- | Apply to a number:
+e2 :: Exp
+e2  =  letId (EApp "id" (EK "One"))
+
+--------------------------------------------------------------------------------
+-- Type-error tests:
+
+terr2 :: Exp
+terr2  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
+                                          (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
+                                          EVar (Var (B.pack "x")))
+           (EApp (EVar (Var (B.pack "id"))) (EVar (Var (B.pack "id"))))
+
+terr3 :: Exp
+terr3  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
+                                          (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
+                                          (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EApp (EVar (Var (B.pack "x"))) (EVar (Var (B.pack "x"))))))
+           (EVar (Var (B.pack "id")))
+
+terr4 :: Exp
+terr4  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
+                                          (ArrowTy (VarTy (Var (B.pack "a"))) (VarTy (Var (B.pack "a")))),
+                                          (ELam (Var (B.pack "x"), VarTy (Var (B.pack "a"))) (EVar (Var (B.pack "x")))))
+           (EVar (Var (B.pack "id")))
 
 test :: Exp -> IO ()
 test e =
@@ -172,4 +197,4 @@ test e =
           Right t   ->  putStrLn $ " :: " ++ show t
 
 main :: IO ()
-main = mapM_ test [e0,e1,e2,e3]
+main = mapM_ test [e0,e1,e2, terr2, terr3, terr4]

@@ -46,6 +46,11 @@ case_I3 :: Assertion
 case_I3 = assertEqual "interp dict"
             (VDict (Var "Int") []) ti3
 
+case_I4 :: Assertion
+case_I4 = assertEqual "construct arrow dict"
+            (VDict (Var "ArrowTy") [VDict (Var "Int") [],VDict (Var "Int") []])
+            ti4
+
 case_I5 :: Assertion
 case_I5 = assertEqual "nested casedict"
                       (VK (Var "One") []) ti5
@@ -98,10 +103,11 @@ case_lowerP4 = assertEqual "lower dicts from a program "
 progDDefs :: Prog -> [DDef]
 progDDefs (Prog d _ _) = d
 
--- FINISHME:
-_InterpLowered1 =
-  assertEqual "" undefined $
-    interp $ lowerDicts $ Prog [] [] p4
+case_InterpLowered1 :: Assertion
+case_InterpLowered1 =
+  assertEqual ""
+    (VK (Var "ArrowTyDict") [VK (Var "IntDict") [],VK (Var "IntDict") []])
+    (interp $ lowerDicts $ Prog [] [] p4)
 
 ------------------------------------------------------------
 

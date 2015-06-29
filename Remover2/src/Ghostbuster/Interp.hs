@@ -8,11 +8,14 @@ module Ghostbuster.Interp
        ) where
 
 import Data.Map.Lazy as M
-import Debug.Trace
 import Ghostbuster.Types
 import Prelude as P hiding (exp)
 import Text.PrettyPrint.GenericPretty (Out(doc))
 import Ghostbuster.Utils
+
+-- import Debug.Trace
+trace :: t -> t1 -> t1
+trace _ x  = x
 
 -- | This interprets the program with a call-by-need semantics.
 interp :: Prog -> Val
@@ -32,7 +35,8 @@ exp :: [DDef] -> Env -> Exp -> Val
 exp defs env exp0 =
   (\res ->
         trace ("(Eval: " ++ show (doc exp0)
-                                    ++ " in env: "++ show (doc env)++ ")"
+--                         ++ " in env: "++ show (doc env)
+                         ++ ")"
               -- ++ " -> "++ show (doc res)++ ")"
                ) res) $
   case exp0 of
