@@ -96,11 +96,18 @@ letBindNonTriv e f =
     -----------------------------------------
     -- TODO: the remaining cases really need let bindings;
     _ -> f e  -- TEMP/FIXME
-    _ -> ELet ("fresh", recoverType e, e) (f "fresh")
+    _ -> ELet (tmp, recoverType e, e) (f (EVar tmp))
   where
+  tmp = freshenVar "tmp"
   -- If we hoist things out with ELet, then we need to have their type.
   -- This should go in the type checking module.
-  recoverType = undefined
+  recoverType = error "FINISHME: implement recoverType"
+
+-- | Return a fresh (unique) version of the input variable.
+--
+--   FIXME: this must be moved into a monad and all use sites refactored.
+freshenVar :: Var -> Var
+freshenVar v = v
 
 --------------------------------------------------------------------------------
 

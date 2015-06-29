@@ -66,7 +66,11 @@ gatherDicts e =
 doExp :: [DDef] -> Exp -> Exp
 doExp ddefs e =
   case e of
+
+    -- (1) Dict reification is just calling a data constructor!
     (EDict x) -> EK $ dictConsName x
+
+    -- (2) Dict pattern matching becomes regular pattern matching.
     (ECaseDict x1 (name,vars,x2) x3) ->
       -- If we don't have "_ ->" fall-through cases, then we would need
       -- to provide a pattern for ALL of the cases of TypeDict, and so we
@@ -79,7 +83,16 @@ doExp ddefs e =
              [ (Pat (dictConsName oth) vars, x3')
              | oth <- allDicts, oth /= name ]
 
-    (EIfTyEq x1 x2 x3) -> undefined
+    -- (3) Equality tests call the out-of-line library function that
+    -- we generate on the side.
+    (EIfTyEq (x0,x1) x2 x3) ->
+      let fresh = freshenVar "refltmp"
+      in ECase (app2 "checkTEQ" (go x0) (go x1))
+               [ ( Pat "Just" [fresh]
+                 , ECase (EVar fresh)
+                    [ (Pat "Refl" [], go x2)] )
+               , ( Pat "Nothing" []
+                 , go x3 ) ]
 
     -- Boilerplate:
     ----------------------------
@@ -94,6 +107,8 @@ doExp ddefs e =
   go = doExp ddefs
 
 
+app2 :: Exp -> Exp -> Exp -> Exp
+app2 f x y = EApp (EApp f x) y
 
 -- Generate a definition for a type-equality-checking function.
 mkTeq :: [TName] -> VDef
