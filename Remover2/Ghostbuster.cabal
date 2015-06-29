@@ -28,6 +28,7 @@ library
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
                        Ghostbuster.CodeGen.Exp
+                       Ghostbuster.CodeGen.Prog
                        Ghostbuster.CodeGen.VDef
   -- other-modules:
   -- other-extensions:
