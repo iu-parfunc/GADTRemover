@@ -15,7 +15,7 @@ type Patterns = (HM.Map TyVar MonoTy)
 
 toSealedName = \tyName -> mkVar ("Sealed" ++ (unMkVar tyName))
 
-ghostbuster :: [DDef] -> Prog
+ghostbuster :: DDef -> Prog
 ghostbuster ddef = Prog [sealed] [] "dummyvar" 
   where
   (ddefNoEquals, equalities) =  equalityRemoval ddef
