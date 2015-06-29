@@ -28,9 +28,13 @@ moduleOfProg (Prog ddefs vdefs e) =
                                          ]
                   ]
 
-    imports     = map mkImport [ "Data.Typeable", "Prelude hiding (Bool,Maybe,Int)" ]
+    imports     = mkImport "Prelude"       {- hiding -} ["Maybe", "Bool", "Int"]
+                : mkImport "Data.Typeable" {- hiding -} ["Refl"]
+                : []
 
-    mkImport n  = ImportDecl noLoc (ModuleName n) False False False Nothing Nothing Nothing
+    mkImport name hiding
+      = ImportDecl noLoc (ModuleName name) False False False Nothing Nothing
+      $ Just (True, [ IThingAll (Ident h) | h <- hiding ])
 
     -- RRN: Here we implicitly add the "prelude" types:
     allDDefs = ddefs ++ primitiveTypes
@@ -38,3 +42,4 @@ moduleOfProg (Prog ddefs vdefs e) =
     decls       = map gadtOfDDef allDDefs
                ++ concatMap declOfVDef vdefs
                ++ [ mkDeclOfExp "ghostbuster" e ]         -- TLM: ???
+
