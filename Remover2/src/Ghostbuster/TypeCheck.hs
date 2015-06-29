@@ -86,13 +86,17 @@ instance Show MonoTy where
   show (ConTy name monos) = "(ConTy "   ++ show name ++ " "  ++ show monos ++ ")"
 
 freeVarTys :: TyScheme -> ST RealWorld (S.Set Var)
-freeVarTys (ForAll tvns t)               = S.difference <$> (freeVarTys $ TMonoTy t) <*> (return (S.map fst tvns))
+freeVarTys (ForAll tvns t)               = S.difference <$> (freeVarTys $ TMonoTy t)
+                                                        <*> (return (S.map fst tvns))
 freeVarTys (TMonoTy TInt)                = return $ S.empty
-freeVarTys (TMonoTy (ArrowTy t1 t2))     = S.union <$> freeVarTys (TMonoTy t1) <*> freeVarTys (TMonoTy t2)
-freeVarTys (TMonoTy (ConTy name (m:ms))) = S.union <$> freeVarTys (TMonoTy (ConTy name ms)) <*> freeVarTys (TMonoTy m)
+freeVarTys (TMonoTy (ArrowTy t1 t2))     = S.union <$> freeVarTys (TMonoTy t1)
+                                                   <*> freeVarTys (TMonoTy t2)
+freeVarTys (TMonoTy (ConTy name (m:ms))) = S.union <$> freeVarTys (TMonoTy (ConTy name ms))
+                                                   <*> freeVarTys (TMonoTy m)
 freeVarTys (TMonoTy (ConTy _name []))    = return $ S.empty -- TODO: make this cleaner
 freeVarTys (TMonoTy (TypeDictTy _name))  = return $ S.empty
-freeVarTys (TMonoTy (TEPair t1 t2))      = S.union <$> freeVarTys (TMonoTy t1) <*> freeVarTys (TMonoTy t2)
+freeVarTys (TMonoTy (TEPair t1 t2))      = S.union <$> freeVarTys (TMonoTy t1)
+                                                   <*> freeVarTys (TMonoTy t2)
 freeVarTys (TMonoTy tv@(VarTy v ref))    = do
   val <- readSTRef ref
   case val of
@@ -145,7 +149,8 @@ unify t01 t02 = do
    (TInt, TInt) -> return ()
    (ConTy n1 mono1, ConTy n2 mono2) ->
      if n1 /= n2
-     then error $ "Can't unify different type constructors. Tried unifying: " ++ show n1 ++ " and " ++ show n2
+     then error $ "Can't unify different type constructors. Tried unifying: "
+          ++ show n1 ++ " and " ++ show n2
      else  do
        _monos <- mapM (\(m1,m2) -> unify m1 m2) $ zip mono1 mono2
        return () -- Pretty sure this is correct but double check it
@@ -293,7 +298,8 @@ eBoolBadAppApp = EApp eId (EApp (ELam ("x", ConTy "Bool" []) $ EVar "x") (EK "Fa
 -------------
 
 constrT1 :: DDef
-constrT1 =  DDef "Pair" [("a",Star), ("b",Star)] [] [] [KCons "mkPair" [ConTy "Bool" []] [ConTy "Bool" []]]
+constrT1 =  DDef "Pair" [("a",Star), ("b",Star)] [] []
+                   [KCons "mkPair" [ConTy "Bool" []] [ConTy "Bool" []]]
 
 rawConstrTyp :: Exp
 rawConstrTyp = EK "mkPair"

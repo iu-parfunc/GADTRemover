@@ -48,3 +48,22 @@ intTy = ConTy "Int" []
 p8_unusedLoop :: Prog
 p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
                      (EK "Nothing")
+
+--------------------------------------------------------------------------------
+-- Tests for the type checker
+
+uselessExistential :: DDef
+uselessExistential = DDef "Foo" [] [] [] [KCons "Foo" ["a"] []]
+
+-- | Construct useless existential
+existential1 :: Prog
+existential1 =
+  Prog [uselessExistential] []
+       (EApp (EK "Foo") (EK "One"))
+
+-- | Skolem type variable error.
+existential2 :: Prog
+existential2 =
+  Prog [uselessExistential] [] $
+    ECase (EApp (EK "Foo") (EK "One"))
+          [ (Pat "Foo" ["x"], "x") ]
