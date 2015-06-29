@@ -44,7 +44,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
     [ KCons name
             [ ConTy "TypeDict" [VarTy $ mkVar c]
             | (c) <- letters ]
-            [ (ConTy name (map (VarTy . mkVar) letters)) ]
+            [ (ConTy tn (map (VarTy . mkVar) letters)) ]
     | tn <- allDicts
     , let name = (dictConsName tn)
           letters = map (\(c,_) -> [c]) $
