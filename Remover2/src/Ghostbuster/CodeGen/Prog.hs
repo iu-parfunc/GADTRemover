@@ -25,22 +25,22 @@ moduleOfProg (Prog ddefs vdefs e) =
   where
     pragmas     = [ LanguagePragma noLoc [ Ident "GADTs" ]
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
-                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
-                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
+--                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
+--                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
                   ]
 
-    imports     = [ mkImport "Prelude"       {- hiding -} ["Maybe", "Bool", "Int"]
-                  , mkImport "Data.Typeable" {- hiding -} ["(:~:)"]
+    mkImport n  = ImportDecl noLoc (ModuleName n) False False False Nothing Nothing
+    imports     = [ mkImport "Prelude" $ Just (True, [ IAbs      (Ident "Int")
+                                                     , IThingAll (Ident "Maybe")
+                                                     , IThingAll (Ident "Bool")
+                                                     ])
+--                  , mkImport "Data.Typeable" Nothing
                   ]
-
-    mkImport name hiding
-      = ImportDecl noLoc (ModuleName name) False False False Nothing Nothing
-      $ Just (True, [ IThingAll (Ident h) | h <- hiding ])
 
     -- RRN: Here we implicitly add the "prelude" types:
-    allDDefs = ddefs ++ primitiveTypes
+    ddefs'      = ddefs ++ primitiveTypes
 
-    decls       = map gadtOfDDef allDDefs
+    decls       = map gadtOfDDef ddefs'
                ++ concatMap declOfVDef vdefs
                ++ [ mkDeclOfExp "ghostbuster" e ]         -- TLM: ???
 
