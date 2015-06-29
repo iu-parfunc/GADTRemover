@@ -31,9 +31,10 @@ interp (Prog ddefs vdefs main) =
 exp :: [DDef] -> Env -> Exp -> Val
 exp defs env exp0 =
   (\res ->
-        trace ("((Eval: " ++ show (doc exp0)
+        trace ("(Eval: " ++ show (doc exp0)
                                     ++ " in env: "++ show (doc env)++ ")"
-              ++ " -> "++ show (doc res)++ ")") res) $
+              -- ++ " -> "++ show (doc res)++ ")"
+               ) res) $
   case exp0 of
     (EK x)   -> VK x []
       -- case (getConArgs defs x) of

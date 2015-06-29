@@ -16,6 +16,7 @@ import Ghostbuster.Types
 -- import Test.Tasty
 import Test.Tasty.HUnit
 import Test.Tasty.TH
+import System.Environment (withArgs, getArgs)
 
 ------------------------------------------------------------
 
@@ -57,6 +58,10 @@ case_I7 :: Assertion
 case_I7 = assertEqual "apply identity function"
                       (VK "Three" []) ti7
 
+-- | This should NOT diverge (lazy evaluation):
+case_I8 :: Assertion
+case_I8 = assertEqual "" (VK "Nothing" []) (interp p8_unusedLoop)
+
 ------------------------------------------------------------
 
 case_AmbCheck1 :: Assertion
@@ -93,7 +98,15 @@ case_lowerP4 = assertEqual "lower dicts from a program "
 progDDefs :: Prog -> [DDef]
 progDDefs (Prog d _ _) = d
 
+-- FINISHME:
+_InterpLowered1 =
+  assertEqual "" undefined $
+    interp $ lowerDicts $ Prog [] [] p4
+
 ------------------------------------------------------------
 
 main :: IO ()
-main = $(defaultMainGenerator)
+main =
+  do args <- getArgs
+     withArgs (["-t","2"] ++ args) $
+      $(defaultMainGenerator)

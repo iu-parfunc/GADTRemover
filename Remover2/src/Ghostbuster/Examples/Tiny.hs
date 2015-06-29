@@ -42,3 +42,9 @@ intTy = ConTy "Int" []
 
 --------------------------------------------------------------------------------
 -- Whole programs:
+
+
+-- | Loop program where omega is present but not called
+p8_unusedLoop :: Prog
+p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
+                     (EK "Nothing")
