@@ -117,13 +117,10 @@ doExp ddefs e =
 
 unpackJustRefl :: Exp -> Exp -> Exp -> Exp
 unpackJustRefl ex conseq altern =
-  let fresh = freshenVar "refltmp"
-  in ECase ex
-           [ ( Pat "Just" [fresh]
-             , ECase (EVar fresh)
-                [ (Pat "Refl" [], conseq)] )
-           , ( Pat "Nothing" []
-             , altern ) ]
+  ECase ex
+    [ ( Pat "Just"    ["Refl"], conseq)
+    , ( Pat "Nothing" [],       altern)
+    ]
 
 
 app2 :: Exp -> Exp -> Exp -> Exp
