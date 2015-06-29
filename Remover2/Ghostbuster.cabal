@@ -27,6 +27,7 @@ library
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
+                       Ghostbuster.CodeGen.Exp
                        Ghostbuster.CodeGen.VDef
   -- other-modules:
   -- other-extensions:
