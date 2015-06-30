@@ -61,7 +61,6 @@ getVars (mt : mtys) =
     VarTy tyVar     -> Map.insert tyVar Star <$> getVars mtys
     ArrowTy mt1 mt2 -> getVars $ mt1:mt2:mtys
     ConTy _ monoTys -> getVars $ monoTys ++ mtys
-    TupleTy monoTys -> getVars $ monoTys ++ mtys
     TypeDictTy _    -> getVars mtys
 getVars [] = return Map.empty
 

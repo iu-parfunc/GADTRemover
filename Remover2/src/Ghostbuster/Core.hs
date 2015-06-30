@@ -81,9 +81,6 @@ equalityRemovalMono monoty equations = case monoty of
   ConTy name monos -> ((ConTy name newmonos), equations1)
      where
      (newmonos, equations1) = equalityRemovalMonoList monos equations
-  TupleTy monos -> ((TupleTy newmonos), equations1)
-     where
-     (newmonos, equations1) = equalityRemovalMonoList monos equations
   _ -> (monoty, HM.empty)
   where
   newvar = (mkVar "newVar")
@@ -111,10 +108,6 @@ pmRemovalMono monoty = case monoty of
      where
      (newmonos, pattern1) = unzip (map pmRemovalMono monos)
      patterns = HM.insert newvar (ConTy name newmonos) (HM.unions pattern1)
-  TupleTy monos -> (toVarTy newvar, patterns)
-     where
-     (newmonos, pattern1) = unzip (map pmRemovalMono monos)
-     patterns = HM.insert newvar (TupleTy newmonos) (HM.unions pattern1)
   _ -> (monoty, HM.empty)
   where
   newvar = (mkVar "newVr")

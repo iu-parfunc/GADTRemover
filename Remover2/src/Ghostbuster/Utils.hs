@@ -50,7 +50,6 @@ gatherTypesMentioned ty =
     (VarTy _)       -> S.empty
     (ArrowTy t1 t2) -> S.union (go t1) (go t2)
     (ConTy t ts)    -> S.insert t $ S.unions (L.map go ts)
-    (TupleTy ts)    -> S.unions (L.map go ts)
     (TypeDictTy _)  -> S.empty -- S.singleton t
   where
    go = gatherTypesMentioned

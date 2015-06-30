@@ -33,9 +33,6 @@ dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
   where
   exp ts = ConTy "Exp" ts
 
-tup2 :: MonoTy -> MonoTy -> MonoTy
-tup2 a b = TupleTy [a,b]
-
 tup :: MonoTy -> MonoTy -> MonoTy
 tup a b = ConTy "Tup2" [a,b]
 
