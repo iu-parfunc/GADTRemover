@@ -1,11 +1,8 @@
-
--- Corresponds to "codegenAllProgs7"
 {-# OPTIONS_GHC -fdefer-type-errors #-}
 
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-
-module Generated.Inaccessbile1 where
+module Ghostbuster where
 import Prelude hiding (Int, Maybe(..), Bool(..))
 
 data TypeDict a where
@@ -30,7 +27,6 @@ data Maybe a where
 data Bool where
         True :: Bool
         False :: Bool
-  deriving Show
 
 data Tup2 a b where
         Tup2 :: a -> b -> Tup2 a b
@@ -48,26 +44,44 @@ checkTEQ x y
         IntDict -> case y of
                        ArrowTyDict a2 b2 -> Nothing
                        IntDict -> Just Refl
-
 ghostbuster
-  = case checkTEQ IntDict (ArrowTyDict IntDict IntDict) of
-        Just Refl -> True
-        Nothing -> False
-
+  = (\ ltmp ->
+       case ltmp of
+           ArrowTyDict a b -> (\ ltmp2 ->
+                                 case ltmp2 of
+                                     -- IntDict -> One
+                                     -- ArrowTyDict a b -> Two
+                                     _ -> undefined
+                              )
+                                a
+           -- IntDict -> Three
+           _ -> undefined -- Wait ltmp shoudl NOT be ArrowTyDict here but it is!
+           )
+      (ArrowTyDict IntDict IntDict)
 --------------------------------------------------------------------------------
--- Note, this is fine:
+-- Manually trying some alternatives:
 
-bar :: Bool
-bar =
- let foo d =
-       case checkTEQ IntDict d of
-         Just _ -> True
-         Nothing -> False
- in foo (ArrowTyDict IntDict IntDict)
+ghostbuster2 :: Int
+ghostbuster2
+  = foo (ArrowTyDict IntDict IntDict)
+ where
+  -- Uncommenting this type sig givse us errors.
+  -- In fact we even hit that error with deferred type error:
+  foo :: TypeDict a -> Int
+  foo ltmp  = case ltmp of
+                  ArrowTyDict a _b -> bar  a
+                  IntDict -> Three
+  -- RRN: In fact this looks like a type checker bug.
+  -- It infers a BOGUS type for foo, and gives an error from it:
+  --   foo :: TypeDict t1 -> t
 
-baz :: Bool
-baz =
- ((\d -> case checkTEQ IntDict d of
-           Just _ -> True
-           Nothing -> False)
-  (ArrowTyDict IntDict IntDict))
+
+  bar :: TypeDict b -> Int
+  bar ltmp2  = case ltmp2 of
+                   IntDict -> One
+                   ArrowTyDict _a _b -> Two
+
+
+
+main :: IO ()
+main = putStrLn "Hello"

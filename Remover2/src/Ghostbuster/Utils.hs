@@ -103,6 +103,11 @@ letBindNonTriv e f =
   -- This should go in the type checking module.
   recoverType = error "FINISHME: implement recoverType"
 
+-- | Create an immediately-applied lambda.  Very similar to a let-binding.
+leftleftLambda :: Exp -> MonoTy -> (Exp -> Exp) -> Exp
+leftleftLambda arg ty bod =
+  EApp (ELam ("ltmp",ty) (bod "ltmp")) arg
+
 -- | Return a fresh (unique) version of the input variable.
 --
 --   FIXME: this must be moved into a monad and all use sites refactored.
