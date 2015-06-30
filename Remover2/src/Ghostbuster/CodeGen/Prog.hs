@@ -45,7 +45,9 @@ moduleOfProg (Prog ddefs vdefs e) =
     showable    = showableDefs ddefs'
 
     decls       = map (\d -> if S.member (tyName d) showable
-                                then gadtOfDDef True d
+-- RRN: TEMP/FIXME: Disabling this because of a temporary Showable.hs bug:
+--                                then gadtOfDDef True d
+                                then gadtOfDDef False d
                                 else gadtOfDDef False d) ddefs'
                ++ concatMap declOfVDef vdefs
                ++ [ mkDeclOfExp "ghostbuster" e  -- TLM: ???
