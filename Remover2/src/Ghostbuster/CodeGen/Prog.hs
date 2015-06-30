@@ -61,3 +61,6 @@ valBind str bod =
 mainExp :: H.Exp
 mainExp = app (var $ name "print")
               (appFun (var$name "seq") [var$name "ghostbuster", (tuple [])])
+              -- RRN: We could just print it... but need to recover
+              -- its type to tell if it's safe:
+              -- (var$name "ghostbuster")
