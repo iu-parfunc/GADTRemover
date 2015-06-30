@@ -89,12 +89,15 @@ p8_unusedLoop :: Prog
 p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
                      (EK "Nothing")
 
+(==>) :: MonoTy -> MonoTy -> MonoTy
+(==>) = ArrowTy
+
 p9_append :: Prog
-p9_append = Prog 
+p9_append = Prog
   [DDef "List" [("a", Star)] [] []
     [ KCons "Nil" [] ["a"]
     , KCons "Cons" ["a", listy "a"] ["a"]
-    ] 
+    ]
   ]
   [VDef "append" (ForAll [("a", Star)] (listy "a" ==> (listy "a" ==> listy "a")))
         (ELam ("ls1", listy "a") $
@@ -112,11 +115,42 @@ p9_append = Prog
     consy :: Exp -> Exp -> Exp
     consy x xs = EApp (EApp (EK "Cons") x) xs
 
-    (==>) :: MonoTy -> MonoTy -> MonoTy
-    (==>) = ArrowTy
 
     toListy :: [Exp] -> Exp
     toListy = foldr consy (EK "Nil")
+
+p10_mut_add_even :: Prog
+p10_mut_add_even = Prog
+  [ DDef "Nat" [] [] []
+    [ KCons "Zero" [] [],
+      KCons "Suc"  [naty] []
+    ]
+  ]
+  [ VDef "myEven" (ForAll [] (naty ==> booly))
+         (ELam ("x", naty) $
+           ECase "x"
+             [ (Pat "Zero" [], EK "True"),
+               (Pat "Suc" ["n"], (EApp (EVar "myOdd") (EVar "n")))
+             ])
+  , VDef "myOdd" (ForAll [] (naty ==> booly))
+         (ELam ("x", naty) $
+           ECase "x"
+             [ (Pat "Zero" [], EK "False")
+             , (Pat "Suc" ["n"], (EApp (EVar "myEven") (EVar "n")))
+             ])
+  ]
+  (EApp (EVar "myEven") (toNaty 11))
+  where
+    naty :: MonoTy
+    booly :: MonoTy
+    suc :: Exp -> Exp
+    toNaty :: Int -> Exp
+
+    naty = ConTy "Nat" []
+    booly = ConTy "Bool" []
+    suc = EApp (EK "Suc")
+    toNaty 0 = EK "Zero"
+    toNaty n = suc (toNaty (n - 1))
 
 
 -- | All type-correct runnable progs.
@@ -124,7 +158,7 @@ allProgs :: [Prog]
 allProgs =
   -- The naked expression tests should only depend on types in the "Prelude"
   [ Prog [] [] e | e <- allExprs] ++
-  [ p8_unusedLoop, existential1 , p9_append]
+  [ p8_unusedLoop, existential1 , p9_append, p10_mut_add_even]
 
 -- | Analogous to (and including) allExprsSameLowered
 allProgsSameLowered :: [Prog]
