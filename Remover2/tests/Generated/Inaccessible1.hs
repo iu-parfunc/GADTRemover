@@ -61,13 +61,13 @@ bar :: Bool
 bar =
  let foo d =
        case checkTEQ IntDict d of
-         Just _ -> True
+         Just Refl -> True
          Nothing -> False
  in foo (ArrowTyDict IntDict IntDict)
 
 baz :: Bool
 baz =
  ((\d -> case checkTEQ IntDict d of
-           Just _ -> True
+           Just Refl -> True
            Nothing -> False)
   (ArrowTyDict IntDict IntDict))

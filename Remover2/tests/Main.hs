@@ -203,16 +203,26 @@ runAllProgs =
 
 runAllLoweredProgs :: [TestTree]
 runAllLoweredProgs =
-  [ testCase ("runAllLoweredProgs"++show ix) $
-     do putStrLn "  Original:"
-        print $ doc prg
-        putStrLn "  Lowered:"
-        print $ doc $ lowerDicts prg
-        putStrLn "  Interpreted:"
-        print $ doc $ interp $ lowerDicts prg
---        evaluate $ rnf $ show $ interp $ lowerDicts prg
-        return ()
-  | prg <- allProgs
+    [ testCase ("runAllLoweredProgs"++show ix) $
+       do putStrLn "  Original:"
+          print $ doc prg
+          putStrLn "  Lowered:"
+          print $ doc $ lowerDicts prg
+          putStrLn "  Interpreted:"
+          print $ doc $ interp $ lowerDicts prg
+  --        evaluate $ rnf $ show $ interp $ lowerDicts prg
+          return ()
+    | prg <- allProgs
+    | ix <- [1::Int ..]
+    ]
+
+runAndCompareLowered :: [TestTree]
+runAndCompareLowered =
+  [ testCase ("runAndCompareLowered"++show ix) $
+     do let res1 = interp prg
+            res2 = interp $ lowerDicts prg
+        assertEqual "interp and (interp . lower) yield the same" res1 res2
+  | prg <- allProgsSameLowered
   | ix <- [1::Int ..]
   ]
 
@@ -236,4 +246,5 @@ main =
         [ testsAbove ] ++
         runAllProgs ++
         runAllLoweredProgs ++
+        runAndCompareLowered ++
         codegenAllProgs
