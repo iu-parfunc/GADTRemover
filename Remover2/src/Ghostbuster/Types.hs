@@ -79,7 +79,6 @@ data MonoTy
   = VarTy TyVar                 -- ^ type variable
   | ArrowTy MonoTy MonoTy       -- ^ function type
   | ConTy TName [MonoTy]        -- ^ named type or type constructor combined with type application
-  | TupleTy [MonoTy]            -- ^ tuple type (boxed)
   | TypeDictTy TName
   deriving (Eq,Ord,Show,Read,Generic)
 

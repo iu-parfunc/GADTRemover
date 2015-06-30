@@ -108,7 +108,6 @@ fvNonChecked getStatus mt =
     (ConTy ty args) ->
       let (k,_,s) = splitTyArgs (getStatus ty) args
       in S.unions $ (map lp k) ++ (map lp s)
-    (TupleTy xs) -> S.unions $ map lp xs
     (TypeDictTy _tau) -> S.empty
  where
  lp = fvNonChecked getStatus
@@ -124,7 +123,6 @@ inCheckedContext getStatus mt =
       -- return EVERYTHING under this checked branch:
       let (_,cs,_) = splitTyArgs (getStatus ty) args
       in ftv cs
-    (TupleTy xs) -> S.unions $ map lp xs
     (TypeDictTy _tau) -> S.empty
  where
  lp = inCheckedContext getStatus
@@ -138,7 +136,6 @@ nonErased getStatus mt =
     (ConTy ty args) ->
       let (k,_,_) = splitTyArgs (getStatus ty) args
       in S.unions (map lp k)
-    (TupleTy xs) -> S.unions $ map lp xs
     (TypeDictTy _tau) -> S.empty
  where
  lp = nonErased getStatus
