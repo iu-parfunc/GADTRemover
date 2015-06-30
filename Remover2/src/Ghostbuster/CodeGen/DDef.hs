@@ -11,11 +11,14 @@ import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 
 
 -- Convert a single datatype definition into a top-level GADT data type
--- declaration.
+-- declaration.  First argument specifies whether to derive show.
 --
-gadtOfDDef :: DDef -> Decl
-gadtOfDDef DDef{..} =
+gadtOfDDef :: Bool -> DDef -> Decl
+gadtOfDDef deriveShow DDef{..} =
   let vars = kVars ++ cVars ++ sVars            -- TLM: order??
+      derives = if deriveShow
+                   then [(UnQual$ name "Show",[])]
+                   else []
   in
   GDataDecl
     noLoc                                       -- source location
@@ -25,8 +28,7 @@ gadtOfDDef DDef{..} =
     (map (uncurry mkTyVarBind) vars)
     Nothing                                     -- TLM: Maybe Kind ???
     (map (mkGADTCtor tyName) cases)             -- GADT constructors
-    []                                          -- [deriving]
-
+    derives                                     -- [deriving]
 
 -- Generate the declaration for a single GADT constructor
 --
@@ -40,4 +42,3 @@ mkGADTCtor tyName KCons{..} =
   where
     theType     = foldr1 TyFun
                 $ map mkType (fields ++ [ConTy tyName outputs])
-

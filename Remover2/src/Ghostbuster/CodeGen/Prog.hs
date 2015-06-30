@@ -3,14 +3,15 @@
 module Ghostbuster.CodeGen.Prog
   where
 
-import Ghostbuster.Types
-import Ghostbuster.CodeGen.Exp
-import Ghostbuster.CodeGen.DDef
-import Ghostbuster.CodeGen.VDef
+import           Ghostbuster.Types
+import           Ghostbuster.CodeGen.Exp
+import           Ghostbuster.CodeGen.DDef
+import           Ghostbuster.CodeGen.VDef
+import           Ghostbuster.Showable
 
-import Language.Haskell.Exts as H
-import Language.Haskell.Exts.SrcLoc                     ( noLoc )
-
+import qualified Data.Set as S
+import           Language.Haskell.Exts as H
+import           Language.Haskell.Exts.SrcLoc ( noLoc )
 
 moduleOfProg :: Prog -> Module
 moduleOfProg (Prog ddefs vdefs e) =
@@ -41,7 +42,11 @@ moduleOfProg (Prog ddefs vdefs e) =
     -- RRN: Here we implicitly add the "prelude" types:
     ddefs'      = ddefs ++ primitiveTypes
 
-    decls       = map gadtOfDDef ddefs'
+    showable    = showableDefs ddefs'
+
+    decls       = map (\d -> if S.member (tyName d) showable
+                                then gadtOfDDef True d
+                                else gadtOfDDef False d) ddefs'
                ++ concatMap declOfVDef vdefs
                ++ [ mkDeclOfExp "ghostbuster" e  -- TLM: ???
                   , valBind "main" mainExp
