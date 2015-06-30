@@ -148,23 +148,26 @@ case_InterpLowered_e08 =
 -- interpretProg :: (Show a, Typeable a) => Prog -> IO a
 interpretProg :: Prog -> IO ()
 interpretProg prg =
-  withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-    putStrLn $ "Writing file to: "++ file
-    let contents = (prettyPrint (moduleOfProg prg))
-    hPutStr hdl contents
-    hClose hdl
-    putStrLn $ "File written:"
-    putStrLn contents
+ do
+   -- Temporarily keeping these while debugging:
+   (file,hdl) <- openTempFile "./" "Ghostbuster.hs"
+  -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
+   putStrLn $ "\n   Writing file to: "++ file
+   let contents = (prettyPrint (moduleOfProg prg))
+   hPutStr hdl contents
+   hClose hdl
+   putStrLn $ "   File written."
+   -- putStrLn contents
 
-    x <- fmap (either interpreterError id) $
-      runInterpreter $ do
-        loadModules [ file ]
-        setImportsQ [ ("Ghostbuster", Nothing )
-                    , ("Prelude", Nothing) ]
-        interpret "main" infer
-    putStrLn "Interpreter complete.  Got IO action from loaded program.  Running:"
-    () <- x
-    return ()
+   x <- fmap (either interpreterError id) $
+     runInterpreter $ do
+       loadModules [ file ]
+       setImportsQ [ ("Ghostbuster", Nothing )
+                   , ("Prelude", Nothing) ]
+       interpret "main" infer
+   putStrLn "   Interpreter complete.  Got IO action from loaded program.  Running:"
+   () <- x
+   return ()
 
 interpreterError :: InterpreterError -> a
 interpreterError e

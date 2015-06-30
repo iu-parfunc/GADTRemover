@@ -25,6 +25,7 @@ moduleOfProg (Prog ddefs vdefs e) =
   where
     pragmas     = [ LanguagePragma noLoc [ Ident "GADTs" ]
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
+                  , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
 --                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
 --                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
                   ]
@@ -53,4 +54,5 @@ valBind str bod =
           ]
 
 mainExp :: H.Exp
-mainExp = app (var $ name "putStrLn") (strE "Hello")
+mainExp = app (var $ name "print")
+              (appFun (var$name "seq") [var$name "ghostbuster", (tuple [])])
