@@ -267,7 +267,7 @@ ghostbustAllProgs =
     putStrLn "\n ***** Full ghostbuster test "
     putStrLn "  Original:"
     print $ doc ddefs
-    let p = Core.ghostbuster ddefs
+    let p = lowerDicts $ Core.ghostbuster ddefs
     interpretProg (Just name) p
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]

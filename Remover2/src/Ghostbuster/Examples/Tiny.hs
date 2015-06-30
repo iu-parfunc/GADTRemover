@@ -5,6 +5,7 @@
 module Ghostbuster.Examples.Tiny where
 
 import Ghostbuster.Types
+import Ghostbuster.Utils
 
 --------------------------------------------------------------------------------
 -- Just expressions:
@@ -106,10 +107,10 @@ p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
 p9_append :: Prog
 p9_append = Prog
   [DDef "List" [("a", Star)] [] []
-    [ KCons "Nil" [] ["a"]
-    , KCons "Cons" ["a", listy "a"] ["a"]
+      [ KCons "Nil" [] ["a"]
+      , KCons "Cons" ["a", listy "a"] ["a"]
+      ]
     ]
-  ]
   [VDef "append" (ForAll [("a", Star)] (listy "a" ==> (listy "a" ==> listy "a")))
         (ELam ("ls1", listy "a") $
           ELam ("ls2", listy "a") $
@@ -163,18 +164,31 @@ p10_mut_add_even = Prog
     toNaty 0 = EK "Zero"
     toNaty n = suc (toNaty (n - 1))
 
+
+p10_bustedList :: Prog
+p10_bustedList = Prog
+  [DDef "List" [] [("a", Star)] []
+      [ KCons "Nil" [] ["a"]
+      , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
+      ]
+  ]
+  []
+  (appLst (EK "Cons") [(EK "One"),(EK "Nil")])
+
 -- | All type-correct runnable progs.
 allProgs :: [Prog]
 allProgs =
   -- The naked expression tests should only depend on types in the "Prelude"
   [ Prog [] [] e | e <- allExprs] ++
-  [ p8_unusedLoop, existential1 , p9_append, p10_mut_add_even]
+  [ p8_unusedLoop, existential1 , p9_append, p10_mut_add_even
+  , p10_bustedList ]
 
 -- | Analogous to (and including) allExprsSameLowered
 allProgsSameLowered :: [Prog]
 allProgsSameLowered =
   [ Prog [] [] e | e <- allExprsSameLowered ] ++
-  [ p8_unusedLoop, existential1 ]
+  [ p8_unusedLoop, p9_append, p10_mut_add_even, p10_bustedList
+  , existential1 ]
 
 -- Programs which are valid programs in the core language but NOT valid inputs
 -- to Ghostbuster.
