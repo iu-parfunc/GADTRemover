@@ -8,15 +8,17 @@ module Ghostbuster.Core
   where
 
 import Ghostbuster.Types
+import Ghostbuster.Utils
 import qualified Data.Map as HM
 
 type Equations = (HM.Map TyVar [TyVar])
 type Patterns = (HM.Map TyVar MonoTy)
 
-toSealedName = \tyName -> mkVar ("Sealed" ++ (unMkVar tyName))
+toSealedName :: Var -> Var
+toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
 
 ghostbuster :: [DDef] -> Prog
-ghostbuster ddefs = Prog ddefsNew vdefsNew (EVar (mkVar "dummy"))
+ghostbuster ddefs = Prog ddefsNew vdefsNew (EVar (freshenVar "dummy"))
   where
   result = map ghostbusterDDef ddefs
   ddefsNew = concat (map fst result)
@@ -26,16 +28,19 @@ ghostbuster ddefs = Prog ddefsNew vdefsNew (EVar (mkVar "dummy"))
 ghostbusterDDef :: DDef -> ([DDef], [VDef])
 ghostbusterDDef ddef = (returnDDefs, returnVDefs)
   where
-  (ddefNoEquals, equalities) =  equalityRemoval ddef
-  (ddefNoPatternM, patterns) = pmRemoval ddefNoEquals
+  (ddefNoEquals, _equalities) =  equalityRemoval ddef
+  (ddefNoPatternM, _patterns) = pmRemoval ddefNoEquals
   sealed = generateSealed ddef
   returnDDefs = [sealed, ddefNoPatternM]   -- at the moment, these two.
   returnVDefs = []                         -- to be fed later.
 
 
 generateSealed :: DDef -> DDef
-generateSealed (DDef tyName k c s cases) = DDef (toSealedName tyName) k [] []
-  [KCons (toSealedName tyName) ((map typeDictForSynth synthVars) ++ conTy) (map toVarTy (keepVars ++ checkVars))]
+generateSealed (DDef tyName k c s _cases) =
+    DDef (toSealedName tyName) k [] []
+     [ KCons (toSealedName tyName)
+             ((map typeDictForSynth synthVars) ++ conTy)
+             (map toVarTy (keepVars ++ checkVars)) ]
   where
   keepVars = map fst k
   checkVars = map fst c
@@ -55,7 +60,7 @@ equalityRemovalByClause clause = (clause {fields = newfields, outputs = newoutpu
   (newoutputs, equations2) = equalityRemovalMonoList (outputs clause) equations1
 
 equalityRemovalMonoList :: [MonoTy] -> Equations -> ([MonoTy], Equations)
-equalityRemovalMonoList [] equations = ([], HM.empty) 
+equalityRemovalMonoList [] _equations = ([], HM.empty)
 equalityRemovalMonoList (mono:rest) equations = (newmono:newrest, equations2)
   where
   (newmono, equations1) = equalityRemovalMono mono equations
@@ -66,17 +71,17 @@ equalityRemovalMono monoty equations = case monoty of
   VarTy var -> case HM.lookup var equations of
      Just listOfVars -> (toVarTy newvar, HM.insert var (newvar:listOfVars) equations)
      Nothing -> (monoty, HM.insert var [] equations)
-  ArrowTy mono1 mono2 -> ((ArrowTy mono1' mono2'), equations2)    
+  ArrowTy mono1 mono2 -> ((ArrowTy mono1' mono2'), equations2)
      where
      (mono1', equations1) = equalityRemovalMono mono1 equations
      (mono2', equations2) = equalityRemovalMono mono2 equations1
-  ConTy name monos -> ((ConTy name newmonos), equations1)    
+  ConTy name monos -> ((ConTy name newmonos), equations1)
      where
      (newmonos, equations1) = equalityRemovalMonoList monos equations
-  TupleTy monos -> ((TupleTy newmonos), equations1)    
+  TupleTy monos -> ((TupleTy newmonos), equations1)
      where
      (newmonos, equations1) = equalityRemovalMonoList monos equations
-  otherwise -> (monoty, HM.empty)
+  _ -> (monoty, HM.empty)
   where
   newvar = (mkVar "NEW")
 
@@ -94,19 +99,19 @@ pmRemovalByClause clause = (clause {fields = newfields, outputs = newoutputs} , 
 
 pmRemovalMono :: MonoTy -> (MonoTy, Patterns)
 pmRemovalMono monoty = case monoty of
-  ArrowTy mono1 mono2 -> (toVarTy newvar, patterns)    
+  ArrowTy mono1 mono2 -> (toVarTy newvar, patterns)
      where
      (mono1', pattern1) = pmRemovalMono mono1
      (mono2', pattern2) = pmRemovalMono mono2
      patterns = HM.insert newvar (ArrowTy mono1' mono2') (HM.union pattern1 pattern2)
-  ConTy name monos -> (toVarTy newvar, patterns)    
+  ConTy name monos -> (toVarTy newvar, patterns)
      where
      (newmonos, pattern1) = unzip (map pmRemovalMono monos)
      patterns = HM.insert newvar (ConTy name newmonos) (HM.unions pattern1)
-  TupleTy monos -> (toVarTy newvar, patterns)    
+  TupleTy monos -> (toVarTy newvar, patterns)
      where
      (newmonos, pattern1) = unzip (map pmRemovalMono monos)
      patterns = HM.insert newvar (TupleTy newmonos) (HM.unions pattern1)
-  otherwise -> (monoty, HM.empty)
+  _ -> (monoty, HM.empty)
   where
   newvar = (mkVar "NEW")
