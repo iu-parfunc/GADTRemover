@@ -133,25 +133,53 @@ ddefLookup (d@DDef{..} : ds) name =
     Just k  -> Just (d, k)
 ddefLookup [] _name = Nothing
 
-checkPat :: [DDef] -> TypeEnv -> MonoTy -> Pat -> TI Subst
+-- Take something of the form:
+-- t1 -> t2 -> ... -> tn -> ConTy name [vars]
+-- and return
+-- ([t1,t2,...,tn], Conty name [vars])
+splitTyConArrow :: MonoTy -> TI ([MonoTy], MonoTy)
+splitTyConArrow c@(ConTy name fields) = return ([], c)
+splitTyConArrow (ArrowTy t1 t2) = do
+  (t2', tycon) <- splitTyConArrow t2
+  return (t1 : t2', tycon)
+splitTyConArrow t = throwError $ "Expected arrow type but instead received " ++ show t
+
+checkPat :: [DDef] -> TypeEnv -> MonoTy -> Pat -> TI (Subst, TypeEnv)
 checkPat denv tenv ty (Pat name tvars) = do
   -- Get the type of the constructor
-  (subst, ConTy name' tvs') <- inferExp denv tenv (EK name)
+  (subst, ty') <- inferExp denv tenv (EK name)
+  (tyapps, ConTy name' tvs') <- splitTyConArrow ty'
   -- This guy had better be a constructor, which means we better get a nullSubst back out
   unless (Map.null subst) $
     throwError $ "Invalid pattern match! We MUST have a constructor to match on, but " ++
                  show name ++ " isn't a constructor"
   -- Get the substitutions that we need, and ensure that they can all unify with the type constructor
   -- If it all works out, return it.
-  unify ty (ConTy name' tvs')
+  s1 <- trace ("About to try and unify some stuff " ++ show ty ++ " and " ++ show (ConTy name' tvs') ++ "orig: " ++ show ty') 
+              unify ty (ConTy name' tvs')
+  -- This guy succeeded so we know that we have the rigt name
+  case ddefLookup denv name of
+    Nothing -> throwError $ "Constructor " ++ show name' ++ " for pattern match not found"
+    Just (def, kcons) -> do
+      s2s <- zipWithM unify (fields kcons) tyapps
+      -- Why applicative no work :(
+      let TypeEnv tenv' = tenv
+      return (foldr composeSubst nullSubst (s2s ++ [s1]), TypeEnv (Map.union (Map.fromList (zip tvars (map (ForAll [])(fields kcons)))) tenv'))
 
 unifyAll :: [DDef] -> TypeEnv -> [(Subst, MonoTy)] -> TI (MonoTy, [Subst])
-unifyAll denv env (t : ts)= do
+unifyAll denv env (t : ts) = do
   -- Make sure they all unify with the same type
   substs <- mapM ((unify (snd t)) . snd) ts
   -- Return that type, and all the substitutions that we came up with
   return (snd t, fst t : substs)
 unifyAll denv env [] = throwError "Found case expression with no RHS"
+
+checkClause :: [DDef] -> TypeEnv -> MonoTy -> (Pat, Exp) -> TI (Subst, MonoTy)
+checkClause denv tenv ty (pat, alt) = do
+  (s, newTenv) <- (checkPat denv tenv ty) pat
+  -- Now get all the types of the rhs's of the patterns
+  inferExp denv (apply s newTenv) alt
+
 
 inferExp :: [DDef] -> TypeEnv -> Exp -> TI (Subst, MonoTy)
 inferExp denv (TypeEnv env) (EVar var) =
@@ -171,7 +199,7 @@ inferExp denv env (EApp e1 e2) =
       (s2, t2) <- inferExp denv (apply s1 env) e2
       s3 <- unify (apply s2 t1) (ArrowTy t2 tv)
       return (s3 `composeSubst` s2 `composeSubst` s1, apply s3 tv)
-inferExp denv env (ELet (x, s, e1) e2) = -- FIXME
+inferExp denv env (ELet (x, s, e1) e2) =
     do  (s1, t1) <- inferExp denv env e1
         let TypeEnv env' = remove env x
             t' = generalize (apply s1 env) t1
@@ -187,9 +215,7 @@ inferExp denv env (ECase e1 pats) = do
   -- Get the type of the thing we are matching on
   (s1, t1) <- inferExp denv env e1
   -- Make sure that in the updated environment that all the patters have type t1
-  tas <- mapM (checkPat denv (apply s1 env) t1 . fst) pats
-  -- Now get all the types of the rhs's of the patterns
-  aas <- mapM (inferExp denv (apply s1 env) . snd) pats
+  aas <- trace ("Inferred type for case expr: " ++ show t1) mapM (checkClause denv (apply s1 env) t1) pats
   -- Make sure that they all unify with each other
   (typ, substs) <- unifyAll denv (apply s1 env) aas
   -- return the type of the alts, and we need to be optimisitic and apply
