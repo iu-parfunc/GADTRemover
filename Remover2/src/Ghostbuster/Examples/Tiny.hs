@@ -69,6 +69,17 @@ e12  =  letId (EApp "id" "id")
 e13 :: Exp
 e13  =  letId (EApp "id" (EK "One"))
 
+e14 :: Exp
+e14 = (ECase (EK "One") [(Pat "One" [], EK "Two")])
+
+e15 :: Exp
+e15 = ELam ("x", ConTy "Maybe" [ConTy "Int" []]) $
+       ECase "x"
+       [ (Pat "Just" ["y"], EVar "y")
+       , (Pat "Nothing" [], EK "One")
+       ]
+
+
 intTy :: MonoTy
 intTy = ConTy "Int" []
 
@@ -151,7 +162,6 @@ p10_mut_add_even = Prog
     suc = EApp (EK "Suc")
     toNaty 0 = EK "Zero"
     toNaty n = suc (toNaty (n - 1))
-
 
 -- | All type-correct runnable progs.
 allProgs :: [Prog]
