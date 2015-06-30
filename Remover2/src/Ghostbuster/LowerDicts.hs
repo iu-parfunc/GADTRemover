@@ -3,7 +3,8 @@
 
 -- | Rewrite dictionary primitives as explicit datatype operations.
 
-module Ghostbuster.LowerDicts where
+module Ghostbuster.LowerDicts
+  (lowerDicts, gatherDicts) where
 
 import           Control.Exception
 import qualified Data.ByteString.Char8 as B
@@ -32,10 +33,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
            | VDef v t e <- vdefs ]
 
   allDicts = S.toList allDictsSet
-  allDictsSet = S.unions $
-                gatherDicts main :
-                [ gatherDicts valExp
-                | VDef {valExp} <- vdefs ]
+  allDictsSet = gatherDicts origprog
   ddefSubset = [ dd | dd@DDef{tyName} <- ddefs ++ primitiveTypes
                     , S.member tyName allDictsSet ]
 
@@ -51,25 +49,35 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
                     zip ['a' ..] (getArgStatus ddefs tn)
    ]
 
+-- | Gather all the type constructor names whose dictionaries are
+-- refied or tested against.
+gatherDicts :: Prog -> S.Set TName
+gatherDicts (Prog _ vdefs main) =
+   S.unions $
+   gatherExp main :
+   [ gatherExp valExp
+   | VDef {valExp} <- vdefs ]
+
 -- | Keep the output a little smaller by not generating dictionaries
 -- for EVERY type constructor, only those that are reefiied somewhere
 -- in the program.
-gatherDicts :: Exp -> S.Set TName
-gatherDicts e =
+gatherExp :: Exp -> S.Set TName
+gatherExp e =
   case e of
     (EK _)        -> S.empty
     (EVar _)      -> S.empty
-    (ELam _ x)    -> gatherDicts x
-    (EApp x1 x2)  -> S.union (gatherDicts x1) (gatherDicts x2)
-    (ELet (_,_,x1) x2) -> S.union (gatherDicts x1) (gatherDicts x2)
-    (ECase x1 ls) -> S.unions $ (gatherDicts x1) :
-                                (map (gatherDicts . snd) ls)
+    (ELam _ x)    -> gatherExp x
+    (EApp x1 x2)  -> S.union (gatherExp x1) (gatherExp x2)
+    (ELet (_,_,x1) x2) -> S.union (gatherExp x1) (gatherExp x2)
+    (ECase x1 ls) -> S.unions $ (gatherExp x1) :
+                                (map (gatherExp . snd) ls)
     (EDict t)     -> S.singleton t
-    (ECaseDict x1 (_,_,x2) x3) ->
-      S.unions [gatherDicts x1, gatherDicts x2, gatherDicts x3]
+    (ECaseDict x1 (pat,_,x2) x3) ->
+      S.insert pat $
+      S.unions [gatherExp x1, gatherExp x2, gatherExp x3]
     (EIfTyEq (x1,x2) x3 x4) ->
-      S.unions [ gatherDicts x1, gatherDicts x2,
-                 gatherDicts x3, gatherDicts x4 ]
+      S.unions [ gatherExp x1, gatherExp x2,
+                 gatherExp x3, gatherExp x4 ]
 
 -- | Takes only the DDefs which are modeled in TypeDict
 doExp :: [DDef] -> Exp -> Exp
