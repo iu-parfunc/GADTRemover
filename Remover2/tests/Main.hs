@@ -6,28 +6,30 @@
 
 module Main where
 
-import           Ghostbuster.LowerDicts
-import           Ghostbuster.Ambiguity                          as A
-import           Ghostbuster.Examples.Feldspar
-import           Ghostbuster.Examples.Tiny
-import           Ghostbuster.Interp                             as I
-import           Ghostbuster.KindCheck                          as K
-import           Ghostbuster.Types
+import Ghostbuster.LowerDicts
+import Ghostbuster.Ambiguity as A
+import Ghostbuster.Examples.Feldspar
+import Ghostbuster.Examples.Tiny
+import Ghostbuster.Interp as I
+import Ghostbuster.KindCheck as K
+import Ghostbuster.Types
 
-import           Data.Typeable
-import           Control.DeepSeq
-import           Control.Exception (evaluate)
-import           Ghostbuster.CodeGen.Prog                       as CG
-import           Language.Haskell.Exts.Pretty
-import           Language.Haskell.Interpreter                   as Hint
-import           Text.PrettyPrint.GenericPretty (Out(doc))
-
-import           Test.Tasty
-import           Test.Tasty.HUnit
-import           Test.Tasty.TH
-import           System.Environment (withArgs, getArgs)
-import           System.IO
-import           System.IO.Temp
+import Control.DeepSeq
+import Control.Exception (evaluate)
+import Control.Monad
+import Data.Typeable
+import Ghostbuster.CodeGen.Prog as CG
+import Language.Haskell.Exts.Pretty
+import Language.Haskell.Interpreter as Hint
+import System.Environment (withArgs, getArgs)
+import System.Exit
+import System.IO
+import System.IO.Temp
+import System.Process
+import Test.Tasty
+import Test.Tasty.HUnit
+import Test.Tasty.TH
+import Text.PrettyPrint.GenericPretty (Out(doc))
 
 ------------------------------------------------------------
 
@@ -159,14 +161,19 @@ interpretProg prg =
    putStrLn $ "   File written."
    -- putStrLn contents
 
-   x <- fmap (either interpreterError id) $
-     runInterpreter $ do
-       loadModules [ file ]
-       setImportsQ [ ("Ghostbuster", Nothing )
-                   , ("Prelude", Nothing) ]
-       interpret "main" infer
-   putStrLn "   Interpreter complete.  Got IO action from loaded program.  Running:"
-   () <- x
+   when False $ do
+      x <- fmap (either interpreterError id) $
+        runInterpreter $ do
+          loadModules [ file ]
+          setImportsQ [ ("Ghostbuster", Nothing )
+                      , ("Prelude", Nothing) ]
+          interpret "main" infer
+      putStrLn "   Interpreter complete.  Got IO action from loaded program.  Running:"
+      () <- x
+      return ()
+
+   ExitSuccess <- system $ "runghc "++file
+
    return ()
 
 interpreterError :: InterpreterError -> a

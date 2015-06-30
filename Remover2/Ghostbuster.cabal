@@ -64,5 +64,6 @@ Test-suite test-ghostbuster
                , haskell-src-exts >= 1.16
                , GenericPretty >= 1.2
                , temporary >= 1.2
+               , process
 
   default-language:  Haskell2010
