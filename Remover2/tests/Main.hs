@@ -264,7 +264,9 @@ codegenAllProgs =
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
   [ testCase name $ do
-    putStrLn ""
+    putStrLn "\n ***** Full ghostbuster test "
+    putStrLn "  Original:"
+    print $ doc ddefs
     let p = Core.ghostbuster ddefs
     interpretProg (Just name) p
   | (Prog ddefs _ _) <- allProgs

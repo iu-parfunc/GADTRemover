@@ -176,6 +176,10 @@ allProgsSameLowered =
   [ Prog [] [] e | e <- allExprsSameLowered ] ++
   [ p8_unusedLoop, existential1 ]
 
+-- Programs which are valid programs in the core language but NOT valid inputs
+-- to Ghostbuster.
+
+
 --------------------------------------------------------------------------------
 -- Tests for the type checker
 

@@ -30,22 +30,27 @@ primeName tyName = mkVar ((unMkVar tyName) ++ "'")
 
 
 ghostbuster :: [DDef] -> Prog
-ghostbuster ddefs = Prog ddefsNew vdefsNew (EK "Code For Main.. ")
+ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew (EK "Nothing")
   where
-  result = map (ghostbusterDDef ddefs) ddefs
+  allddefs = ddefs ++ primitiveTypes
+  bustedDefs = [ dd | dd@DDef {cVars,sVars} <- allddefs
+                    , not (null cVars) || not (null sVars) ]
+
+  result = map ghostbusterDDef bustedDefs
   ddefsNew = concat (map fst result)
   vdefsNew = concat (map snd result)
 
-  ddefStripped = gadtToStripped alldefs ddef
   ghostbusterDDef :: DDef -> ([DDef], [VDef])
   ghostbusterDDef ddef = (returnDDefs, returnVDefs)
     where
+    ddefStripped = gadtToStripped allddefs ddef
     (ddefNoEquals, _equalities) =  equalityRemoval ddef
     (ddefNoPatternM, _patterns) = pmRemoval ddefNoEquals
     sealed = generateSealed ddef
     returnDDefs = [ddefStripped, sealed]   -- at the moment, these two.
-    returnVDefs = [generateDown ddefs (tyName ddef)
-                  , generateUpcast alldefs ddefNormalized ]
+    returnVDefs = [generateDown allddefs (tyName ddef)
+                  -- , generateUpcast allddefs ddefNoPatternM
+                  ]
 
 gadtToStripped :: [DDef] -> DDef -> DDef
 gadtToStripped alldefs ddef = ddef {tyName = (gadtDownName ddef), kVars= [], cVars = [], sVars = (sVars ddef), cases = strippedCases}
@@ -63,7 +68,7 @@ gadtToStrippedByMono alldefs monoty = case monoty of
   VarTy tyvar -> TypeDictTy tyvar
   ArrowTy mono1 mono2 -> ArrowTy (gadtToStrippedByMono alldefs mono1) (gadtToStrippedByMono alldefs mono2)
   ConTy tname monos -> ConTy tname (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
-  otherwise -> monoty
+  _ -> monoty
 
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeepAndCheck alldefs tname) monos
