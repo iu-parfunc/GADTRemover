@@ -6,6 +6,7 @@
 
 module Ghostbuster.Utils where
 
+import           Data.Char (isAlpha)
 import qualified Data.List as L
 import qualified Data.Map as Map
 import           Data.Map.Lazy as M
@@ -41,6 +42,14 @@ getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
 getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
   | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
   | otherwise = getTyArgs rst k
+
+
+-- | Look up a DDef in a list.  TODO!  Switch over to Maps for all the helpers here and elsewhere.
+lookupDDef :: [DDef] -> TName -> DDef
+lookupDDef [] tn = error $ "lookupDDef: couldn't find: "++show tn
+lookupDDef (dd:rst) tn
+           | tyName dd == tn = dd
+           | otherwise = lookupDDef rst tn
 
 -- | Gather all the T_i mentioned in this type.
 --   This ONLY counts `ConTy`, it does not count mentions in typeDicts.
@@ -127,6 +136,19 @@ leftleftLambda arg ty bod =
 --   FIXME: this must be moved into a monad and all use sites refactored.
 freshenVar :: Var -> Var
 freshenVar v = v
+
+-- | Potentially infinite list of temporary pattern vars:
+-- TODO: replace with freshenVar of a single root name.
+patVars :: [Var]
+patVars = L.map (\c -> mkVar [c]) $
+          L.filter isAlpha ['a'..]
+
+--------------------------------------------------------------------------------
+-- Generic smart syntax constructors:
+
+appLst :: Exp -> [Exp] -> Exp
+appLst f [] = f
+appLst f ls = EApp (appLst f (init ls)) (last ls)
 
 --------------------------------------------------------------------------------
 

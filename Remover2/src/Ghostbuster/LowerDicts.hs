@@ -137,12 +137,6 @@ app2 :: Exp -> Exp -> Exp -> Exp
 app2 f x y = EApp (EApp f x) y
 
 
--- | Potentially infinite list of temporary pattern vars:
--- TODO: replace with freshenVar of a single root name.
-patVars :: [Var]
-patVars = map (\c -> mkVar [c]) $
-          filter isAlpha ['a'..]
-
 -- | Generate a definition for a type-equality-checking function.
 --   Takes only the DDefs which are modeled in TypeDict.
 --

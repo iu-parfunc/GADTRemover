@@ -5,8 +5,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Ghostbuster.Core
-  ( ghostbuster
-  , ghostbusterDDef )
+--  ( ghostbuster
+--  , ghostbusterDDef )
   where
 
 import Ghostbuster.Types
@@ -19,6 +19,16 @@ type Patterns = (HM.Map TyVar MonoTy)
 toSealedName :: Var -> Var
 toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
 
+-- | The name of the down-conversion function.
+downName :: TName -> TermVar
+downName tyName = mkVar ("down" ++ (unMkVar tyName))
+
+-- | Take a type or data constructor from the higher (pre-stripping)
+-- type to the lower one.
+primeName :: Var -> Var
+primeName tyName = mkVar ((unMkVar tyName) ++ "'")
+
+
 ghostbuster :: [DDef] -> Prog
 ghostbuster ddefs = Prog ddefsNew vdefsNew (EK "Nothing")
   where
@@ -26,15 +36,14 @@ ghostbuster ddefs = Prog ddefsNew vdefsNew (EK "Nothing")
   ddefsNew = concat (map fst result)
   vdefsNew = concat (map snd result)
 
-
-ghostbusterDDef :: DDef -> ([DDef], [VDef])
-ghostbusterDDef ddef = (returnDDefs, returnVDefs)
-  where
-  (ddefNoEquals, _equalities) =  equalityRemoval ddef
-  (ddefNoPatternM, _patterns) = pmRemoval ddefNoEquals
-  sealed = generateSealed ddef
-  returnDDefs = [sealed, ddefNoPatternM]   -- at the moment, these two.
-  returnVDefs = []                         -- to be fed later.
+  ghostbusterDDef :: DDef -> ([DDef], [VDef])
+  ghostbusterDDef ddef = (returnDDefs, returnVDefs)
+    where
+    (ddefNoEquals, _equalities) =  equalityRemoval ddef
+    (ddefNoPatternM, _patterns) = pmRemoval ddefNoEquals
+    sealed = generateSealed ddef
+    returnDDefs = [sealed, ddefNoPatternM]   -- at the moment, these two.
+    returnVDefs = [generateDown ddefs (tyName ddef)]        -- to be fed later.
 
 
 generateSealed :: DDef -> DDef
@@ -118,3 +127,42 @@ pmRemovalMono monoty = case monoty of
   _ -> (monoty, HM.empty)
   where
   newvar = (mkVar "newVr")
+
+-- | Create a down-conversion function.  This is a simple tree-walk
+-- over the input datatype, without any laborious type checking
+-- obligations to discharge.
+generateDown :: [DDef] -> TName -> VDef
+generateDown alldefs which =
+  VDef down (ForAll allVars (ArrowTy startTy endTy)) $
+   ELam ("orig",startTy) $
+    ECase "orig" $
+    [ (Pat conName args,
+      appLst (EVar (primeName conName))
+       [ (dispatch arg ty)
+       | (arg,ty) <- zip args fields
+       ]
+      )
+    | KCons {conName,fields} <- cases
+    , let args = (take (length fields) patVars)
+    ]
+  where
+  DDef {tyName,kVars,cVars,sVars, cases} = lookupDDef alldefs which
+
+  down    = (downName tyName)
+  startTy = (ConTy tyName  (map (VarTy . fst) allVars))
+  endTy   = (ConTy tyName' (map (VarTy . fst) kVars))
+  tyName' = primeName tyName
+  allVars = kVars++cVars++sVars
+
+  -- For a type T_i, we dispatch to downT_i
+  dispatch vr (ConTy name _)  = EApp (EVar (downName name)) (EVar vr)
+  -- If we just have an abstract type, we return it.  No recursions.
+  dispatch vr (VarTy _)       = EVar vr
+  -- For now functions are left alone.  Later we should generate proxies.
+  dispatch vr (ArrowTy _ _)   = EVar vr
+
+  -- Are dicts ALLOWED in the input program, or just the output?
+  -- For now they are allowed...
+  dispatch vr (TypeDictTy _)  = EVar vr
+
+  dispatch _ (TupleTy _) = error "soon to be removed"
