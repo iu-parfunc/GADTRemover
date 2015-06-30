@@ -15,8 +15,8 @@ import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 mkExp :: G.Exp -> H.Exp
 mkExp (G.EK n)                  = var (varName n)                               -- TLM ???
 mkExp (G.EVar n)                = var (varName n)
-mkExp (G.ELam (x,_) b)          = lamE noLoc [mkPat (Pat x [])] (mkExp b)       -- TLM: add local type signature?
 mkExp (G.EApp a b)              = app (mkExp a) (mkExp b)
+mkExp (G.ELam (x,_) b)          = lamE noLoc [mkPat (Pat x [])] (mkExp b)       -- TLM: add local type signature?
 mkExp (G.ECase e ps)            = caseE (mkExp e) (map (uncurry mkAlt) ps)
 mkExp (G.ELet (v,t,bnd) body)   = letE [ mkTypeSig v t, mkDeclOfExp v bnd ] (mkExp body)
 mkExp G.EDict{}                 = error "EDict: not handled by codegen"
