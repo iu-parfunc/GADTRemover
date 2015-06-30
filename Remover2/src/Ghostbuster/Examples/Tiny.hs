@@ -84,18 +84,47 @@ allExprsSameLowered = [e02, e05, e06, e07, e08, e09, e10, e11, e12, e13]
 --------------------------------------------------------------------------------
 -- Whole programs:
 
-
 -- | Loop program where omega is present but not called
 p8_unusedLoop :: Prog
 p8_unusedLoop = Prog [] [VDef "loop" (ForAll [("a",Star)] "a") "loop"]
                      (EK "Nothing")
+
+p9_append :: Prog
+p9_append = Prog 
+  [DDef "List" [("a", Star)] [] []
+    [ KCons "Nil" [] ["a"]
+    , KCons "Cons" ["a", listy "a"] ["a"]
+    ] 
+  ]
+  [VDef "append" (ForAll [("a", Star)] (listy "a" ==> (listy "a" ==> listy "a")))
+        (ELam ("ls1", listy "a") $
+          ELam ("ls2", listy "a") $
+            ECase "ls1"
+              [(Pat "Nil" [], EVar "ls2"),
+               (Pat "Cons" ["y", "ys"], consy (EVar "y") (EApp (EApp (EVar "append") (EVar "ys")) (EVar "ls2")))])
+  ]
+  (EApp (EApp (EVar "append") (toListy [EK "One", EK "One", EK "One", EK "One", EK "One", EK "One", EK "One", EK "One", EK "One"]))
+        (toListy [EK "Two", EK "Two", EK "Two", EK "Two", EK "Two", EK "Two", EK "Two", EK "Two", EK "Two"]))
+  where
+    listy :: MonoTy -> MonoTy
+    listy a = ConTy "List" [a]
+
+    consy :: Exp -> Exp -> Exp
+    consy x xs = EApp (EApp (EK "Cons") x) xs
+
+    (==>) :: MonoTy -> MonoTy -> MonoTy
+    (==>) = ArrowTy
+
+    toListy :: [Exp] -> Exp
+    toListy = foldr consy (EK "Nil")
+
 
 -- | All type-correct runnable progs.
 allProgs :: [Prog]
 allProgs =
   -- The naked expression tests should only depend on types in the "Prelude"
   [ Prog [] [] e | e <- allExprs] ++
-  [ p8_unusedLoop, existential1 ]
+  [ p8_unusedLoop, existential1 , p9_append]
 
 -- | Analogous to (and including) allExprsSameLowered
 allProgsSameLowered :: [Prog]
