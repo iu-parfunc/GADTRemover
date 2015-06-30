@@ -89,13 +89,13 @@ case_AmbCheck2 = assertEqual "Feldspar adt passes ambiguity check"
 ------------------------------------------------------------
 
 case_KindFeldspar0 :: Assertion
-case_KindFeldspar0 = assertEqual "" (Right ()) (K.kindClosedDefs [ints,dd3])
+case_KindFeldspar0 = assertEqual "" (Right ()) (K.kindClosedDefs (primitiveTypes++[dd3]))
 
 case_KindFeldspar1 :: Assertion
-case_KindFeldspar1 = assertEqual "" (Right ()) (K.kindClosedDefs feldspar_gadt)
+case_KindFeldspar1 = assertEqual "" (Right ()) (K.kindClosedDefs (primitiveTypes++feldspar_gadt))
 
 case_KindFeldspar2 :: Assertion
-case_KindFeldspar2 = assertEqual "" (Right ()) (K.kindClosedDefs feldspar_adt)
+case_KindFeldspar2 = assertEqual "" (Right ()) (K.kindClosedDefs (primitiveTypes++feldspar_adt))
 
 case_KindMutRecurseDDefs :: Assertion
 case_KindMutRecurseDDefs = assertEqual "" (Right ()) (K.kindClosedDefs mutRecurseDDefsGood)
