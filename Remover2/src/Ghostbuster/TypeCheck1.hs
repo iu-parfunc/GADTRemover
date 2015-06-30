@@ -11,7 +11,6 @@ module Ghostbuster.TypeCheck1
 
       -- * Temporary exports:
       , main, typeInference, test
-      , e0, e1, e2
       , terr2, terr3, terr4
       )
       where
@@ -24,6 +23,7 @@ import           Control.Monad.State
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map              as Map
 import qualified Data.Set              as Set
+import qualified Ghostbuster.Examples.Tiny as T
 -- import qualified Text.PrettyPrint      as PP
 
 import Debug.Trace
@@ -196,26 +196,6 @@ typeInference denv env e =
     do  (s, t) <- inferExp denv (TypeEnv env) e
         return (apply s t)
 
--- | Let-bind "id" and then run the body
-letId :: Exp -> Exp
-letId ex = ELet ("id",
-           ForAll [("a",Star)]
-             (ArrowTy (VarTy "a") (VarTy "a")),
-             (ELam ("x", VarTy "b") (EVar "x")))
-                ex
-
---------------------------------------------------------------------------------
--- Type-Correct tests:
-e0 :: Exp
-e0  =  letId (EVar "id")
-
--- | Apply identity to itself.
-e1 :: Exp
-e1  =  letId (EApp "id" "id")
-
--- | Apply to a number:
-e2 :: Exp
-e2  =  letId (EApp "id" (EK "One"))
 
 --------------------------------------------------------------------------------
 -- Type-error tests:
@@ -246,4 +226,4 @@ test denv e =
           Right t   ->  putStrLn $ " :: " ++ show t
 
 main :: IO ()
-main = mapM_ (test primitiveTypes) [e0,e1,e2, terr2, terr3, terr4]
+main = mapM_ (test primitiveTypes) [T.e11,T.e12,T.e13, terr2, terr3, terr4]

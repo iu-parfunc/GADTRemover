@@ -42,20 +42,44 @@ e07 = EIfTyEq (e04,e04) (EK "True") (EK "False")
 e08 :: Exp
 e08 = EIfTyEq (e03,e04) (EK "True") (EK "False")
 
+e09 :: Exp
+e09 = ELet ("ttt", ForAll [] (ConTy "Int" [])
+              , EK "One")
+      "ttt"
+
 e10 :: Exp
 e10 = EApp (ELam ("v",intTy) "v") (EK "Three")
+
+-- | Let-bind "id" and then run the body
+letId :: Exp -> Exp
+letId ex = ELet ("id",
+           ForAll [("a",Star)]
+             (ArrowTy (VarTy "a") (VarTy "a")),
+             (ELam ("x", VarTy "b") (EVar "x")))
+                ex
+
+e11 :: Exp
+e11  =  letId (EVar "id")
+
+-- | Apply identity to itself.
+e12 :: Exp
+e12  =  letId (EApp "id" "id")
+
+-- | Apply to a number:
+e13 :: Exp
+e13  =  letId (EApp "id" (EK "One"))
 
 intTy :: MonoTy
 intTy = ConTy "Int" []
 
 -- | All expressions so that we can test them uniformly.
 allExprs :: [Exp]
-allExprs = [e02, e03, e04, e05, e06, e07, e08, e10]
+allExprs = [e02, e03, e04, e05, e06, e07, e08, e09, e10, e11, e12, e13]
 
 -- | The subset of expressions whose `lowerDicts` output value should
 -- be exactly the same as the original output value.
 allExprsSameLowered :: [Exp]
-allExprsSameLowered = [e02, e05, e06, e07, e08, e10]
+allExprsSameLowered = [e02, e05, e06, e07, e08, e09, e10, e11, e12, e13]
 
 --------------------------------------------------------------------------------
 -- Whole programs:
