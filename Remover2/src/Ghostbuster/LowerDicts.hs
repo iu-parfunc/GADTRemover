@@ -68,7 +68,8 @@ gatherExp e =
     (EVar _)      -> S.empty
     (ELam _ x)    -> gatherExp x
     (EApp x1 x2)  -> S.union (gatherExp x1) (gatherExp x2)
-    (ELet (_,_,x1) x2) -> S.union (gatherExp x1) (gatherExp x2)
+    (ELet (_,sig,x1) x2) -> S.unions [(gatherExp x1), (gatherExp x2),
+                                      (gatherSigma sig)]
     (ECase x1 ls) -> S.unions $ (gatherExp x1) :
                                 (map (gatherExp . snd) ls)
     (EDict t)     -> S.singleton t
@@ -78,6 +79,8 @@ gatherExp e =
     (EIfTyEq (x1,x2) x3 x4) ->
       S.unions [ gatherExp x1, gatherExp x2,
                  gatherExp x3, gatherExp x4 ]
+
+gatherSigma sig = undefined
 
 -- | Takes only the DDefs which are modeled in TypeDict
 doExp :: [DDef] -> Exp -> Exp

@@ -84,20 +84,6 @@ checkKCons myT getStatus KCons{conName,fields,outputs} =
              "\nNot found in non-erased vars: "++show allNonErased
 
 
--- | Partition type variables into (kept,checked,synth)
-splitTyArgs :: Show t => [TyStatus] -> [t] -> ([t],[t],[t])
-splitTyArgs myStatus outputs
-  | length myStatus /= length outputs =
-    error $ "splitTyArgs: mismatched lengths: "++ show (length myStatus, length outputs)++
-            "\n  "++ show myStatus ++
-            "\n  "++ show outputs
-  | otherwise  = (ks,cs,ss)
-  where
-  ks = [ x | (Keep,x)  <- wStatus ]
-  cs = [ x | (Check,x) <- wStatus ]
-  ss = [ x | (Synth,x) <- wStatus ]
-  wStatus  = zip myStatus outputs
-
 -- | Retrieve free type variables that do NOT occur in checked
 -- position.
 fvNonChecked :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
@@ -126,16 +112,3 @@ inCheckedContext getStatus mt =
     (TypeDictTy _tau) -> S.empty
  where
  lp = inCheckedContext getStatus
-
--- | Include nothing under checked or synth contexts.
-nonErased :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
-nonErased getStatus mt =
-  case mt of
-    (VarTy x) -> S.singleton x
-    (ArrowTy x1 x2) -> S.union (lp x1) (lp x2)
-    (ConTy ty args) ->
-      let (k,_,_) = splitTyArgs (getStatus ty) args
-      in S.unions (map lp k)
-    (TypeDictTy _tau) -> S.empty
- where
- lp = nonErased getStatus

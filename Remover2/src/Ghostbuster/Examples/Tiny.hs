@@ -165,8 +165,8 @@ p10_mut_add_even = Prog
     toNaty n = suc (toNaty (n - 1))
 
 
-p10_bustedList :: Prog
-p10_bustedList = Prog
+p11_bustedList :: Prog
+p11_bustedList = Prog
   [DDef "List" [] [("a", Star)] []
       [ KCons "Nil" [] ["a"]
       , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
@@ -181,18 +181,23 @@ allProgs =
   -- The naked expression tests should only depend on types in the "Prelude"
   [ Prog [] [] e | e <- allExprs] ++
   [ p8_unusedLoop, existential1 , p9_append, p10_mut_add_even
-  , p10_bustedList ]
+  , p11_bustedList ]
 
 -- | Analogous to (and including) allExprsSameLowered
 allProgsSameLowered :: [Prog]
 allProgsSameLowered =
   [ Prog [] [] e | e <- allExprsSameLowered ] ++
-  [ p8_unusedLoop, p9_append, p10_mut_add_even, p10_bustedList
+  [ p8_unusedLoop, p9_append, p10_mut_add_even, p11_bustedList
   , existential1 ]
 
 -- Programs which are valid programs in the core language but NOT valid inputs
 -- to Ghostbuster.
 
+test_p11 :: [TyVar]
+test_p11 =
+  let Prog d _ _ = p11_bustedList
+      Just (_,k) = kLookup d "Cons"
+  in getKConsDicts d k
 
 --------------------------------------------------------------------------------
 -- Tests for the type checker

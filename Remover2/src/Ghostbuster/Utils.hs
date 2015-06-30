@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 
 -- | General utility functions for working with the core lang.
 
@@ -10,10 +11,12 @@ import           Data.Char (isAlpha)
 import qualified Data.List as L
 import qualified Data.Map as Map
 import           Data.Map.Lazy as M
-import qualified Data.Set as Set
 import qualified Data.Set as S
+import qualified Data.Set as Set
+import           Debug.Trace
 import           GHC.Generics (Generic)
 import           Ghostbuster.Types
+
 
 --------------------------------------------------------------------------------
 -- Misc Helpers
@@ -36,6 +39,20 @@ getConArgs (DDef {cases} : rst) k =
     | conName == k = Just fields
     | otherwise = loop rest
 
+kLookup :: [DDef] -> KName -> Maybe (DDef, KCons)
+kLookup [] _name = Nothing
+kLookup (d@DDef{..} : ds) name =
+  case kconsLookup cases name of
+    Nothing -> kLookup ds name
+    Just k  -> Just (d, k)
+ where
+  kconsLookup :: [KCons] -> KName -> Maybe KCons
+  kconsLookup (dd@KCons{..} : ds) name = if conName == (name :: Var)
+                                     then Just dd
+                                     else kconsLookup ds name
+  kconsLookup [] _name = Nothing
+
+
 -- | Look up the type arguments for a given type constructor T
 getTyArgs :: [DDef] -> TName -> [Kind]
 getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
@@ -43,6 +60,54 @@ getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
   | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
   | otherwise = getTyArgs rst k
 
+
+-- | Given the global datatype defs and a specific data constructor, this
+-- returns the sorted list of `TypeDict` fields that should be added
+-- to the front of the KCons.  It only adds dicts for relevant vars
+-- that are EXISTENTIAL.  It adds the dicts in a canonical order, and
+-- in fact this function defines our standard for that order.
+getKConsDicts :: [DDef] -> KCons -> [TyVar]
+getKConsDicts ddefs KCons{conName,fields,outputs} =
+--  trace ("Non-erased left " ++ show (L.map (nonErased getter) fields))
+  trace ("Outputs are "++ show outputs ++", thus Non-erased right " ++ show (L.map (nonErased getter) outputs)) $
+  S.toAscList newExistential
+  where
+  origExistential = S.difference (ftv fields) (ftv outputs)
+  newExistential =
+    S.difference (S.unions$ L.map (nonErased getter) fields)
+                 ((nonErased getter) (ConTy (tyName def) outputs))
+  getter = getArgStatus ddefs
+  Just (def,_) = kLookup ddefs conName
+
+
+-- | Include nothing under checked or synth contexts.
+nonErased :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
+nonErased getStatus mt =
+  case mt of
+    (VarTy x) -> S.singleton x
+    (ArrowTy x1 x2) -> S.union (lp x1) (lp x2)
+    (ConTy ty args) ->
+      let (k,_,_) = splitTyArgs (getStatus ty) args
+      in
+      trace ("nonErased of ConTy "++show mt++ "kept was "++ show k) $
+      S.unions (L.map lp k)
+    (TypeDictTy _tau) -> S.empty
+ where
+ lp = nonErased getStatus
+
+-- | Partition type variables into (kept,checked,synth)
+splitTyArgs :: Show t => [TyStatus] -> [t] -> ([t],[t],[t])
+splitTyArgs myStatus outputs
+  | length myStatus /= length outputs =
+    error $ "splitTyArgs: mismatched lengths: "++ show (length myStatus, length outputs)++
+            "\n  "++ show myStatus ++
+            "\n  "++ show outputs
+  | otherwise  = (ks,cs,ss)
+  where
+  ks = [ x | (Keep,x)  <- wStatus ]
+  cs = [ x | (Check,x) <- wStatus ]
+  ss = [ x | (Synth,x) <- wStatus ]
+  wStatus  = zip myStatus outputs
 
 -- | Look up a DDef in a list.  TODO!  Switch over to Maps for all the helpers here and elsewhere.
 lookupDDef :: [DDef] -> TName -> DDef
