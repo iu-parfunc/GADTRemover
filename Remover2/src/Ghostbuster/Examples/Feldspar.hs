@@ -60,7 +60,7 @@ dd3 = DDef "Typ" [] [] [("a",Star)]
       ]
 
 feldspar_gadt :: [DDef]
-feldspar_gadt = tupsD ++ [ints, dd3,dd2,dd1]
+feldspar_gadt = [dd3,dd2,dd1]
 
 --------------------------------------------------------------------------------
 
@@ -102,7 +102,7 @@ dd3' = DDef "Typ'" [] [] []
        ]
 
 feldspar_adt :: [DDef]
-feldspar_adt = tupsD ++ [ints,dd1',dd2',dd3']
+feldspar_adt = [dd1',dd2',dd3']
 
 --------------------------------------------------------------------------------
 

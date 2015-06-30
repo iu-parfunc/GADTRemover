@@ -6,30 +6,31 @@
 
 module Main where
 
-import Ghostbuster.LowerDicts
-import Ghostbuster.Ambiguity as A
-import Ghostbuster.Examples.Feldspar
-import Ghostbuster.Examples.Tiny
-import Ghostbuster.Interp as I
-import Ghostbuster.KindCheck as K
-import Ghostbuster.Types
+import           Ghostbuster.LowerDicts
+import           Ghostbuster.Ambiguity as A
+import           Ghostbuster.Examples.Feldspar
+import           Ghostbuster.Examples.Tiny
+import           Ghostbuster.Interp as I
+import           Ghostbuster.KindCheck as K
+import           Ghostbuster.Types
 
-import Control.DeepSeq
-import Control.Exception (evaluate)
-import Control.Monad
-import Data.Typeable
-import Ghostbuster.CodeGen.Prog as CG
-import Language.Haskell.Exts.Pretty
-import Language.Haskell.Interpreter as Hint
-import System.Environment (withArgs, getArgs)
-import System.Exit
-import System.IO
-import System.IO.Temp
-import System.Process
-import Test.Tasty
-import Test.Tasty.HUnit
-import Test.Tasty.TH
-import Text.PrettyPrint.GenericPretty (Out(doc))
+import           Control.DeepSeq
+import           Control.Exception (evaluate)
+import           Control.Monad
+import qualified Data.List as L
+import           Data.Typeable
+import           Ghostbuster.CodeGen.Prog as CG
+import           Language.Haskell.Exts.Pretty
+import           Language.Haskell.Interpreter as Hint
+import           System.Environment (withArgs, getArgs)
+import           System.Exit
+import           System.IO
+import           System.IO.Temp
+import           System.Process
+import           Test.Tasty
+import           Test.Tasty.HUnit
+import           Test.Tasty.TH
+import           Text.PrettyPrint.GenericPretty (Out(doc))
 
 ------------------------------------------------------------
 
@@ -135,6 +136,19 @@ case_InterpLowered_e08 =
              (interp $ lowerDicts $ Prog [] [] e08)
 
 ------------------------------------------------------------
+-- Feldspar tests:
+
+
+-- | Just make sure the GADTs defs codegen properly.
+case_FeldsparGADTCodeGen :: Assertion
+case_FeldsparGADTCodeGen =
+  interpretProg (Just "FeldsparGADTCodegen") $ Prog feldspar_gadt [] (EK "One")
+
+case_FeldsparADTCodeGen :: Assertion
+case_FeldsparADTCodeGen =
+    interpretProg (Just "FeldsparADTCodegen") $ Prog feldspar_adt [] (EK "Two")
+
+------------------------------------------------------------
 -- Test codegen
 
 -- Attempt to load the generated code for a Prog and run it using Hint. Since
@@ -148,11 +162,12 @@ case_InterpLowered_e08 =
 --      module imported by both this file and the generated code.
 --
 -- interpretProg :: (Show a, Typeable a) => Prog -> IO a
-interpretProg :: Prog -> IO ()
-interpretProg prg =
+interpretProg :: Maybe String -> Prog -> IO ()
+interpretProg Nothing p = interpretProg (Just "Ghostbuster") p
+interpretProg (Just name) prg =
  do
    -- Temporarily keeping these while debugging:
-   (file,hdl) <- openTempFile "./" "Ghostbuster.hs"
+   (file,hdl) <- openTempFile "./" ("temp_"++name++ ".hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
    putStrLn $ "\n   Writing file to: "++ file
    let contents = (prettyPrint (moduleOfProg prg))
@@ -232,7 +247,7 @@ codegenAllProgs =
     -- putStrLn $
     -- evaluate $ rnf $ show $
     --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
-    interpretProg $ lowerDicts prg
+    interpretProg Nothing $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]
