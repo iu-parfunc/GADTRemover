@@ -149,6 +149,13 @@ case_FeldsparADTCodeGen :: Assertion
 case_FeldsparADTCodeGen =
     interpretProg (Just "FeldsparADTCodegen") $ Prog feldspar_adt [] (EK "Two")
 
+
+_FeldsparGhostbust :: Assertion
+_FeldsparGhostbust =
+  do let _ = Core.ghostbuster feldspar_gadt
+     undefined
+
+
 ------------------------------------------------------------
 -- Test codegen
 
@@ -256,13 +263,13 @@ codegenAllProgs =
 
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
-  [ testCase ("ghostbust"++show ix) $ do
+  [ testCase name $ do
     putStrLn ""
-    -- evaluate $ rnf $ show $
-    print $ doc $
-     Core.ghostbuster ddefs
+    let p = Core.ghostbuster ddefs
+    interpretProg (Just name) p
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
+  , let name = ("ghostbust"++show ix)
   ]
 
 

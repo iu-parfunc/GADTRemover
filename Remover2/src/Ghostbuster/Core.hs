@@ -20,7 +20,7 @@ toSealedName :: Var -> Var
 toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
 
 ghostbuster :: [DDef] -> Prog
-ghostbuster ddefs = Prog ddefsNew vdefsNew (EVar (freshenVar "dummy"))
+ghostbuster ddefs = Prog ddefsNew vdefsNew (EK "Nothing")
   where
   result = map ghostbusterDDef ddefs
   ddefsNew = concat (map fst result)
@@ -86,7 +86,7 @@ equalityRemovalMono monoty equations = case monoty of
      (newmonos, equations1) = equalityRemovalMonoList monos equations
   _ -> (monoty, HM.empty)
   where
-  newvar = (mkVar "NEW")
+  newvar = (mkVar "newVar")
 
 pmRemoval :: DDef -> (DDef, [Patterns])
 pmRemoval ddef = (ddef {cases = newcases} , patterns)
@@ -117,4 +117,4 @@ pmRemovalMono monoty = case monoty of
      patterns = HM.insert newvar (TupleTy newmonos) (HM.unions pattern1)
   _ -> (monoty, HM.empty)
   where
-  newvar = (mkVar "NEW")
+  newvar = (mkVar "newVr")

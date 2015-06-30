@@ -13,9 +13,13 @@ import qualified Data.List as L
 -- | Return a list of type names which can all be activated for "deriving Show"
 showableDefs :: [DDef] -> S.Set TName
 showableDefs ddefs =
-  S.difference (S.fromList $ map tyName ddefs)
-               allBads
+  S.filter noBadDeps candidates
   where
+  candidates = S.difference (S.fromList $ map tyName ddefs)
+                            allBads
+  -- If any downstream dep can't Show, we can't Show:
+  noBadDeps tn = S.null (S.intersection (allDeps M.! tn) allBads)
+
   bads = [ tyName dd | dd <- ddefs, (not (chkDDef dd)) ]
 
   -- Compute the fixpoint of deps to find ALL disqualified types.
