@@ -103,9 +103,15 @@ unify (ArrowTy l r)  (ArrowTy l' r') =
 unify (VarTy u) t = varBind u t
 unify t (VarTy u) = varBind u t
 
-unify (TypeDictTy t1) (TypeDictTy t2) = return $ nullSubst -- unify t1 t2          -- FIXME
-unify (ConTy name mtypes) t = undefined                -- Punt on this for now     -- FIXME
-unify t (ConTy name mtypes) = undefined                -- Punt on this for now     -- FIXME
+unify (TypeDictTy t1) (TypeDictTy t2) = return $ nullSubst -- unify t1 t2 -- FIXME
+unify (ConTy name mtypes) (ConTy name' mtypes') =
+  -- They better have the same type constructor
+  if name /= name'
+  then throwError $ "Types are unable to be unified, incompatible type constructors " ++ show name ++ " and " ++ show name'
+  else do
+    -- If they have the same type constructor, each of the types had better be able to be unified with each other too
+    substs <- zipWithM unify mtypes mtypes'
+    return $ foldr composeSubst nullSubst substs
 unify t1 t2 = throwError $ "Types are unable to be unified: " ++ show t1 ++ " and " ++ show t2
 
 varBind :: TyVar -> MonoTy -> TI Subst
