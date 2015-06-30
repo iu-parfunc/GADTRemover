@@ -2,7 +2,7 @@
 
 -- | Conservative estimate of whether a type is Showable.
 
-module Ghostbuster.Showable where
+module Ghostbuster.Showable (showableDefs) where
 
 import qualified Data.Map.Lazy as M
 import qualified Data.Set as S
@@ -39,13 +39,24 @@ showableDefs ddefs =
 
   -- Does the definition violate our consvervative rules?
   chkDDef :: DDef -> Bool
-  chkDDef DDef{cases} = L.all chkCase cases
+  chkDDef DDef{cases} =
+    -- Can't derive show for empty data types:
+    not (null cases) &&
+    L.all chkCase cases
 
-  chkCase KCons {outputs} = L.all chkOutput outputs
+  chkCase KCons {fields,outputs} =
+    -- First criterion: only vars on the RHS:
+    L.all isVar outputs &&
+    -- And must be unique vars:
+    (L.length outputs == S.size (S.fromList outputs)) &&
+    -- Second criterion: no existentials
+    S.null (S.difference (ftv fields) (ftv outputs))
 
-  -- The basic rule here is that ONLY type variables are allowed on GADT RHS:
-  chkOutput (VarTy _) = True
-  chkOutput _         = False
+
+-- The basic rule here is that ONLY type variables are allowed on GADT RHS:
+isVar :: MonoTy -> Bool
+isVar (VarTy _) = True
+isVar _         = False
 
 gatherDeps :: DDef -> S.Set TName
 gatherDeps DDef{cases} = S.unions
