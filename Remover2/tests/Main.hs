@@ -145,17 +145,26 @@ case_InterpLowered_e08 =
 --      what should 'a' be? This has to be something defined in an _installed_
 --      module imported by both this file and the generated code.
 --
-interpretProg :: Typeable a => Prog -> IO a
+-- interpretProg :: (Show a, Typeable a) => Prog -> IO a
+interpretProg :: Prog -> IO ()
 interpretProg prg =
   withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-    hPutStr hdl (prettyPrint (moduleOfProg prg))
+    putStrLn $ "Writing file to: "++ file
+    let contents = (prettyPrint (moduleOfProg prg))
+    hPutStr hdl contents
     hClose hdl
+    putStrLn $ "File written:"
+    putStrLn contents
 
-    fmap (either interpreterError id) $
+    x <- fmap (either interpreterError id) $
       runInterpreter $ do
         loadModules [ file ]
-        setImportsQ [ ("Ghostbuster", Nothing ) ]
-        interpret "ghostbuster" infer
+        setImportsQ [ ("Ghostbuster", Nothing )
+                    , ("Prelude", Nothing) ]
+        interpret "main" infer
+    putStrLn "Interpreter complete.  Got IO action from loaded program.  Running:"
+    () <- x
+    return ()
 
 interpreterError :: InterpreterError -> a
 interpreterError e
@@ -201,8 +210,9 @@ codegenAllProgs :: [TestTree]
 codegenAllProgs =
   [ testCase ("codegenAllProgs"++show ix) $
     -- putStrLn $
-    evaluate $ rnf $ show $
-     prettyPrint $ CG.moduleOfProg $ lowerDicts prg
+    -- evaluate $ rnf $ show $
+    --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
+    interpretProg $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]

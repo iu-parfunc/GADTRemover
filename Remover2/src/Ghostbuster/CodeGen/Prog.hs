@@ -8,7 +8,7 @@ import Ghostbuster.CodeGen.Exp
 import Ghostbuster.CodeGen.DDef
 import Ghostbuster.CodeGen.VDef
 
-import Language.Haskell.Exts
+import Language.Haskell.Exts as H
 import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 
 
@@ -42,5 +42,15 @@ moduleOfProg (Prog ddefs vdefs e) =
 
     decls       = map gadtOfDDef ddefs'
                ++ concatMap declOfVDef vdefs
-               ++ [ mkDeclOfExp "ghostbuster" e ]         -- TLM: ???
+               ++ [ mkDeclOfExp "ghostbuster" e  -- TLM: ???
+                  , valBind "main" mainExp
+                  ]
 
+valBind :: String -> H.Exp -> Decl
+valBind str bod =
+  FunBind [ Match noLoc (name str)
+            [] Nothing (UnGuardedRhs bod) (BDecls [])
+          ]
+
+mainExp :: H.Exp
+mainExp = app (var $ name "putStrLn") (strE "Hello")
