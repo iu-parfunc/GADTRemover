@@ -7,24 +7,27 @@
 module Main where
 
 import           Ghostbuster.LowerDicts
-import           Ghostbuster.Ambiguity as A
+import           Ghostbuster.Ambiguity                          as A
 import           Ghostbuster.Examples.Feldspar
 import           Ghostbuster.Examples.Tiny
-import           Ghostbuster.Interp as I
-import           Ghostbuster.KindCheck as K
+import           Ghostbuster.Interp                             as I
+import           Ghostbuster.KindCheck                          as K
 import           Ghostbuster.Types
 
+import           Data.Typeable
 import           Control.DeepSeq
 import           Control.Exception (evaluate)
-import qualified Ghostbuster.CodeGen.Prog as CG
-import           Language.Haskell.Exts.Pretty (prettyPrint)
-import qualified Language.Haskell.Interpreter as Hint
+import           Ghostbuster.CodeGen.Prog                       as CG
+import           Language.Haskell.Exts.Pretty
+import           Language.Haskell.Interpreter                   as Hint
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.TH
 import           System.Environment (withArgs, getArgs)
+import           System.IO
+import           System.IO.Temp
 
 ------------------------------------------------------------
 
@@ -132,11 +135,37 @@ case_InterpLowered_e08 =
 ------------------------------------------------------------
 -- Test codegen
 
+-- Attempt to load the generated code for a Prog and run it using Hint. Since
+-- Hint can't interpret a whole module from a string, and we need to write it to
+-- file anyway, we could also just compile the module directly using 'runghc' or
+-- similar.
+--
 
--- Hint can't seem to interpret a whole module from a string...
+-- TLM: This is shows how to do it, but won't be usable in our setup. Namely,
+--      what should 'a' be? This has to be something defined in an _installed_
+--      module imported by both this file and the generated code.
+--
+interpretProg :: Typeable a => Prog -> IO a
+interpretProg prg =
+  withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
+    hPutStr hdl (prettyPrint (moduleOfProg prg))
+    hClose hdl
 
---  Hint.interpret $
-_ = prettyPrint$ CG.moduleOfProg $ Prog [] [] e02
+    fmap (either interpreterError id) $
+      runInterpreter $ do
+        loadModules [ file ]
+        setImportsQ [ ("Ghostbuster", Nothing ) ]
+        interpret "ghostbuster" infer
+
+interpreterError :: InterpreterError -> a
+interpreterError e
+  = error
+  $ case e of
+    UnknownError s      -> s
+    NotAllowed s        -> s
+    GhcException s      -> s
+    WontCompile ss      -> unlines $ map errMsg ss
+
 
 ------------------------------------------------------------
 
