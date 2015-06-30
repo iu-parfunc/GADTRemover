@@ -44,7 +44,7 @@ unMkVar :: Var -> String
 unMkVar = B.unpack . unVar
 
 toVarTy :: Var -> MonoTy
-toVarTy = \var -> VarTy var
+toVarTy = VarTy
 
 -- | A program is a list of declarations followed by a "main" expression.
 data Prog = Prog [DDef] [VDef] Exp
