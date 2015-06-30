@@ -148,6 +148,7 @@ generateDown alldefs which =
   allVars = kVars++cVars++sVars
 
   -- For a type T_i, we dispatch to downT_i
+  -- FIXME: We need to add extra dictionary arguments here.
   dispatch vr (ConTy name _)  = EApp (EVar (downName name)) (EVar vr)
   -- If we just have an abstract type, we return it.  No recursions.
   dispatch vr (VarTy _)       = EVar vr
@@ -157,5 +158,3 @@ generateDown alldefs which =
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
   dispatch vr (TypeDictTy _)  = EVar vr
-
-  dispatch _ (TupleTy _) = error "soon to be removed"
