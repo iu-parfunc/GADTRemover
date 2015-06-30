@@ -22,6 +22,7 @@ addToErr :: String -> Either String x -> Either String x
 addToErr s (Left err) = Left (s++err)
 addToErr _ (Right x)  = Right x
 
+-- | Look up the arguments for a given data constructor K
 getConArgs :: [DDef] -> KName -> [MonoTy]
 getConArgs [] k = error $ "getConArgs: cannot find definition for constructor "++show k
 getConArgs (DDef {cases} : rst) k =
@@ -34,15 +35,28 @@ getConArgs (DDef {cases} : rst) k =
     | conName == k = Just fields
     | otherwise = loop rest
 
+-- | Look up the type arguments for a given type constructor T
 getTyArgs :: [DDef] -> TName -> [Kind]
 getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
 getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
   | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
   | otherwise = getTyArgs rst k
 
-freeVars :: Exp -> S.Set Var
-freeVars = undefined
+-- | Gather all the T_i mentioned in this type.
+--   This ONLY counts `ConTy`, it does not count mentions in typeDicts.
+gatherTypesMentioned :: MonoTy -> S.Set TName
+gatherTypesMentioned ty =
+  case ty of
+    (VarTy _)       -> S.empty
+    (ArrowTy t1 t2) -> S.union (go t1) (go t2)
+    (ConTy t ts)    -> S.insert t $ S.unions (L.map go ts)
+    (TupleTy ts)    -> S.unions (L.map go ts)
+    (TypeDictTy _)  -> S.empty -- S.singleton t
+  where
+   go = gatherTypesMentioned
 
+freeVars :: Exp -> S.Set Var
+freeVars = error "FINISHME"
 
 
 
