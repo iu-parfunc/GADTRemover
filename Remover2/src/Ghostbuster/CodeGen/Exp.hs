@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 
 module Ghostbuster.CodeGen.Exp
   where
@@ -30,8 +31,15 @@ mkAlt p e =
 mkPat :: G.Pat -> H.Pat
 mkPat (Pat pn pv) = pApp (varName pn) (map (pvar . varName) pv)
 
+mkArg :: G.Var -> H.Pat
+mkArg = pvar . varName
+
 mkRhs :: G.Exp -> H.Rhs
 mkRhs = UnGuardedRhs . mkExp
+
+mkArgOfLam :: G.Exp -> ( [G.Var], G.Exp )
+mkArgOfLam (ELam (v,_) rhs) = let (vs,r) = mkArgOfLam rhs in (v:vs, r)
+mkArgOfLam rhs              = ([], rhs)
 
 -- Convert a type scheme into a type signature
 --
@@ -56,21 +64,22 @@ mkDeclOfExp n e
 
 
 expandCaseOfExp :: Var -> G.Pat -> G.Exp -> Match
-expandCaseOfExp fn p e =
+expandCaseOfExp fn p (mkArgOfLam -> (vs,e)) =
   Match
     noLoc                       -- source location
     (varName fn)                -- name of the function
-    [mkPat p]                   -- patterns, to be matched against a value
+    (mkPat p:map mkArg vs)      -- patterns, to be matched against a value
     Nothing                     -- type signature
     (mkRhs e)                   -- the right hand side of the function, pattern, or case alternative
     (BDecls [])                 -- binding group for let or where clause
 
 matchOfExp :: Var -> G.Exp -> Match
-matchOfExp fn e =
+matchOfExp fn (mkArgOfLam -> (vs, e)) =
   Match
     noLoc
     (varName fn)
-    []
+    (map mkArg vs)
     Nothing
     (mkRhs e)
     (BDecls [])
+
