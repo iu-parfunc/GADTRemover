@@ -13,6 +13,7 @@ import           Ghostbuster.Examples.Tiny
 import           Ghostbuster.Interp as I
 import           Ghostbuster.KindCheck as K
 import           Ghostbuster.Types
+import qualified Ghostbuster.Core as Core
 
 import           Control.DeepSeq
 import           Control.Exception (evaluate)
@@ -252,6 +253,19 @@ codegenAllProgs =
   | ix <- [1::Int ..]
   ]
 
+
+ghostbustAllProgs :: [TestTree]
+ghostbustAllProgs =
+  [ testCase ("ghostbust"++show ix) $ do
+    putStrLn ""
+    -- evaluate $ rnf $ show $
+    print $ doc $
+     Core.ghostbuster ddefs
+  | (Prog ddefs _ _) <- allProgs
+  | ix <- [1::Int ..]
+  ]
+
+
 main :: IO ()
 main =
   do args <- getArgs
@@ -262,4 +276,5 @@ main =
         runAllProgs ++
         runAllLoweredProgs ++
         runAndCompareLowered ++
+        ghostbustAllProgs ++
         codegenAllProgs

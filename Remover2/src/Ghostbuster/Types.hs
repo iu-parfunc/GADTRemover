@@ -299,7 +299,3 @@ wList [] = []
 wList ls = " " : L.intersperse " " ls
 
 --------------------------------------------------------------------------------
-
- -- TODO: when it's done ghostbuster will have this sig:
-ghostbuster :: [DDef] -> Prog
-ghostbuster = undefined

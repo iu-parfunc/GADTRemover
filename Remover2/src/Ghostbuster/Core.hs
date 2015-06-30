@@ -5,6 +5,8 @@
 {-# LANGUAGE NamedFieldPuns #-}
 
 module Ghostbuster.Core
+  ( ghostbuster
+  , ghostbusterDDef )
   where
 
 import Ghostbuster.Types
@@ -42,11 +44,12 @@ generateSealed (DDef tyName k c s _cases) =
              ((map typeDictForSynth synthVars) ++ conTy)
              (map toVarTy (keepVars ++ checkVars)) ]
   where
-  keepVars = map fst k
+  keepVars  = map fst k
   checkVars = map fst c
   synthVars = map fst s
-  typeDictForSynth = \var -> (TypeDictTy var)
-  conTy = [ConTy tyName (map toVarTy (keepVars ++ checkVars ++ synthVars))]
+  allVars   = keepVars ++ checkVars ++ synthVars
+  typeDictForSynth var = (TypeDictTy var)
+  conTy = [ConTy tyName (map toVarTy allVars)]
 
 equalityRemoval :: DDef -> (DDef, [Equations])
 equalityRemoval ddef = (ddef {cases = newcases} , patterns)
