@@ -24,6 +24,7 @@ library
                        Ghostbuster.LowerDicts
                        Ghostbuster.Ambiguity
                        Ghostbuster.Utils
+                       Ghostbuster.Showable
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.Examples.Tiny
                        Ghostbuster.CodeGen.Base
