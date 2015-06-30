@@ -36,10 +36,6 @@ mkArg = pvar . varName
 mkRhs :: G.Exp -> H.Rhs
 mkRhs = UnGuardedRhs . mkExp
 
-mkArgOfLam :: G.Exp -> ( [G.Var], G.Exp )
-mkArgOfLam (ELam (v,_) rhs) = let (vs,r) = mkArgOfLam rhs in (v:vs, r)
-mkArgOfLam rhs              = ([], rhs)
-
 -- Convert a type scheme into a type signature
 --
 mkTypeSig :: Var -> TyScheme -> Decl
@@ -63,7 +59,7 @@ mkDeclOfExp n e
 
 
 expandCaseOfExp :: Var -> G.Pat -> G.Exp -> Match
-expandCaseOfExp fn p (mkArgOfLam -> (vs,e)) =
+expandCaseOfExp fn p (splitArgs -> (vs,e)) =
   Match
     noLoc                       -- source location
     (varName fn)                -- name of the function
@@ -73,7 +69,7 @@ expandCaseOfExp fn p (mkArgOfLam -> (vs,e)) =
     (BDecls [])                 -- binding group for let or where clause
 
 matchOfExp :: Var -> G.Exp -> Match
-matchOfExp fn (mkArgOfLam -> (vs, e)) =
+matchOfExp fn (splitArgs -> (vs, e)) =
   Match
     noLoc
     (varName fn)
@@ -81,4 +77,8 @@ matchOfExp fn (mkArgOfLam -> (vs, e)) =
     Nothing
     (mkRhs e)
     (BDecls [])
+
+splitArgs :: G.Exp -> ( [G.Var], G.Exp )
+splitArgs (ELam (v,_) rhs) = let (vs,r) = splitArgs rhs in (v:vs, r)
+splitArgs rhs              = ([], rhs)
 
