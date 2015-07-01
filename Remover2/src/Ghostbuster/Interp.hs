@@ -11,7 +11,6 @@ import Data.Map.Lazy as M
 import Ghostbuster.Types
 import Prelude as P hiding (exp)
 import Text.PrettyPrint.GenericPretty (Out(doc))
-import Ghostbuster.Utils
 
 -- import Debug.Trace
 trace :: t -> t1 -> t1

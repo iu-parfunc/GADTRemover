@@ -14,7 +14,6 @@ import qualified Data.Map as Map
 import           Data.Map.Lazy as M
 import qualified Data.Set as S
 import qualified Data.Set as Set
-import           Debug.Trace
 import           GHC.Generics (Generic)
 import           Ghostbuster.Types
 
@@ -41,16 +40,16 @@ getConArgs (DDef {cases} : rst) k =
     | otherwise = loop rest
 
 kLookup :: [DDef] -> KName -> Maybe (DDef, KCons)
-kLookup [] _name = Nothing
+kLookup []               _name = Nothing
 kLookup (d@DDef{..} : ds) name =
   case kconsLookup cases name of
     Nothing -> kLookup ds name
     Just k  -> Just (d, k)
  where
   kconsLookup :: [KCons] -> KName -> Maybe KCons
-  kconsLookup (dd@KCons{..} : ds) name = if conName == (name :: Var)
-                                     then Just dd
-                                     else kconsLookup ds name
+  kconsLookup (dd@KCons{..} : ds') name'
+    | conName == name' = Just dd
+    | otherwise        = kconsLookup ds' name'
   kconsLookup [] _name = Nothing
 
 
