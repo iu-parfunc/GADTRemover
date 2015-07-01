@@ -64,9 +64,9 @@ primeName tyName = mkVar ((unMkVar tyName) ++ "'")
 gadtToStripped :: [DDef] -> DDef -> DDef
 gadtToStripped alldefs ddef =
   ddef { tyName = gadtDownName (tyName ddef)
-       , kVars  = []
-       , cVars  = []
-       , sVars  = (sVars ddef)
+       , kVars  = kVars ddef
+       , cVars  = cVars ddef
+       , sVars  = []
        , cases  = map (gadtToStrippedByClause alldefs) (cases ddef)
        }
 
