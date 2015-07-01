@@ -93,10 +93,14 @@ onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
 
 generateSealed :: DDef -> DDef
 generateSealed (DDef tyName k c s _cases) =
-  DDef (toSealedName tyName) k [] []
-     [ KCons (toSealedName tyName)
-             ((map TypeDictTy synthVars) ++ conTy)
-             (map toVarTy (keepVars ++ checkVars)) ]
+  DDef (toSealedName tyName)
+       k        -- kept
+       c        -- checked
+       []       -- sealed
+       [ KCons (toSealedName tyName)
+               ((map TypeDictTy synthVars) ++ conTy)
+               (map toVarTy (keepVars ++ checkVars))
+      ]
   where
     keepVars    = map fst k
     checkVars   = map fst c
