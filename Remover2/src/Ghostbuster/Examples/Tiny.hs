@@ -196,8 +196,7 @@ allProgsSameLowered =
 test_p11 :: [TyVar]
 test_p11 =
   let Prog d _ _ = p11_bustedList
-      Just (_,k) = kLookup d "Cons"
-  in getKConsDicts d k
+  in getKConsDicts d "Cons"
 
 --------------------------------------------------------------------------------
 -- Tests for the type checker

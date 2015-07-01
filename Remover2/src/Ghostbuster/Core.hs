@@ -173,13 +173,13 @@ generateDown alldefs which =
    ELam ("orig",startTy) $
     ECase "orig" $
     [ (Pat conName args,
-      appLst (EVar (primeName conName))
+      appLst (EVar (primeName conName)) $
+       (map EDict newDicts) ++
        [ (dispatch arg ty)
-       | (arg,ty) <- zip args fields
-       ]
-      )
+       | (arg,ty) <- zip args fields ])
     | KCons {conName,fields} <- cases
     , let args = (take (length fields) patVars)
+          newDicts = getKConsDicts alldefs conName
     ]
   where
   DDef {tyName,kVars,cVars,sVars, cases} = lookupDDef alldefs which
