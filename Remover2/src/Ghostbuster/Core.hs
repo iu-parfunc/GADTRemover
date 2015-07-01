@@ -202,7 +202,7 @@ generateUpcastByClause patterns equalities clause =
   , generateUpcastMono 1 patterns equalities (fields clause) (outputs clause)
   )
   where
-  newVars = ["x"]  -- to change in x1 x2 x3..
+    newVars = ["x"]  -- to change in x1 x2 x3..
 
 generateUpcastMono
     :: Int
