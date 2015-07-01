@@ -1,8 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StandaloneDeriving         #-}
 
 module Ghostbuster.Core
 --  ( ghostbuster
@@ -12,104 +13,119 @@ module Ghostbuster.Core
 import Ghostbuster.Types
 import Ghostbuster.Utils
 import qualified Data.Map as HM
-import Data.String
 
-type Equations = (HM.Map TyVar [TyVar])
-type Patterns = (HM.Map TyVar MonoTy)
-
-toSealedName :: Var -> Var
-toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
-
--- | The name of the down-conversion function.
-downName :: TName -> TermVar
-downName tyName = mkVar ("down" ++ (unMkVar tyName))
-
--- | Take a type or data constructor from the higher (pre-stripping)
--- type to the lower one.
-primeName :: Var -> Var
-primeName tyName = mkVar ((unMkVar tyName) ++ "'")
+type Equations  = (HM.Map TyVar [TyVar])
+type Patterns   = (HM.Map TyVar MonoTy)
 
 
 ghostbuster :: [DDef] -> Prog
 ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
   where
-  vtop     = VDef "ghostbuster"
-                  (ForAll [("a",Star)] (ConTy "Maybe" ["a"]))
-                  (EK "Nothing")
+  vtop          = VDef "ghostbuster"
+                       (ForAll [("a",Star)] (ConTy "Maybe" ["a"]))
+                       (EK "Nothing")
 
-  allddefs = ddefs ++ primitiveTypes
-  bustedDefs = [ dd | dd@DDef {cVars,sVars} <- allddefs
-                    , not (null cVars) || not (null sVars) ]
+  allddefs      = ddefs ++ primitiveTypes
+  bustedDefs    = [ dd | dd@DDef {cVars,sVars} <- allddefs
+                       , not (null cVars) || not (null sVars)
+                  ]
 
-  result = map ghostbusterDDef bustedDefs
-  ddefsNew = concat (map fst result)
-  vdefsNew = concat (map snd result)
+  result        = map ghostbusterDDef bustedDefs
+  ddefsNew      = concat (map fst result)
+  vdefsNew      = concat (map snd result)
 
   ghostbusterDDef :: DDef -> ([DDef], [VDef])
   ghostbusterDDef ddef = (returnDDefs, returnVDefs)
     where
-    ddefStripped = gadtToStripped allddefs ddef
-    (ddefNoEquals, equalities) =  equalityRemoval ddef
-    (ddefNormilized, patterns) = pmRemoval ddefNoEquals
-    sealed = generateSealed ddef
-    returnDDefs = [ddefStripped, sealed]   -- at the moment, these two.
-    returnVDefs = [generateDown allddefs (tyName ddef)
+    ddefStripped                = gadtToStripped allddefs ddef
+    (ddefNoEquals, equalities)  = equalityRemoval ddef
+    (ddefNormilized, patterns)  = pmRemoval ddefNoEquals
+    sealed                      = generateSealed ddef
+
+    returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
+    returnVDefs = [ generateDown   allddefs (tyName ddef)
                   , generateUpcast allddefs patterns equalities ddefNormilized
                   ]
 
+toSealedName :: Var -> Var
+toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
+
+-- | The name of the down-conversion function.
+--
+downName :: TName -> TermVar
+downName tyName = mkVar ("down" ++ (unMkVar tyName))
+
+-- | Take a type or data constructor from the higher (pre-stripping) type to the
+-- lower one.
+--
+primeName :: Var -> Var
+primeName tyName = mkVar ((unMkVar tyName) ++ "'")
+
 gadtToStripped :: [DDef] -> DDef -> DDef
-gadtToStripped alldefs ddef = ddef {tyName = (gadtDownName (tyName ddef)), kVars= [], cVars = [], sVars = (sVars ddef), cases = strippedCases}
-  where
-  strippedCases = map (gadtToStrippedByClause alldefs) (cases ddef)
+gadtToStripped alldefs ddef =
+  ddef { tyName = gadtDownName (tyName ddef)
+       , kVars  = []
+       , cVars  = []
+       , sVars  = (sVars ddef)
+       , cases  = map (gadtToStrippedByClause alldefs) (cases ddef)
+       }
 
 gadtDownName :: TName -> TName
 gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
 gadtToStrippedByClause :: [DDef] -> KCons -> KCons
-gadtToStrippedByClause alldefs clause = clause {conName = gadtDownName (conName clause), fields = (map toTypeDictWrap (getKConsDicts alldefs (conName clause)) ++ (map (gadtToStrippedByMono alldefs) (fields clause))), outputs = (map (gadtToStrippedByMono alldefs) (outputs clause))}
-  where
-  toTypeDictWrap = \var -> TypeDictTy var
+gadtToStrippedByClause alldefs clause =
+  clause { conName = gadtDownName (conName clause)
+         , fields  = map TypeDictTy (getKConsDicts alldefs (conName clause))
+                  ++ map (gadtToStrippedByMono alldefs) (fields clause)
+         , outputs = map (gadtToStrippedByMono alldefs) (outputs clause)
+         }
 
 gadtToStrippedByMono :: [DDef] -> MonoTy -> MonoTy
-gadtToStrippedByMono alldefs monoty = case monoty of
-  ArrowTy mono1 mono2 -> ArrowTy (gadtToStrippedByMono alldefs mono1) (gadtToStrippedByMono alldefs mono2)
-  ConTy tname monos -> ConTy (gadtDownName tname) (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
-  _ -> monoty
+gadtToStrippedByMono alldefs monoty =
+  case monoty of
+    ArrowTy mono1 mono2 -> ArrowTy (gadtToStrippedByMono alldefs mono1) (gadtToStrippedByMono alldefs mono2)
+    ConTy tname monos   -> ConTy (gadtDownName tname) (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
+    _                   -> monoty
 
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
 
 generateSealed :: DDef -> DDef
-generateSealed (DDef tyName k c s _cases) = 
-    DDef (toSealedName tyName) k [] []
+generateSealed (DDef tyName k c s _cases) =
+  DDef (toSealedName tyName) k [] []
      [ KCons (toSealedName tyName)
-             ((map typeDictForSynth synthVars) ++ conTy)
+             ((map TypeDictTy synthVars) ++ conTy)
              (map toVarTy (keepVars ++ checkVars)) ]
   where
-  keepVars  = map fst k
-  checkVars = map fst c
-  synthVars = map fst s
-  allVars   = keepVars ++ checkVars ++ synthVars
-  typeDictForSynth var = (TypeDictTy var)
-  conTy = [ConTy tyName (map toVarTy allVars)]
+    keepVars    = map fst k
+    checkVars   = map fst c
+    synthVars   = map fst s
+    allVars     = keepVars ++ checkVars ++ synthVars
+    conTy       = [ConTy tyName (map toVarTy allVars)]
 
 equalityRemoval :: DDef -> (DDef, [Equations])
 equalityRemoval ddef = (ddef {cases = newcases} , patterns)
-   where
-   (newcases, patterns) = unzip (map equalityRemovalByClause (cases ddef))
+  where
+    (newcases, patterns) = unzip (map equalityRemovalByClause (cases ddef))
 
 equalityRemovalByClause :: KCons -> (KCons, Equations)
-equalityRemovalByClause clause = (clause {fields = newfields, outputs = newoutputs} , equations2)
+equalityRemovalByClause clause =
+  ( clause { fields  = newfields
+           , outputs = newoutputs
+           }
+  , equations2
+  )
   where
-  (newfields, equations1) = equalityRemovalMonoList (fields clause) HM.empty
-  (newoutputs, equations2) = equalityRemovalMonoList (outputs clause) equations1
+    (newfields, equations1)  = equalityRemovalMonoList (fields clause) HM.empty
+    (newoutputs, equations2) = equalityRemovalMonoList (outputs clause) equations1
 
 equalityRemovalMonoList :: [MonoTy] -> Equations -> ([MonoTy], Equations)
-equalityRemovalMonoList [] _equations = ([], HM.empty)
+equalityRemovalMonoList []         _equations = ([], HM.empty)
 equalityRemovalMonoList (mono:rest) equations = (newmono:newrest, equations2)
   where
-  (newmono, equations1) = equalityRemovalMono mono equations
-  (newrest, equations2) = equalityRemovalMonoList rest equations1
+    (newmono, equations1) = equalityRemovalMono mono equations
+    (newrest, equations2) = equalityRemovalMonoList rest equations1
 
 equalityRemovalMono :: MonoTy -> Equations -> (MonoTy, Equations)
 equalityRemovalMono monoty equations = case monoty of
@@ -128,16 +144,24 @@ equalityRemovalMono monoty equations = case monoty of
   newvar = (mkVar "newVar")
 
 pmRemoval :: DDef -> (DDef, [Patterns])
-pmRemoval ddef = (ddef {cases = newcases} , patterns)
-   where
-   (newcases, patterns) = unzip (map pmRemovalByClause (cases ddef))
+pmRemoval ddef =
+  ( ddef { cases = newcases }
+  , patterns
+  )
+  where
+    (newcases, patterns) = unzip (map pmRemovalByClause (cases ddef))
 
 pmRemovalByClause :: KCons -> (KCons, Patterns)
-pmRemovalByClause clause = (clause {fields = newfields, outputs = newoutputs} , patterns)
+pmRemovalByClause clause =
+  ( clause { fields  = newfields
+           , outputs = newoutputs
+           }
+  , patterns
+  )
   where
-  (newfields, pattern1) = unzip (map pmRemovalMono (fields clause))
-  (newoutputs, pattern2) = unzip (map pmRemovalMono (outputs clause))
-  patterns = HM.union (HM.unions pattern1) (HM.unions pattern2)
+    (newfields, pattern1)  = unzip (map pmRemovalMono (fields clause))
+    (newoutputs, pattern2) = unzip (map pmRemovalMono (outputs clause))
+    patterns               = HM.union (HM.unions pattern1) (HM.unions pattern2)
 
 pmRemovalMono :: MonoTy -> (MonoTy, Patterns)
 pmRemovalMono monoty = case monoty of
@@ -155,24 +179,50 @@ pmRemovalMono monoty = case monoty of
   newvar = (mkVar "newVr")
 
 generateUpcast :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
-generateUpcast alldefs patterns equalities ddef = VDef {valName = upcastname, valTy = signature, valExp = bodyOfUp}
+generateUpcast alldefs patterns equalities ddef =
+  VDef { valName = upcastname
+       , valTy   = signature
+       , valExp  = bodyOfUp}
   where
-  upcastname = (upCastName (tyName ddef))
-  signature = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
-  onlyKeepAndCheck = (kVars ddef) ++ (cVars ddef)
-  onlyKeepAndCheckVars = (map toVarTy (map fst onlyKeepAndCheck))
-  onlyKeepVars = (map toVarTy (map fst (kVars ddef)))
-  bodyOfUp = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpcastByClause patterns equalities) (cases ddef)))
+    upcastname           = upCastName (tyName ddef)
+    signature            = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
+    onlyKeepAndCheck     = kVars ddef ++ cVars ddef
+    onlyKeepAndCheckVars = map toVarTy (map fst onlyKeepAndCheck)
+    onlyKeepVars         = map toVarTy (map fst (kVars ddef))
+    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpcastByClause patterns equalities) (cases ddef)))
 
-generateUpcastByClause :: [Patterns] -> [Equations] -> KCons -> (Pat,Exp)
-generateUpcastByClause patterns equalities clause = ((Pat (gadtDownName (conName clause)) newVars), generateUpcastMono 1 patterns equalities (fields clause) (outputs clause))
+generateUpcastByClause
+    :: [Patterns]
+    -> [Equations]
+    -> KCons
+    -> (Pat,Exp)
+generateUpcastByClause patterns equalities clause =
+  ( Pat (gadtDownName (conName clause)) newVars
+  , generateUpcastMono 1 patterns equalities (fields clause) (outputs clause)
+  )
   where
-  newVars = ["x"]  -- to change in x1 x2 x3.. 
+  newVars = ["x"]  -- to change in x1 x2 x3..
 
-generateUpcastMono :: Int -> [Patterns] -> [Equations] -> [MonoTy] -> [MonoTy] -> Exp
-generateUpcastMono n patterns equalities [] conclusion = undefined -- here generate patternmatching, equalities, and the finish with (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
-generateUpcastMono n patterns equalities (mono:rest) conclusion = case mono of
-  ConTy name monos -> (ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ (show n))))) [(Pat (toSealedName name) (map toVarFromMono monos), (generateUpcastMono (n+1) patterns equalities rest conclusion))])
+generateUpcastMono
+    :: Int
+    -> [Patterns]
+    -> [Equations]
+    -> [MonoTy]
+    -> [MonoTy]
+    -> Exp
+generateUpcastMono n patterns equalities introduction conclusion =
+  case introduction of
+    -- here generate patternmatching, equalities, and the finish with:
+    --   (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
+    []          -> error "generateUpcastMono"
+    (mono:rest) ->
+      case mono of
+        ConTy name monos ->
+          ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ (show n)))))
+                [( Pat (toSealedName name) (map toVarFromMono monos)
+                 , generateUpcastMono (n+1) patterns equalities rest conclusion
+                 )
+                ]
 
 toVarFromMono :: MonoTy -> Var
 toVarFromMono (VarTy var) = var
@@ -184,6 +234,7 @@ upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
 -- | Create a down-conversion function.  This is a simple tree-walk
 -- over the input datatype, without any laborious type checking
 -- obligations to discharge.
+--
 generateDown :: [DDef] -> TName -> VDef
 generateDown alldefs which =
   VDef down (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
@@ -202,21 +253,21 @@ generateDown alldefs which =
           newDicts = getKConsDicts alldefs conName
     ]
   where
-  params = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ] ++
-           [("orig",startTy)]
+  params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ]
+               ++ [("orig",startTy)]
 
-  dictArgify = (+++ "_dict")
-  dictArgs = map dictArgify erased
+  dictArgify    = (+++ "_dict")
+  dictArgs      = map dictArgify erased
 
-  erased = map fst $ cVars ++ sVars
-  dictTys = map TypeDictTy erased
-  DDef {tyName,kVars,cVars,sVars, cases} = lookupDDef alldefs which
+  erased        = map fst $ cVars ++ sVars
+  dictTys       = map TypeDictTy erased
+  DDef {..}     = lookupDDef alldefs which
 
-  down    = (downName tyName)
-  startTy = (ConTy tyName  (map (VarTy . fst) allVars))
-  endTy   = (ConTy tyName' (map (VarTy . fst) kVars))
-  tyName' = primeName tyName
-  allVars = kVars++cVars++sVars
+  down          = (downName tyName)
+  startTy       = (ConTy tyName  (map (VarTy . fst) allVars))
+  endTy         = (ConTy tyName' (map (VarTy . fst) kVars))
+  tyName'       = primeName tyName
+  allVars       = kVars++cVars++sVars
 
   -- For a type T_i, we dispatch to downT_i
   -- FIXME: We need to add extra dictionary arguments here.
@@ -233,3 +284,4 @@ generateDown alldefs which =
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
   dispatch vr (TypeDictTy _)  = EVar vr
+
