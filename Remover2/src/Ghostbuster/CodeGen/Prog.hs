@@ -41,20 +41,24 @@ moduleOfProg (Prog ddefs vdefs vtop) =
 
     ddefs'      = ddefs ++ primitiveTypes       -- Add the "Prelude" types
     showable    = showableDefs ddefs'
-    show d      = S.member (tyName d) showable
+    showit d    = S.member (tyName d) showable
 
-    decls       = map (\d -> gadtOfDDef (show d) d) ddefs'
+    topShowable = case valTy vtop of
+                    ForAll _ (ConTy tn _) -> S.member tn showable
+                    _ -> False
+
+    decls       = map (\d -> gadtOfDDef (showit d) d) ddefs'
                ++ concatMap declOfVDef vdefs
                ++ declOfVDef vtop
-               ++ declOfVDef (mkMain vtop)
+               ++ declOfVDef (mkMain topShowable vtop)
 
 
--- RRN: We could print if, if we know that that is safe.
---
-mkMain :: VDef -> VDef
-mkMain vtop =
+mkMain :: Bool -> VDef -> VDef
+mkMain doprint vtop =
   VDef { valName = "main"
        , valTy   = ForAll [] (ConTy "IO" [ConTy "()" []])
-       , valExp  = EApp (EApp "seq" (G.EVar (valName vtop))) (EApp "return" (EK "()"))
+       , valExp  = if doprint
+                      then (EApp "print" (G.EVar (valName vtop)))
+                      else EApp (EApp "seq" (G.EVar (valName vtop)))
+                                (EApp "return" (EK "()"))
        }
-

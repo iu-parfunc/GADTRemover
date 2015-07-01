@@ -20,13 +20,12 @@ import qualified Data.Map                       as HM
 type Equations  = (HM.Map TyVar [TyVar])
 type Patterns   = (HM.Map TyVar MonoTy)
 
-
 ghostbuster :: [DDef] -> Prog
 ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
   where
   vtop          = VDef "ghostbuster"
-                       (ForAll [("a",Star)] (ConTy "Maybe" ["a"]))
-                       (EK "Nothing")
+                       (ForAll [] (ConTy "Int" []))
+                       (EK "Three")
 
   allddefs      = ddefs ++ primitiveTypes
   bustedDefs    = [ dd | dd@DDef {cVars,sVars} <- allddefs
