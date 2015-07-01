@@ -43,6 +43,8 @@ moduleOfProg (Prog ddefs vdefs vtop) =
     showable    = showableDefs ddefs'
     showit d    = S.member (tyName d) showable
 
+    -- FIXME: This test is insufficient.  It should make sure there is
+    -- no polymorphism in the type of vtop:
     topShowable = case valTy vtop of
                     ForAll _ (ConTy tn _) -> S.member tn showable
                     _ -> False

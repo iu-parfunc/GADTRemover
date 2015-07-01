@@ -20,12 +20,9 @@ import qualified Data.Map                       as HM
 type Equations  = (HM.Map TyVar [TyVar])
 type Patterns   = (HM.Map TyVar MonoTy)
 
-ghostbuster :: [DDef] -> Prog
-ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
+ghostbuster :: [DDef] -> VDef -> Prog
+ghostbuster ddefs vtop = Prog (ddefs ++ ddefsNew) vdefsNew vtop
   where
-  vtop          = VDef "ghostbuster"
-                       (ForAll [] (ConTy "Int" []))
-                       (EK "Three")
 
   allddefs      = ddefs ++ primitiveTypes
   bustedDefs    = [ dd | dd@DDef {cVars,sVars} <- allddefs
@@ -310,8 +307,6 @@ generateDown alldefs which =
     ECase "orig" $
     [ (Pat conName args,
       appLst (EVar (gadtDownName conName)) $
-       -- FIXME: We need some analysis here that applies a permutation
-       -- between tyvars in the KCons and tyvars in the "T a b c" data decl.
        (map (EVar . dictArgify) newDicts) ++
          -- (map EDict newDicts) ++
       [ (dispatch arg ty)
@@ -341,7 +336,7 @@ generateDown alldefs which =
   -- FIXME: We need to add extra dictionary arguments here.
   dispatch vr (ConTy name _)
     | name == which = appLst (EVar (downName name))
-                             (map EVar $ dictArgs++[vr])
+                             (map EVar $ dictArgs++[vr]) -- DELETE THIS LINE
     | otherwise = error$  "generateDown: UNFINISHED: need some logic here to dispatch a call to "
                   ++ show name ++" while providing the right dictionary arguments."
   -- If we just have an abstract type, we return it.  No recursions.

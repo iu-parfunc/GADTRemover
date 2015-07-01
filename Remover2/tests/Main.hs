@@ -291,7 +291,10 @@ ghostbustAllProgs =
     putStrLn "\n ***** Full ghostbuster test "
     putStrLn "  Original:"
     print $ doc ddefs
-    let p2 = Core.ghostbuster ddefs
+    let p2 = Core.ghostbuster ddefs vtop
+        vtop = VDef "ghostbuster"
+                    (ForAll [] (ConTy "Int" []))
+                    (EK "Three")
         p3 = lowerDicts p2
     putStrLn "  Busted:"
     print $ doc p2
