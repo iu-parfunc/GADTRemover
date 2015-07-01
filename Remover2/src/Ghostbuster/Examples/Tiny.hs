@@ -259,11 +259,10 @@ allProgsSameLowered
 
 -- Programs which are valid programs in the core language but NOT valid inputs
 -- to Ghostbuster.
-
 test_p11 :: [TyVar]
 test_p11 =
   let Prog d _ _ = p11_bustedList
-  in getKConsDicts d "Cons"
+  in getKConsDicts d "Nil"
 
 --------------------------------------------------------------------------------
 -- Tests for the type checker
