@@ -187,9 +187,12 @@ generateDown alldefs which =
     ECase "orig" $
     [ (Pat conName args,
       appLst (EVar (primeName conName)) $
-       (map EVar dictArgs) ++ -- (map EDict newDicts) ++
-       [ (dispatch arg ty)
-       | (arg,ty) <- zip args fields ])
+       -- FIXME: We need some analysis here that applies a permutation
+       -- between tyvars in the KCons and tyvars in the "T a b c" data decl.
+       (map (EVar . dictArgify) newDicts) ++
+         -- (map EDict newDicts) ++
+      [ (dispatch arg ty)
+      | (arg,ty) <- zip args fields ])
     | KCons {conName,fields} <- cases
     , let args = (take (length fields) patVars)
           newDicts = getKConsDicts alldefs conName
@@ -198,7 +201,8 @@ generateDown alldefs which =
   params = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ] ++
            [("orig",startTy)]
 
-  dictArgs = map (+++ "_dict") erased
+  dictArgify = (+++ "_dict")
+  dictArgs = map dictArgify erased
 
   erased = map fst $ cVars ++ sVars
   dictTys = map TypeDictTy erased
