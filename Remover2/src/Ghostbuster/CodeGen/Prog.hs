@@ -40,11 +40,9 @@ moduleOfProg (Prog ddefs vdefs vtop) =
 --                  , mkImport "Data.Typeable" Nothing
                   ]
 
-    -- RRN: Here we implicitly add the "prelude" types:
-    ddefs'      = ddefs ++ primitiveTypes
+    ddefs'      = ddefs ++ primitiveTypes       -- Add the "Prelude" types
     showable    = showableDefs ddefs'
-    -- RRN: TEMP/FIXME: Disabling this because of a temporary Showable.hs bug:
-    show d      = False -- S.member (tyName d) showable
+    show d      = S.member (tyName d) showable
 
     decls       = map (\d -> gadtOfDDef (show d) d) ddefs'
                ++ concatMap declOfVDef vdefs
