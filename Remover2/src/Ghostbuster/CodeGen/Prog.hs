@@ -4,7 +4,6 @@ module Ghostbuster.CodeGen.Prog
   where
 
 import Ghostbuster.Types                                as G
-import Ghostbuster.CodeGen.Exp
 import Ghostbuster.CodeGen.DDef
 import Ghostbuster.CodeGen.VDef
 import Ghostbuster.Showable
