@@ -80,7 +80,7 @@ gatherExp e =
       S.unions [ gatherExp x1, gatherExp x2,
                  gatherExp x3, gatherExp x4 ]
 
-gatherSigma sig = undefined
+gatherSigma sig = S.empty
 
 -- | Takes only the DDefs which are modeled in TypeDict
 doExp :: [DDef] -> Exp -> Exp
