@@ -30,8 +30,12 @@ primeName tyName = mkVar ((unMkVar tyName) ++ "'")
 
 
 ghostbuster :: [DDef] -> Prog
-ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew (EK "Nothing")
+ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
   where
+  vtop     = VDef "ghostbuster"
+                  (ForAll [("a",Star)] (ConTy "Maybe" ["a"]))
+                  (EK "Nothing")
+
   allddefs = ddefs ++ primitiveTypes
   bustedDefs = [ dd | dd@DDef {cVars,sVars} <- allddefs
                     , not (null cVars) || not (null sVars) ]

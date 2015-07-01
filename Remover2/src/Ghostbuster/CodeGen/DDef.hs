@@ -15,7 +15,7 @@ import Language.Haskell.Exts.SrcLoc                     ( noLoc )
 --
 gadtOfDDef :: Bool -> DDef -> Decl
 gadtOfDDef deriveShow DDef{..} =
-  let vars = kVars ++ cVars ++ sVars            -- TLM: order??
+  let vars    = kVars ++ cVars ++ sVars         -- TLM: order??
       derives = if deriveShow
                    then [(UnQual$ name "Show",[])]
                    else []
@@ -42,3 +42,4 @@ mkGADTCtor tyName KCons{..} =
   where
     theType     = foldr1 TyFun
                 $ map mkType (fields ++ [ConTy tyName outputs])
+

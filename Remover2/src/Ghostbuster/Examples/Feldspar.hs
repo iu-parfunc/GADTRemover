@@ -45,7 +45,7 @@ int = ConTy "Int" []
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
 dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
-      [ KCons "Zro" []                      [tup "e" "a","a"]
+      [ KCons "Zro" []                      [tup "e" "a", "a"]
       , KCons "Suc" [ConTy "Var" ["e","a"]] [tup "e" "b", "a"]
       ]
 
@@ -155,14 +155,22 @@ upTyp
 
 -- | Test: run the upExp conversion against the sample value.
 upProg :: Prog
-upProg = Prog [ints, maybeD] [upExp]
-         (EApp "upExp" exp1)
+upProg
+  = Prog [ints, maybeD] [upExp]
+  $ VDef "upProg" (ForAll [] (ConTy "Int" [])) (EApp "upExp" exp1)
 
 ex0 :: Val
-ex0 = interp $ Prog feldspar_gadt [] (EK "One")
+ex0 = interp
+    $ Prog feldspar_gadt []
+    $ VDef "ex0" undefined (EK "One")
 
 ex1 :: Val
-ex1 = interp $ Prog feldspar_gadt [] (EApp (EK "Con") (EK "One"))
+ex1 = interp
+    $ Prog feldspar_gadt []
+    $ VDef "ex1" undefined (EApp (EK "Con") (EK "One"))
 
 ex2 :: Val
-ex2 = interp $ Prog feldspar_gadt [] exp1
+ex2 = interp
+    $ Prog feldspar_gadt []
+    $ VDef "ex2" undefined exp1
+

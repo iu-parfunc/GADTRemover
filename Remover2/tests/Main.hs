@@ -37,41 +37,41 @@ import           Text.PrettyPrint.GenericPretty (Out(doc))
 
 case_E02 :: Assertion
 case_E02 = assertEqual "interp_case"
-                       (VK (Var "Two") []) (interp $ Prog [ints] [] e02)
+                       (VK (Var "Two") []) (interp $ Prog [ints] [] v02)
 
 case_E03 :: Assertion
 case_E03 = assertEqual "interp dict"
-             (VDict (Var "Int") []) (interp $ Prog [ints] [] e03)
+             (VDict (Var "Int") []) (interp $ Prog [ints] [] v03)
 
 case_E04 :: Assertion
 case_E04 = assertEqual "construct arrow dict"
              (VDict (Var "ArrowTy") [VDict (Var "Int") [],VDict (Var "Int") []])
-             (interp $ Prog [] [] e04)
+             (interp $ Prog [] [] v04)
 
 case_E05 :: Assertion
 case_E05 = assertEqual "nested casedict, return one"
                        (VK "One" []) $
-                       interp $ Prog [ints] [] e05
+                       interp $ Prog [ints] [] v05
 
 case_E06 :: Assertion
 case_E06 = assertEqual "take a false CaseDict branch"
                        (VK (Var "Three") [])
-                       (interp $ Prog [ints] [] e06)
+                       (interp $ Prog [ints] [] v06)
 
 case_E07 :: Assertion
 case_E07 = assertEqual ""
                        (VK "True" []) $
-                       interp $ Prog [] [] e07
+                       interp $ Prog [] [] v07
 
 case_E08 :: Assertion
 case_E08 = assertEqual ""
                        (VK "False" []) $
-                       interp $ Prog [] [] e08
+                       interp $ Prog [] [] v08
 
 case_E10 :: Assertion
 case_E10 = assertEqual "apply identity function"
                        (VK "Three" []) $
-                       interp $ Prog [ints] [] e10
+                       interp $ Prog [ints] [] v10
 
 -- | This should NOT diverge (lazy evaluation):
 case_P8 :: Assertion
@@ -106,7 +106,7 @@ case_KindMutRecurseDDefs = assertEqual "" (Right ()) (K.kindClosedDefs mutRecurs
 case_lowerE4 :: Assertion
 case_lowerE4 = assertEqual "lower dicts from a program "
                  result
-                 (progDDefs (lowerDicts (Prog [] [] e04)))
+                 (progDDefs (lowerDicts (Prog [] [] v04)))
  where
  result = [DDef {tyName = Var "TypeDict", kVars = [(Var "a",Star)], cVars = [], sVars = [], cases = [KCons {conName = Var "ArrowTyDict", fields = [ConTy (Var "TypeDict") [VarTy (Var "a")],ConTy (Var "TypeDict") [VarTy (Var "b")]], outputs = [ConTy (Var "ArrowTy") [VarTy (Var "a"),VarTy (Var "b")]]},KCons {conName = Var "IntDict", fields = [], outputs = [ConTy (Var "Int") []]}]},DDef {tyName = Var "TyEquality", kVars = [(Var "a",Star),(Var "b",Star)], cVars = [], sVars = [], cases = [KCons {conName = Var "Refl", fields = [], outputs = [VarTy (Var "a"),VarTy (Var "a")]}]}]
 
@@ -118,23 +118,23 @@ case_InterpLowered_e4 :: Assertion
 case_InterpLowered_e4 =
   assertEqual ""
     (VK (Var "ArrowTyDict") [VK (Var "IntDict") [],VK (Var "IntDict") []])
-    (interp $ lowerDicts $ Prog [] [] e04)
+    (interp $ lowerDicts $ Prog [] [] v04)
 
 case_InterpLowered_e5 :: Assertion
 case_InterpLowered_e5 =
   assertEqual ""
     (VK "One" [])
-    (interp $ lowerDicts $ Prog [] [] e05)
+    (interp $ lowerDicts $ Prog [] [] v05)
 
 case_InterpLowered_e07 :: Assertion
 case_InterpLowered_e07 =
   assertEqual "" (VK "True" [])
-             (interp $ lowerDicts $ Prog [] [] e07)
+             (interp $ lowerDicts $ Prog [] [] v07)
 
 case_InterpLowered_e08 :: Assertion
 case_InterpLowered_e08 =
   assertEqual "" (VK "False" [])
-             (interp $ lowerDicts $ Prog [] [] e08)
+             (interp $ lowerDicts $ Prog [] [] v08)
 
 ------------------------------------------------------------
 -- Feldspar tests:
@@ -142,12 +142,16 @@ case_InterpLowered_e08 =
 
 -- | Just make sure the GADTs defs codegen properly.
 case_FeldsparGADTCodeGen :: Assertion
-case_FeldsparGADTCodeGen =
-  interpretProg (Just "FeldsparGADTCodegen") $ Prog feldspar_gadt [] (EK "One")
+case_FeldsparGADTCodeGen
+  = interpretProg (Just "FeldsparGADTCodegen")
+  $ Prog feldspar_gadt []
+  $ VDef "feldspar1" (ForAll [] "Int") (EK "One")
 
 case_FeldsparADTCodeGen :: Assertion
-case_FeldsparADTCodeGen =
-    interpretProg (Just "FeldsparADTCodegen") $ Prog feldspar_adt [] (EK "Two")
+case_FeldsparADTCodeGen
+  = interpretProg (Just "FeldsparADTCodegen")
+  $ Prog feldspar_adt []
+  $ VDef "feldspar2" (ForAll [] "Int") (EK "Two")
 
 
 _FeldsparGhostbust :: Assertion

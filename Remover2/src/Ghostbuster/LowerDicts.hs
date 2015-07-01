@@ -26,7 +26,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
   where
   finalProg = Prog (dictGADT : reflDef : ddefs)
                    vdefs''
-                   (doExp ddefSubset main)
+                   (main { valExp = doExp ddefSubset (valExp main) })
   vdefs'' = if null allDicts
                then vdefs'
                else (mkTeq ddefSubset : vdefs')
@@ -62,7 +62,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
 gatherDicts :: Prog -> S.Set TName
 gatherDicts (Prog ddefs vdefs main) =
    S.unions $
-   gatherExp main :
+   gatherExp (valExp main) :
    [ gatherExp valExp
    | VDef {valExp} <- vdefs ] ++
    [ S.unions [ S.unions $ L.map gatherMonoTy fields

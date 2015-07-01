@@ -20,7 +20,7 @@ trace _ x  = x
 -- | This interprets the program with a call-by-need semantics.
 interp :: Prog -> Val
 interp (Prog ddefs vdefs main) =
-  exp ddefs topenv main
+  exp ddefs topenv (valExp main)
   where
   -- Here we implement call-by-need in the target language using the
   -- host language (Haskell's) own lazy evaluation:
