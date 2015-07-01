@@ -8,10 +8,9 @@ module Ghostbuster.LowerDicts
 
 import           Control.Exception
 import qualified Data.ByteString.Char8 as B
-import           Data.Char (isAlpha)
 import           Data.List as L
 import qualified Data.Set as S
--- import           Debug.Trace
+import           Debug.Trace
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
 
@@ -19,22 +18,31 @@ import           Ghostbuster.Utils
 -- `ECaseDict`
 lowerDicts :: Prog -> Prog
 lowerDicts origprog@(Prog ddefs vdefs main) =
-  -- trace ("LowerDicts: allDicts = "++show allDicts ) $
+  trace ("LowerDicts: allDICTS = "++show allDicts) $
   assert (length ddefSubset == length allDicts) $
-  if null allDicts
+  if S.null gathered
      then origprog
      else finalProg
   where
   finalProg = Prog (dictGADT : reflDef : ddefs)
-                   (mkTeq ddefSubset : vdefs')
+                   vdefs''
                    (doExp ddefSubset main)
+  vdefs'' = if null allDicts
+               then vdefs'
+               else (mkTeq ddefSubset : vdefs')
 
   vdefs' = [ VDef v t (doExp ddefSubset e)
            | VDef v t e <- vdefs ]
+  typeConstrs = S.fromList $ L.map tyName ddefs
 
   allDicts = S.toList allDictsSet
-  allDictsSet = gatherDicts origprog
-  ddefSubset = [ dd | dd@DDef{tyName} <- ddefs ++ primitiveTypes
+  allDictsSet = S.filter (`S.member` typeConstrs) gathered
+  gathered = gatherDicts origprog
+  -- allDictsSet = S.fromList $ map tyName ddefs -- ALL defined types.
+
+  fullddefs = ddefs ++ primitiveTypes
+
+  ddefSubset = [ dd | dd@DDef{tyName} <- fullddefs
                     , S.member tyName allDictsSet ]
 
   dictGADT =
@@ -52,11 +60,15 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
 -- | Gather all the type constructor names whose dictionaries are
 -- refied or tested against.
 gatherDicts :: Prog -> S.Set TName
-gatherDicts (Prog _ vdefs main) =
+gatherDicts (Prog ddefs vdefs main) =
    S.unions $
    gatherExp main :
    [ gatherExp valExp
-   | VDef {valExp} <- vdefs ]
+   | VDef {valExp} <- vdefs ] ++
+   [ S.unions [ S.unions $ L.map gatherMonoTy fields
+                        ++ L.map gatherMonoTy outputs
+              | KCons{fields,outputs} <- cases ]
+   | DDef {cases} <- ddefs ]
 
 -- | Keep the output a little smaller by not generating dictionaries
 -- for EVERY type constructor, only those that are reefiied somewhere
@@ -66,7 +78,7 @@ gatherExp e =
   case e of
     (EK _)        -> S.empty
     (EVar _)      -> S.empty
-    (ELam _ x)    -> gatherExp x
+    (ELam (_,ty) x) -> S.union (gatherMonoTy ty) (gatherExp x)
     (EApp x1 x2)  -> S.union (gatherExp x1) (gatherExp x2)
     (ELet (_,sig,x1) x2) -> S.unions [(gatherExp x1), (gatherExp x2),
                                       (gatherSigma sig)]
@@ -80,7 +92,20 @@ gatherExp e =
       S.unions [ gatherExp x1, gatherExp x2,
                  gatherExp x3, gatherExp x4 ]
 
-gatherSigma sig = S.empty
+gatherSigma :: TyScheme -> S.Set TName
+gatherSigma (ForAll ls m) = s
+    -- if S.null captured
+    --    then s
+    --    else error $ "gatherSigma: variable mentioned in dictionary was quantified over!"
+  where
+  _captured = S.intersection (S.fromList (L.map fst ls)) s
+  s = gatherMonoTy m
+
+gatherMonoTy :: MonoTy -> S.Set TName
+gatherMonoTy (VarTy _)      = S.empty
+gatherMonoTy (TypeDictTy t) = S.singleton t
+gatherMonoTy (ArrowTy m1 m2) = S.union (gatherMonoTy m1) (gatherMonoTy m2)
+gatherMonoTy (ConTy _ ls)    = S.unions $ L.map gatherMonoTy ls
 
 -- | Takes only the DDefs which are modeled in TypeDict
 doExp :: [DDef] -> Exp -> Exp

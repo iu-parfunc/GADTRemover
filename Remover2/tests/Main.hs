@@ -252,10 +252,11 @@ runAndCompareLowered =
 codegenAllProgs :: [TestTree]
 codegenAllProgs =
   [ testCase ("codegenAllProgs"++show ix) $
-    -- putStrLn $
-    -- evaluate $ rnf $ show $
-    --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
-    interpretProg Nothing $ lowerDicts prg
+    do putStrLn "  Original:"
+       print $ doc prg
+       -- evaluate $ rnf $ show $
+       --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
+       interpretProg Nothing $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]
@@ -267,8 +268,13 @@ ghostbustAllProgs =
     putStrLn "\n ***** Full ghostbuster test "
     putStrLn "  Original:"
     print $ doc ddefs
-    let p = lowerDicts $ Core.ghostbuster ddefs
-    interpretProg (Just name) p
+    let p2 = Core.ghostbuster ddefs
+        p3 = lowerDicts p2
+    putStrLn "  Busted:"
+    print $ doc p2
+    putStrLn "  Lowered:"
+    print $ doc p3
+    interpretProg (Just name) p3
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
   , let name = ("ghostbust"++show ix)
