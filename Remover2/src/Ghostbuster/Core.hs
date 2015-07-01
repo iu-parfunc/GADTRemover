@@ -179,10 +179,11 @@ pmRemovalMono monoty = case monoty of
   newvar = (mkVar "newVr")
 
 generateUpcast :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
-generateUpcast alldefs patterns equalities ddef =
+generateUpcast _alldefs patterns equalities ddef =
   VDef { valName = upcastname
        , valTy   = signature
-       , valExp  = bodyOfUp}
+       , valExp  = bodyOfUp
+       }
   where
     upcastname           = upCastName (tyName ddef)
     signature            = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
@@ -212,13 +213,16 @@ generateUpcastMono
     -> Exp
 generateUpcastMono n patterns equalities introduction conclusion =
   case introduction of
-    -- here generate patternmatching, equalities, and the finish with:
+    -- here generate pattern matching, equalities, and the finish with:
     --   (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
-    []          -> error "generateUpcastMono"
+    []          -> error "generateUpcastMono: finalise"
     (mono:rest) ->
       case mono of
+        VarTy{}      -> error "generateUpcastMono: VarTy"
+        ArrowTy{}    -> error "generateUpcastMono: ArrowTy"
+        TypeDictTy{} -> error "generateUpcastMono: TypeDictTy"
         ConTy name monos ->
-          ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ (show n)))))
+          ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ show n))))
                 [( Pat (toSealedName name) (map toVarFromMono monos)
                  , generateUpcastMono (n+1) patterns equalities rest conclusion
                  )
@@ -226,6 +230,7 @@ generateUpcastMono n patterns equalities introduction conclusion =
 
 toVarFromMono :: MonoTy -> Var
 toVarFromMono (VarTy var) = var
+toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 
 upCastName :: Var -> Var
 upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
