@@ -47,7 +47,7 @@ ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
 
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
     returnVDefs = [ generateDown   allddefs (tyName ddef)
-                  , generateUpcast allddefs patterns equalities ddefNormilized
+                  , generateUpconv allddefs patterns equalities ddefNormilized
                   ]
 
 toSealedName :: Var -> Var
@@ -234,53 +234,53 @@ pmRemovalMono monoty = case monoty of
   where
   newvar = (mkVar "newVr")
 
-generateUpcast :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
-generateUpcast _alldefs patterns equalities ddef =
-  VDef { valName = upcastname
+generateUpconv :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
+generateUpconv _alldefs patterns equalities ddef =
+  VDef { valName = upconvname
        , valTy   = signature
        , valExp  = bodyOfUp
        }
   where
-    upcastname           = upCastName (tyName ddef)
+    upconvname           = upconvName (tyName ddef)
     signature            = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
     onlyKeepAndCheck     = kVars ddef ++ cVars ddef
     onlyKeepAndCheckVars = map toVarTy (map fst onlyKeepAndCheck)
     onlyKeepVars         = map toVarTy (map fst (kVars ddef))
-    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpcastByClause patterns equalities) (cases ddef)))
+    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpconvByClause patterns equalities) (cases ddef)))
 
-generateUpcastByClause
+generateUpconvByClause
     :: [Patterns]
     -> [Equations]
     -> KCons
     -> (Pat,Exp)
-generateUpcastByClause patterns equalities clause =
+generateUpconvByClause patterns equalities clause =
   ( Pat (gadtDownName (conName clause)) newVars
-  , generateUpcastMono 1 patterns equalities (fields clause) (outputs clause)
+  , generateUpconvMono 1 patterns equalities (fields clause) (outputs clause)
   )
   where
     newVars = ["x"]  -- to change in x1 x2 x3..
 
-generateUpcastMono
+generateUpconvMono
     :: Int
     -> [Patterns]
     -> [Equations]
     -> [MonoTy]
     -> [MonoTy]
     -> Exp
-generateUpcastMono n patterns equalities introduction conclusion =
+generateUpconvMono n patterns equalities introduction conclusion =
   case introduction of
     -- here generate pattern matching, equalities, and the finish with:
     --   (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
-    []          -> error "generateUpcastMono: finalise"
+    []          -> error "generateUpconvMono: finalise"
     (mono:rest) ->
       case mono of
-        VarTy{}      -> error "generateUpcastMono: VarTy"
-        ArrowTy{}    -> error "generateUpcastMono: ArrowTy"
-        TypeDictTy{} -> error "generateUpcastMono: TypeDictTy"
+        VarTy{}      -> error "generateUpconvMono: VarTy"
+        ArrowTy{}    -> error "generateUpconvMono: ArrowTy"
+        TypeDictTy{} -> error "generateUpconvMono: TypeDictTy"
         ConTy name monos ->
-          ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ show n))))
+          ECase (EApp (EVar (upconvName name)) (EVar (mkVar ("x" ++ show n))))
                 [( Pat (toSealedName name) (map toVarFromMono monos)
-                 , generateUpcastMono (n+1) patterns equalities rest conclusion
+                 , generateUpconvMono (n+1) patterns equalities rest conclusion
                  )
                 ]
 
@@ -288,8 +288,8 @@ toVarFromMono :: MonoTy -> Var
 toVarFromMono (VarTy var) = var
 toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 
-upCastName :: Var -> Var
-upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
+upconvName :: Var -> Var
+upconvName tyname = mkVar ("upconv" ++ (unMkVar tyname))
 
 
 -- | Create a down-conversion function.  This is a simple tree-walk
@@ -345,4 +345,3 @@ generateDown alldefs which =
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
   dispatch vr (TypeDictTy _)  = EVar vr
-

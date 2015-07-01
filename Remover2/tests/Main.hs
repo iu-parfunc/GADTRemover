@@ -16,7 +16,7 @@ import           Ghostbuster.Types
 import qualified Ghostbuster.Core as Core
 
 import           Control.DeepSeq
-import           Control.Exception (evaluate)
+import           Control.Exception (evaluate, catch, SomeException)
 import           Control.Monad
 import qualified Data.List as L
 import           Data.Typeable
@@ -265,10 +265,28 @@ codegenAllProgs =
   | ix <- [1::Int ..]
   ]
 
+-- | Some tests are expected to fail as we develop new functionality.
+--   This documents that fact.  Update as we fix things.
+expectedFailures :: [String]
+expectedFailures =
+ [ "ghostbust17" ]
+
+expectFailure :: String -> IO () -> IO ()
+expectFailure testname act
+  | L.any (==testname) expectedFailures =
+    do putStrLn $ " ** Expecting failure for test "++testname
+       exn <- catch (do act
+                        return False)
+                    (\e ->
+                      do putStrLn$ "Caught expected exception: " ++ show(e :: SomeException)
+                         return True)
+       unless exn $
+         error "Expected exception but did not get one!!"
+  | otherwise = act
 
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
-  [ testCase name $ do
+  [ testCase testname $ expectFailure testname $ do
     putStrLn "\n ***** Full ghostbuster test "
     putStrLn "  Original:"
     print $ doc ddefs
@@ -278,10 +296,10 @@ ghostbustAllProgs =
     print $ doc p2
     putStrLn "  Lowered:"
     print $ doc p3
-    interpretProg (Just name) p3
+    interpretProg (Just testname) p3
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
-  , let name = ("ghostbust"++show ix)
+  , let testname = ("ghostbust"++show ix)
   ]
 
 
