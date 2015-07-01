@@ -167,19 +167,26 @@ upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
 -- obligations to discharge.
 generateDown :: [DDef] -> TName -> VDef
 generateDown alldefs which =
-  VDef down (ForAll allVars (ArrowTy startTy endTy)) $
-   ELam ("orig",startTy) $
+  VDef down (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
+   mkLams params $
     ECase "orig" $
     [ (Pat conName args,
-      appLst (EVar (primeName conName))
+      appLst (EVar (primeName conName)) $
+       (map EVar dictArgs) ++ -- (map EDict newDicts) ++
        [ (dispatch arg ty)
-       | (arg,ty) <- zip args fields
-       ]
-      )
+       | (arg,ty) <- zip args fields ])
     | KCons {conName,fields} <- cases
     , let args = (take (length fields) patVars)
+          newDicts = getKConsDicts alldefs conName
     ]
   where
+  params = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ] ++
+           [("orig",startTy)]
+
+  dictArgs = map (+++ "_dict") erased
+
+  erased = map fst $ cVars ++ sVars
+  dictTys = map TypeDictTy erased
   DDef {tyName,kVars,cVars,sVars, cases} = lookupDDef alldefs which
 
   down    = (downName tyName)
@@ -190,7 +197,11 @@ generateDown alldefs which =
 
   -- For a type T_i, we dispatch to downT_i
   -- FIXME: We need to add extra dictionary arguments here.
-  dispatch vr (ConTy name _)  = EApp (EVar (downName name)) (EVar vr)
+  dispatch vr (ConTy name _)
+    | name == which = appLst (EVar (downName name))
+                             (map EVar $ dictArgs++[vr])
+    | otherwise = error$  "generateDown: UNFINISHED: need some logic here to dispatch a call to "
+                  ++ show name ++" while providing the right dictionary arguments."
   -- If we just have an abstract type, we return it.  No recursions.
   dispatch vr (VarTy _)       = EVar vr
   -- For now functions are left alone.  Later we should generate proxies.
