@@ -62,25 +62,66 @@ primeName :: Var -> Var
 primeName tyName = mkVar ((unMkVar tyName) ++ "'")
 
 gadtToStripped :: [DDef] -> DDef -> DDef
-gadtToStripped alldefs ddef =
-  ddef { tyName = gadtDownName (tyName ddef)
-       , kVars  = kVars ddef
-       , cVars  = cVars ddef
-       , sVars  = []
-       , cases  = map (gadtToStrippedByClause alldefs) (cases ddef)
-       }
+gadtToStripped alldefs up =
+  let
+      down = DDef { tyName = gadtDownName (tyName up)
+                  , kVars  = kVars up
+                  , cVars  = cVars up
+                  , sVars  = []
+                  , cases  = map (gadtToStrippedByClause alldefs up down) (cases up)
+                  }
+  in
+  down
+
+-- Generate a mask determining which output variables of the GADT have been
+-- dropped. False indicates that the variable is dropped, True if kept. The list
+-- is in the usual sequence (kVars ++ cVars ++ sVars).
+--
+maskStrippedVars
+    :: DDef     -- original GADT
+    -> DDef     -- stripped data constructor
+    -> [Bool]
+maskStrippedVars up down = go (kVars up   ++ cVars up   ++ sVars up)
+                              (kVars down ++ cVars down ++ sVars down)
+  where
+    go []     _      = []
+    go (_:xs) []     = False : go xs []
+    go (x:xs) (y:ys)
+      | x == y    = True  : go xs ys
+      | otherwise = False : go xs (y:ys)
 
 gadtDownName :: TName -> TName
 gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
-gadtToStrippedByClause :: [DDef] -> KCons -> KCons
-gadtToStrippedByClause alldefs clause =
-  clause { conName = gadtDownName (conName clause)
-         , fields  = map TypeDictTy (getKConsDicts alldefs (conName clause))
-                  ++ map (gadtToStrippedByMono alldefs) (fields clause)
-         , outputs = map (gadtToStrippedByMono alldefs) (outputs clause)
-         }
+gadtToStrippedByClause
+    :: [DDef]   -- all declarations in the program, because somehow this is required??
+    -> DDef     -- original GADT
+    -> DDef     -- stripped GADT (really just the kept/checked/sealed variables)
+    -> KCons    -- GADT constructor under inspection
+    -> KCons
+gadtToStrippedByClause alldefs up down this = KCons name' fields' outputs'
+  where
+    name'       = gadtDownName (conName this)
+    fields'     = map stripField (fields this)
+    outputs'    = mask (outputs this)
 
+    stripField (ConTy c a)
+      | c == tyName up
+      = ConTy (tyName down) (mask a)
+    stripField f
+      -- TLM: This is the procedure that was used before (also commented out
+      --      below), but it doesn't appear to work...
+      = gadtToStrippedByMono alldefs f
+
+    mask        = map snd . filter fst . zip predicate
+    predicate   = maskStrippedVars up down
+
+    -- TLM: the old method, doesn't work...
+--    fields'     = map TypeDictTy (getKConsDicts alldefs (conName this))
+--               ++ map (gadtToStrippedByMono alldefs) (fields this)
+
+-- TLM: What is this supposed to do? It doesn't appear to work...
+--
 gadtToStrippedByMono :: [DDef] -> MonoTy -> MonoTy
 gadtToStrippedByMono alldefs monoty =
   case monoty of
