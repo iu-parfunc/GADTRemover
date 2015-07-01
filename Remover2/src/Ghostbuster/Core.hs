@@ -150,19 +150,16 @@ pmRemovalMono monoty = case monoty of
   newvar = (mkVar "newVr")
 
 generateUpcast :: [DDef] -> DDef -> VDef
-generateUpcast alldefs ddef = undefined
-
-{--
-generateUpcast :: [DDef] -> DDef -> VDef
 generateUpcast alldefs ddef = VDef {valName = upcastname, valTy = signature, valExp = undefined}
   where
   upcastname = (upCastName (tyName ddef))
-  signature = ForAll onlyKeepAndCheck (ArrowTy (gadtDownName ddef) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) (map fst onlyKeepAndCheck)]))
-  onlyKeepAndCheck = undefined
+  signature = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
+  onlyKeepAndCheck = (kVars ddef) ++ (cVars ddef)
+  onlyKeepAndCheckVars = (map toVarTy (map fst onlyKeepAndCheck))
+  onlyKeepVars = (map toVarTy (map fst (kVars ddef)))
 
 upCastName :: Var -> Var
-upCastName tyName = mkVar ("upCast" ++ (unMkVar tyName))
---}
+upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
 
 
 -- | Create a down-conversion function.  This is a simple tree-walk
