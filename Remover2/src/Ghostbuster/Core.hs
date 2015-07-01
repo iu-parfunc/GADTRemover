@@ -129,6 +129,8 @@ gadtToStrippedByMono alldefs monoty =
     ConTy tname monos   -> ConTy (gadtDownName tname) (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
     _                   -> monoty
 
+-- TLM: This looks completely broken.
+--
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
 
