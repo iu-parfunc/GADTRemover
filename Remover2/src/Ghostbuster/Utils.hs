@@ -66,19 +66,20 @@ getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
 -- to the front of the KCons.  It only adds dicts for relevant vars
 -- that are EXISTENTIAL.  It adds the dicts in a canonical order, and
 -- in fact this function defines our standard for that order.
-getKConsDicts :: [DDef] -> KCons -> [TyVar]
-getKConsDicts ddefs KCons{conName,fields,outputs} =
+getKConsDicts :: [DDef] -> KName -> [TyVar]
+getKConsDicts ddefs conName =
 --  trace ("Non-erased left " ++ show (L.map (nonErased getter) fields))
-  trace ("Outputs are "++ show outputs ++", thus Non-erased right " ++ show (L.map (nonErased getter) outputs)) $
-  S.toAscList newExistential
+--   trace ("Outputs are "++ show outputs ++", thus Non-erased right " ++ show (L.map (nonErased getter) outputs)) $
+  (S.toAscList changed)
   where
+  changed = S.difference newExistential origExistential
+
   origExistential = S.difference (ftv fields) (ftv outputs)
   newExistential =
     S.difference (S.unions$ L.map (nonErased getter) fields)
                  ((nonErased getter) (ConTy (tyName def) outputs))
   getter = getArgStatus ddefs
-  Just (def,_) = kLookup ddefs conName
-
+  Just (def,KCons{fields,outputs}) = kLookup ddefs conName
 
 -- | Include nothing under checked or synth contexts.
 nonErased :: (TName -> [TyStatus]) -> MonoTy -> S.Set TyVar
