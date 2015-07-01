@@ -12,7 +12,10 @@ module Ghostbuster.Core
 
 import Ghostbuster.Types
 import Ghostbuster.Utils
-import qualified Data.Map as HM
+
+import Control.Exception                        ( assert )
+import qualified Data.Map                       as HM
+
 
 type Equations  = (HM.Map TyVar [TyVar])
 type Patterns   = (HM.Map TyVar MonoTy)
@@ -81,9 +84,15 @@ maskStrippedVars
     :: DDef     -- original GADT
     -> DDef     -- stripped data constructor
     -> [Bool]
-maskStrippedVars up down = go (kVars up   ++ cVars up   ++ sVars up)
-                              (kVars down ++ cVars down ++ sVars down)
+maskStrippedVars up down
+  = assert (length vUp >= length vDown)
+  $ assert (length vUp == length ans)
+  $ ans
   where
+    ans   = go vUp vDown
+    vUp   = kVars up   ++ cVars up   ++ sVars up
+    vDown = kVars down ++ cVars down ++ sVars down
+
     go []     _      = []
     go (_:xs) []     = False : go xs []
     go (x:xs) (y:ys)
