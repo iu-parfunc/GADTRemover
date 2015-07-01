@@ -61,7 +61,7 @@ gadtDownName :: TName -> TName
 gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
 gadtToStrippedByClause :: [DDef] -> KCons -> KCons
-gadtToStrippedByClause alldefs clause = clause {fields = (map toTypeDictWrap (getKConsDicts alldefs (conName clause)) ++ (map (gadtToStrippedByMono alldefs) (fields clause))), outputs = (map (gadtToStrippedByMono alldefs) (outputs clause))}
+gadtToStrippedByClause alldefs clause = clause {conName = gadtDownName (conName clause), fields = (map toTypeDictWrap (getKConsDicts alldefs (conName clause)) ++ (map (gadtToStrippedByMono alldefs) (fields clause))), outputs = (map (gadtToStrippedByMono alldefs) (outputs clause))}
   where
   toTypeDictWrap = \var -> TypeDictTy var
 
@@ -72,7 +72,7 @@ gadtToStrippedByMono alldefs monoty = case monoty of
   _ -> monoty
 
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
-onlyKeep alldefs tname monos = take (numberOfKeepAndCheck alldefs tname) monos
+onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
 
 generateSealed :: DDef -> DDef
 generateSealed (DDef tyName k c s _cases) =
