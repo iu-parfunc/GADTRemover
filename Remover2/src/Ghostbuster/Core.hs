@@ -47,7 +47,7 @@ ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew vtop
 
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
     returnVDefs = [ generateDown   allddefs (tyName ddef)
-                  , generateUpconv allddefs patterns equalities ddefNormilized
+                  -- , generateUpconv allddefs patterns equalities ddefNormilized
                   ]
 
 toSealedName :: Var -> Var
@@ -61,37 +61,38 @@ downName tyName = mkVar ("down" ++ (unMkVar tyName))
 -- | Take a type or data constructor from the higher (pre-stripping) type to the
 -- lower one.
 --
-primeName :: Var -> Var
-primeName tyName = mkVar ((unMkVar tyName) ++ "'")
+gadtDownName :: TName -> TName
+gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
+-- | For a given `Foo`, create the datatype `Foo'`.
+--   This replaces *any* references to data-types with erased variables with
+--   their stripped counterparts.
+--
+--   As usual, it takes the global list of data definitions.
 gadtToStripped :: [DDef] -> DDef -> DDef
 gadtToStripped alldefs up =
-  let
-      down = DDef { tyName = gadtDownName (tyName up)
-                  , kVars  = kVars up
-                  , cVars  = cVars up
-                  , sVars  = []
-                  , cases  = map (gadtToStrippedByClause alldefs up down) (cases up)
-                  }
-  in
-  down
+  DDef { tyName = gadtDownName (tyName up)
+       , kVars  = kVars up
+       , cVars  = []
+       , sVars  = []
+       , cases  = map (gadtToStrippedByClause alldefs up) (cases up)
+       }
 
--- Generate a mask determining which output variables of the GADT have been
+-- | Generate a mask determining which output variables of the GADT have been
 -- dropped. False indicates that the variable is dropped, True if kept. The list
 -- is in the usual sequence (kVars ++ cVars ++ sVars).
 --
 maskStrippedVars
     :: DDef     -- original GADT
-    -> DDef     -- stripped data constructor
     -> [Bool]
-maskStrippedVars up down
+maskStrippedVars up
   = assert (length vUp >= length vDown)
   $ assert (length vUp == length ans)
   $ ans
   where
     ans   = go vUp vDown
     vUp   = kVars up   ++ cVars up   ++ sVars up
-    vDown = kVars down ++ cVars down ++ sVars down
+    vDown = kVars up
 
     go []     _      = []
     go (_:xs) []     = False : go xs []
@@ -99,46 +100,53 @@ maskStrippedVars up down
       | x == y    = True  : go xs ys
       | otherwise = False : go xs (y:ys)
 
-gadtDownName :: TName -> TName
-gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
 gadtToStrippedByClause
     :: [DDef]   -- all declarations in the program, because somehow this is required??
     -> DDef     -- original GADT
-    -> DDef     -- stripped GADT (really just the kept/checked/sealed variables)
     -> KCons    -- GADT constructor under inspection
     -> KCons
-gadtToStrippedByClause alldefs up down this = KCons name' fields' outputs'
+gadtToStrippedByClause alldefs up this =
+    KCons name' fields' outputs'
   where
     name'       = gadtDownName (conName this)
-    fields'     = map stripField (fields this)
+{-  FIXME: outputs should just be (map (stripMono alldefs))!!! and then take the "keep" prefix -}
     outputs'    = mask (outputs this)
 
-    stripField (ConTy c a)
-      | c == tyName up
-      = ConTy (tyName down) (mask a)
-    stripField f
-      -- TLM: This is the procedure that was used before (also commented out
-      --      below), but it doesn't appear to work...
-      = gadtToStrippedByMono alldefs f
-
     mask        = map snd . filter fst . zip predicate
-    predicate   = maskStrippedVars up down
+    predicate   = maskStrippedVars up
 
     -- TLM: the old method, doesn't work...
---    fields'     = map TypeDictTy (getKConsDicts alldefs (conName this))
---               ++ map (gadtToStrippedByMono alldefs) (fields this)
+    -- RRN: Why/how??
+    fields'     = map TypeDictTy (getKConsDicts alldefs (conName this))
+               ++ map (stripMono alldefs) (fields this)
 
--- TLM: What is this supposed to do? It doesn't appear to work...
+
+-- Switch over all references to `T_i` to `T_i'` IFF T_i includes
+-- erased (checked or synthesized) type parameters.  This converts the
+-- data type from the "pre-ghostbuster" to "post-ghostbuster" world.
 --
-gadtToStrippedByMono :: [DDef] -> MonoTy -> MonoTy
-gadtToStrippedByMono alldefs monoty =
+stripMono :: [DDef] -> MonoTy -> MonoTy
+stripMono alldefs monoty =
   case monoty of
-    ArrowTy mono1 mono2 -> ArrowTy (gadtToStrippedByMono alldefs mono1) (gadtToStrippedByMono alldefs mono2)
-    ConTy tname monos   -> ConTy (gadtDownName tname) (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
-    _                   -> monoty
+    ArrowTy mono1 mono2 -> ArrowTy (go mono1) (go mono2)
+    ConTy tname monos
+      | isErased alldefs tname -> ConTy (gadtDownName tname)
+                                        (map go (onlyKeep alldefs tname monos))
+      | otherwise -> ConTy tname (map go monos)
+    (VarTy _)           -> monoty
+    (TypeDictTy _)      -> monoty
 
--- TLM: This looks completely broken.
+  where
+  go = stripMono alldefs
+
+-- | Is the data type affected by Ghostbuster?  Or is it left alone.
+isErased :: [DDef] -> TName -> Bool
+isErased defs tn = not (null (cVars++sVars))
+  where
+  DDef {cVars,sVars} = lookupDDef defs tn
+
+-- | Drop all the check and synth type arguments, leaving only keep.
 --
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
@@ -302,7 +310,7 @@ generateDown alldefs which =
    mkLams params $
     ECase "orig" $
     [ (Pat conName args,
-      appLst (EVar (primeName conName)) $
+      appLst (EVar (gadtDownName conName)) $
        -- FIXME: We need some analysis here that applies a permutation
        -- between tyvars in the KCons and tyvars in the "T a b c" data decl.
        (map (EVar . dictArgify) newDicts) ++
@@ -327,7 +335,7 @@ generateDown alldefs which =
   down          = (downName tyName)
   startTy       = (ConTy tyName  (map (VarTy . fst) allVars))
   endTy         = (ConTy tyName' (map (VarTy . fst) kVars))
-  tyName'       = primeName tyName
+  tyName'       = gadtDownName tyName
   allVars       = kVars++cVars++sVars
 
   -- For a type T_i, we dispatch to downT_i

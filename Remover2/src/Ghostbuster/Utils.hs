@@ -184,15 +184,9 @@ numberOfKeepAndCheck alldefs
     p Check = True
     p Synth = False
 
+-- | How many keep type args are their to the given type constructor.
 numberOfKeep :: [DDef] -> TName -> Int
-numberOfKeep alldefs
-  = length
-  . L.filter p
-  . getArgStatus alldefs
-  where
-    p Keep  = True
-    p Check = False
-    p Synth = False
+numberOfKeep alldefs tn = length [ () | Keep <- getArgStatus alldefs tn ]
 
 -- | A HOAS combinator to introduce a let-binding IFF the provided
 -- syntax is anything more complex than an identifier.

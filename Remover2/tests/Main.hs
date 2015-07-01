@@ -269,7 +269,8 @@ codegenAllProgs =
 --   This documents that fact.  Update as we fix things.
 expectedFailures :: [String]
 expectedFailures =
- [ "ghostbust17" ]
+ [ -- "ghostbust17"  -- Fixed now!
+ ]
 
 expectFailure :: String -> IO () -> IO ()
 expectFailure testname act
