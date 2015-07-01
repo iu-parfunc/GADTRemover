@@ -219,7 +219,3 @@ dictConsName (Var v) = Var (v `B.append` "Dict")
 
 typeDict :: MonoTy -> MonoTy
 typeDict x = ConTy "TypeDict" [x]
-
-
-(+++) :: Var -> Var -> Var
-(+++) (Var x) (Var y) = Var (x `B.append` y)

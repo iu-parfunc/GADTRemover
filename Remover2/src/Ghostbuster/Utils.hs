@@ -7,6 +7,7 @@
 
 module Ghostbuster.Utils where
 
+import qualified Data.ByteString.Char8 as B
 import           Data.Char (isAlpha)
 import qualified Data.List as L
 import qualified Data.Map as Map
@@ -68,8 +69,6 @@ getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
 -- in fact this function defines our standard for that order.
 getKConsDicts :: [DDef] -> KName -> [TyVar]
 getKConsDicts ddefs conName =
---  trace ("Non-erased left " ++ show (L.map (nonErased getter) fields))
---   trace ("Outputs are "++ show outputs ++", thus Non-erased right " ++ show (L.map (nonErased getter) outputs)) $
   (S.toAscList changed)
   where
   changed = S.difference newExistential origExistential
@@ -89,9 +88,7 @@ nonErased getStatus mt =
     (ArrowTy x1 x2) -> S.union (lp x1) (lp x2)
     (ConTy ty args) ->
       let (k,_,_) = splitTyArgs (getStatus ty) args
-      in
-      trace ("nonErased of ConTy "++show mt++ "kept was "++ show k) $
-      S.unions (L.map lp k)
+      in S.unions (L.map lp k)
     (TypeDictTy _tau) -> S.empty
  where
  lp = nonErased getStatus
@@ -204,6 +201,9 @@ leftleftLambda arg ty bod =
 freshenVar :: Var -> Var
 freshenVar v = v
 
+(+++) :: Var -> Var -> Var
+(+++) (Var x) (Var y) = Var (x `B.append` y)
+
 -- | Potentially infinite list of temporary pattern vars:
 -- TODO: replace with freshenVar of a single root name.
 patVars :: [Var]
@@ -216,6 +216,14 @@ patVars = L.map (\c -> mkVar [c]) $
 appLst :: Exp -> [Exp] -> Exp
 appLst f [] = f
 appLst f ls = EApp (appLst f (init ls)) (last ls)
+
+mkLams :: [(TermVar,MonoTy)] -> Exp -> Exp
+mkLams [] bod = bod
+mkLams (arg:rst) bod = ELam arg (mkLams rst bod)
+
+mkFunTy :: [MonoTy] -> MonoTy -> MonoTy
+mkFunTy [] res = res
+mkFunTy (h:t) res = h `ArrowTy` mkFunTy t res
 
 --------------------------------------------------------------------------------
 
