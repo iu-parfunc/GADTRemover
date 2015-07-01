@@ -12,6 +12,7 @@ module Ghostbuster.Core
 import Ghostbuster.Types
 import Ghostbuster.Utils
 import qualified Data.Map as HM
+import Data.String
 
 type Equations = (HM.Map TyVar [TyVar])
 type Patterns = (HM.Map TyVar MonoTy)
@@ -44,12 +45,12 @@ ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew (EK "Nothing")
   ghostbusterDDef ddef = (returnDDefs, returnVDefs)
     where
     ddefStripped = gadtToStripped allddefs ddef
-    (ddefNoEquals, _equalities) =  equalityRemoval ddef
-    (ddefNoPatternM, _patterns) = pmRemoval ddefNoEquals
+    (ddefNoEquals, equalities) =  equalityRemoval ddef
+    (ddefNormilized, patterns) = pmRemoval ddefNoEquals
     sealed = generateSealed ddef
     returnDDefs = [ddefStripped, sealed]   -- at the moment, these two.
     returnVDefs = [generateDown allddefs (tyName ddef)
-                  -- , generateUpcast allddefs ddefNoPatternM
+                  , generateUpcast allddefs patterns equalities ddefNormilized
                   ]
 
 gadtToStripped :: [DDef] -> DDef -> DDef
@@ -75,7 +76,7 @@ onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
 
 generateSealed :: DDef -> DDef
-generateSealed (DDef tyName k c s _cases) =
+generateSealed (DDef tyName k c s _cases) = 
     DDef (toSealedName tyName) k [] []
      [ KCons (toSealedName tyName)
              ((map typeDictForSynth synthVars) ++ conTy)
@@ -149,14 +150,28 @@ pmRemovalMono monoty = case monoty of
   where
   newvar = (mkVar "newVr")
 
-generateUpcast :: [DDef] -> DDef -> VDef
-generateUpcast alldefs ddef = VDef {valName = upcastname, valTy = signature, valExp = undefined}
+generateUpcast :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
+generateUpcast alldefs patterns equalities ddef = VDef {valName = upcastname, valTy = signature, valExp = bodyOfUp}
   where
   upcastname = (upCastName (tyName ddef))
   signature = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
   onlyKeepAndCheck = (kVars ddef) ++ (cVars ddef)
   onlyKeepAndCheckVars = (map toVarTy (map fst onlyKeepAndCheck))
   onlyKeepVars = (map toVarTy (map fst (kVars ddef)))
+  bodyOfUp = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpcastByClause patterns equalities) (cases ddef)))
+
+generateUpcastByClause :: [Patterns] -> [Equations] -> KCons -> (Pat,Exp)
+generateUpcastByClause patterns equalities clause = ((Pat (gadtDownName (conName clause)) newVars), generateUpcastMono 1 patterns equalities (fields clause) (outputs clause))
+  where
+  newVars = ["x"]  -- to change in x1 x2 x3.. 
+
+generateUpcastMono :: Int -> [Patterns] -> [Equations] -> [MonoTy] -> [MonoTy] -> Exp
+generateUpcastMono n patterns equalities [] conclusion = undefined -- here generate patternmatching, equalities, and the finish with (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
+generateUpcastMono n patterns equalities (mono:rest) conclusion = case mono of
+  ConTy name monos -> (ECase (EApp (EVar (upCastName name)) (EVar (mkVar ("x" ++ (show n))))) [(Pat (toSealedName name) (map toVarFromMono monos), (generateUpcastMono (n+1) patterns equalities rest conclusion))])
+
+toVarFromMono :: MonoTy -> Var
+toVarFromMono (VarTy var) = var
 
 upCastName :: Var -> Var
 upCastName tyname = mkVar ("upCast" ++ (unMkVar tyname))
