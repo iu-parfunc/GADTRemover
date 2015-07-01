@@ -18,7 +18,7 @@ import           Ghostbuster.Utils
 -- `ECaseDict`
 lowerDicts :: Prog -> Prog
 lowerDicts origprog@(Prog ddefs vdefs main) =
-  trace ("LowerDicts: allDICTS = "++show allDicts) $
+  -- trace ("LowerDicts: allDICTS = "++show allDicts) $
   assert (length ddefSubset == length allDicts) $
   if S.null gathered
      then origprog
@@ -33,7 +33,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
 
   vdefs' = [ VDef v t (doExp ddefSubset e)
            | VDef v t e <- vdefs ]
-  typeConstrs = S.fromList $ L.map tyName ddefs
+  typeConstrs = S.fromList $ L.map tyName fullddefs
 
   allDicts = S.toList allDictsSet
   allDictsSet = S.filter (`S.member` typeConstrs) gathered
