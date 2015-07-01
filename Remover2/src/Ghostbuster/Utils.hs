@@ -170,6 +170,9 @@ getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
 numberOfKeepAndCheck :: [DDef] -> TName -> Int
 numberOfKeepAndCheck alldefs tname = length (L.filter (\status -> case status of {Keep -> True ; Check -> True ; Synth -> False}) (getArgStatus alldefs tname))
 
+numberOfKeep :: [DDef] -> TName -> Int
+numberOfKeep alldefs tname = length (L.filter (\status -> case status of {Keep -> True ; Check -> False ; Synth -> False}) (getArgStatus alldefs tname))
+
 -- | A HOAS combinator to introduce a let-binding IFF the provided
 -- syntax is anything more complex than an identifier.
 --
