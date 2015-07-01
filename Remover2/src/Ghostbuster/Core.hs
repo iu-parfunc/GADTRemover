@@ -53,21 +53,22 @@ ghostbuster ddefs = Prog (ddefs ++ ddefsNew) vdefsNew (EK "Nothing")
                   ]
 
 gadtToStripped :: [DDef] -> DDef -> DDef
-gadtToStripped alldefs ddef = ddef {tyName = (gadtDownName ddef), kVars= [], cVars = [], sVars = (sVars ddef), cases = strippedCases}
+gadtToStripped alldefs ddef = ddef {tyName = (gadtDownName (tyName ddef)), kVars= [], cVars = [], sVars = (sVars ddef), cases = strippedCases}
   where
   strippedCases = map (gadtToStrippedByClause alldefs) (cases ddef)
 
-gadtDownName :: DDef -> TName
-gadtDownName ddef = mkVar ((unMkVar (tyName ddef)) ++ "'")
+gadtDownName :: TName -> TName
+gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
 gadtToStrippedByClause :: [DDef] -> KCons -> KCons
-gadtToStrippedByClause alldefs clause = clause {fields = (map (gadtToStrippedByMono alldefs) (fields clause)), outputs = (map (gadtToStrippedByMono alldefs) (outputs clause))}
+gadtToStrippedByClause alldefs clause = clause {fields = (map toTypeDictWrap (getKConsDicts alldefs (conName clause)) ++ (map (gadtToStrippedByMono alldefs) (fields clause))), outputs = (map (gadtToStrippedByMono alldefs) (outputs clause))}
+  where
+  toTypeDictWrap = \var -> TypeDictTy var
 
 gadtToStrippedByMono :: [DDef] -> MonoTy -> MonoTy
 gadtToStrippedByMono alldefs monoty = case monoty of
-  VarTy tyvar -> TypeDictTy tyvar
   ArrowTy mono1 mono2 -> ArrowTy (gadtToStrippedByMono alldefs mono1) (gadtToStrippedByMono alldefs mono2)
-  ConTy tname monos -> ConTy tname (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
+  ConTy tname monos -> ConTy (gadtDownName tname) (map (gadtToStrippedByMono alldefs) (onlyKeep alldefs tname monos))
   _ -> monoty
 
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
