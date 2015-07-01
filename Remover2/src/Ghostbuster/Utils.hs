@@ -158,13 +158,21 @@ data TyStatus = Keep | Check | Synth
 --   the type constructor can be defined in `primitiveTypes`.
 getArgStatus :: [DDef] -> TName -> [TyStatus]
 getArgStatus [] t
-  | L.any (== t) (L.map tyName primitiveTypes) = getArgStatus primitiveTypes t
-  | otherwise = error $ "getArgStatus: could not find type constructor "++show t
+  | L.any (== t) (L.map tyName primitiveTypes)
+  = getArgStatus primitiveTypes t
+  --
+  | otherwise
+  = error $ "getArgStatus: could not find type constructor "++show t
+
 getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
-  | t == tyName = replicate (length kVars) Keep ++
-                  replicate (length cVars) Check ++
-                  replicate (length sVars) Synth
-  | otherwise = getArgStatus rest t
+  | t == tyName
+  = replicate (length kVars) Keep  ++
+    replicate (length cVars) Check ++
+    replicate (length sVars) Synth
+  --
+  | otherwise
+  = getArgStatus rest t
+
 
 numberOfKeepAndCheck :: [DDef] -> TName -> Int
 numberOfKeepAndCheck alldefs
