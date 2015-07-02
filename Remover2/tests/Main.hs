@@ -345,19 +345,53 @@ downList2 = mkTestCase tname $
    tname = "Down-convert-list2"
 
 
-downFeldspar :: TestTree
-downFeldspar = mkTestCase tname $
-  interpretProg (Just tname) $
-    lowerDicts $ Core.ghostbuster feldspar_gadt $
-      (ForAll [] (ConTy "Exp'" []),
-       appLst "downExp"
-              [ EDict "Unit"
-              , EDict "Int"
-              , EApp (EK "Con") (EK "Three")
-              ])
-  where
-   tname = "Down-convert-feldspar"
+downFeldspar :: [TestTree]
+downFeldspar =
+  [ mkTestCase tname $
+     interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster feldspar_gadt $
+         (ForAll [] (ConTy "Exp'" []),
+          appLst "downExp" mainE)
+  | mainE <-
+    [ [ EDict "Unit"
+      , EDict "Int"
+      , lit "Three"
+      ]
+    , [ EDict "Unit"
+      , intToIntDict
+      , lamN (lit "Three")
+      ]
+    , [ EDict "Unit"
+      , intToIntDict
+      , (lamN zro)
+      -- , app (lamN (EK "Zro")) (lit "Two")
+      ] ]
+  | ix <- [1::Int ..]
+  , let tname = "Down-convert-feldspar"++show ix]
 
+
+----------------------------------------
+-- Feldspar constructors
+
+lit :: KName -> Exp
+lit n = EApp (EK "Con") (EK n)
+
+zro :: Exp
+zro = EApp (EK "Var") (EK "Zro")
+
+intToIntDict :: Exp
+intToIntDict = appLst (EDict "ArrowTy") [EDict "Int",EDict "Int"]
+
+app :: Exp -> Exp -> Exp
+app f x = appLst (EK "App") [f,x]
+
+lamN :: Exp -> Exp
+lamN bod = appLst (EK "Abs") [intTyp, bod]
+
+intTyp :: Exp
+intTyp = EK "Int"
+
+----------------------------------------
 
 main :: IO ()
 main =
@@ -371,8 +405,8 @@ main =
         runAndCompareLowered ++
         ghostbustAllProgs ++
         codegenAllProgs ++
+        downFeldspar ++
         [ downList, downList2
-        , downFeldspar
         ]
 
 -- | Some tests are expected to fail as we develop new functionality.
