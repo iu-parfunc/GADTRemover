@@ -41,15 +41,13 @@ moduleOfProg (Prog ddefs vdefs vtop) =
 
     ddefs'      = ddefs ++ primitiveTypes       -- Add the "Prelude" types
     showable    = showableDefs ddefs'
-    showit d    = S.member (tyName d) showable
+    showit tn   = S.member tn showable
 
-    -- FIXME: This test is insufficient.  It should make sure there is
-    -- no polymorphism in the type of vtop:
     topShowable = case valTy vtop of
-                    ForAll _ (ConTy tn _) -> S.member tn showable
-                    _ -> False
+                    ForAll [] (ConTy tn _) -> showit tn
+                    _                      -> False
 
-    decls       = map (\d -> gadtOfDDef (showit d) d) ddefs'
+    decls       = map (\d -> gadtOfDDef (showit (tyName d)) d) ddefs'
                ++ concatMap declOfVDef vdefs
                ++ declOfVDef vtop
                ++ declOfVDef (mkMain topShowable vtop)
@@ -60,7 +58,8 @@ mkMain doprint vtop =
   VDef { valName = "main"
        , valTy   = ForAll [] (ConTy "IO" [ConTy "()" []])
        , valExp  = if doprint
-                      then (EApp "print" (G.EVar (valName vtop)))
+                      then EApp "print" (G.EVar (valName vtop))
                       else EApp (EApp "seq" (G.EVar (valName vtop)))
                                 (EApp "return" (EK "()"))
        }
+

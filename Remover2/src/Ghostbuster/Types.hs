@@ -48,9 +48,10 @@ toVarTy = VarTy
 
 -- | A program is a list of declarations followed by a "main" expression.
 data Prog = Prog
-              { prgDefs :: [DDef]
-              , prgVals :: [VDef]
-              , prgMain :: VDef}
+  { prgDefs :: [DDef]
+  , prgVals :: [VDef]
+  , prgMain :: VDef
+  }
   deriving (Eq,Ord,Show,Read,Generic)
 
 -- | A single datatype definition.
