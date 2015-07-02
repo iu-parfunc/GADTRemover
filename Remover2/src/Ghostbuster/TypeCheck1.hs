@@ -8,6 +8,7 @@
 -- | FYI: Everywhere where we see 'map fst' we are losing kinding info
 module Ghostbuster.TypeCheck1
       ( typeExp, typeDef, typeProg
+      , unify, runTI, composeSubst
 
       -- * Temporary exports:
       , main, typeInference, test
@@ -55,6 +56,7 @@ data TIEnv = TIEnv
 
 data TIState = TIState { tiSupply :: Int
                        ,  tiSubst  :: Subst}
+  deriving Show
 
 type TI a = ErrorT String (ReaderT TIEnv (StateT TIState Identity)) a
 

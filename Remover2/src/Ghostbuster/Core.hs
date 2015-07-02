@@ -13,9 +13,10 @@ module Ghostbuster.Core
 import           Control.Exception ( assert )
 import qualified Data.Map as HM
 import qualified Data.Set as S
+import           Debug.Trace
+import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
-
 
 type Equations  = (HM.Map TyVar [TyVar])
 type Patterns   = (HM.Map TyVar MonoTy)
@@ -319,11 +320,13 @@ generateDown alldefs which =
       appLst (EVar (gadtDownName conName)) $
        (map (EVar . dictArgify) newDicts) ++
          -- (map EDict newDicts) ++
-      [ (dispatch arg ty)
+      [ (dispatch substs arg ty)
       | (arg,ty) <- zip args fields ])
-    | KCons {conName,fields} <- cases
+    | KCons {conName,fields,outputs} <- cases
     , let args = (take (length fields) patVars)
           newDicts = getKConsDicts alldefs conName
+          substs = [ fst $ runTI (unify (VarTy arg) rhsTy)
+                   | ((arg,_),rhsTy) <- zip allVars outputs ]
     ]
   where
   params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ]
@@ -343,21 +346,23 @@ generateDown alldefs which =
 
   -- For a type T_i, we dispatch to downT_i
   -- We need to build dictionaries for its type-level arguments:
-  dispatch vr (ConTy name tyargs)
-    | isErased alldefs name = appLst (EVar (downName name))
-                                     (map buildDict tyargs ++ [EVar vr])
+  dispatch substs  vr (ConTy name tyargs)
+    | isErased alldefs name =
+        trace ("UNIFYING, substs: "++show substs) $
+        appLst (EVar (downName name))
+               (map buildDict tyargs ++ [EVar vr])
     | otherwise = EVar vr
 
   -- If we just have an abstract type, we return it.  No recursions.
-  dispatch vr (VarTy _)       = EVar vr
+  dispatch _substs vr (VarTy _)       = EVar vr
   -- For now functions are left alone.  Later we should generate proxies.
-  dispatch vr (ArrowTy _ _)   = EVar vr
+  dispatch _substs vr (ArrowTy _ _)   = EVar vr
 
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
-  dispatch vr (TypeDictTy _)  = EVar vr
+  dispatch _substs vr (TypeDictTy _)  = EVar vr
 
-
+-- | Establish a (local) convention for how to name dictionary arguments
 dictArgify :: Var -> Var
 dictArgify = (+++ "_dict")
 
