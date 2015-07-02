@@ -1,6 +1,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ParallelListComp #-}
+{-# LANGUAGE NamedFieldPuns #-}
 
 -- |
 
@@ -13,6 +14,7 @@ import           Ghostbuster.Examples.Tiny
 import           Ghostbuster.Interp as I
 import           Ghostbuster.KindCheck as K
 import           Ghostbuster.Types
+import           Ghostbuster.Utils
 import qualified Ghostbuster.Core as Core
 
 import           Control.DeepSeq
@@ -306,6 +308,18 @@ ghostbustAllProgs =
   , let testname = ("ghostbust"++show ix)
   ]
 
+downList :: TestTree
+downList = testCase tname $
+ do let Prog {prgDefs} = p11_bustedList
+        vtop = VDef "ghostbuster"
+                    (ForAll [] (ConTy "List'" []))
+                    (appLst "downList"
+                      [ EDict "Int"
+                      , appLst (EK "Cons") [EK "Three", EK "Nil"]])
+    interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster prgDefs vtop
+  where
+   tname = "Down-convert-list"
 
 main :: IO ()
 main =
@@ -313,7 +327,7 @@ main =
      withArgs (["-t","2"] ++ args) $
       defaultMain $
         testGroup "" $
-        [ testsAbove ] ++
+        [ downList, testsAbove ] ++
         runAllProgs ++
         runAllLoweredProgs ++
         runAndCompareLowered ++
