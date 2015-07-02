@@ -376,5 +376,5 @@ main =
 expectedFailures :: [String]
 expectedFailures =
  [ -- "Down-convert-feldspar"
-   "Down-convert-list2"
+   -- "Down-convert-list2"
  ]

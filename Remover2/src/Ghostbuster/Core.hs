@@ -417,8 +417,10 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
       case filter (\(_,ty) -> S.member fv (ftv ty)) $
                  HM.toList subst of
         (start,path):_ -> digItOut (start) path fv
-        [] ->
-          EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
+        -- The reason we get here is that a~a constraints don't add anything
+        -- to the substitution:
+        [] -> EVar$ dictArgify fv
+          -- EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
           -- error$ "generateDown: failed to find "++show fv++" in subst "++show subst
 
   digItOut :: TyVar -> MonoTy -> TyVar -> Exp
