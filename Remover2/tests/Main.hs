@@ -18,7 +18,7 @@ import           Ghostbuster.Utils
 import qualified Ghostbuster.Core as Core
 
 import           Control.DeepSeq
-import           Control.Exception (evaluate, catch, SomeException)
+import           Control.Exception (evaluate, catch, SomeException, throw)
 import           Control.Monad
 import qualified Data.List as L
 import           Ghostbuster.CodeGen.Prog as CG
@@ -43,8 +43,13 @@ import           Prelude hiding ( putStrLn, print ) -- use 'say' instead!!
 chatty :: Bool
 chatty = True
 
-say :: String -> IO ()
-say = when chatty . hPutStrLn stderr
+-- | This deferred version ONLY chats when there's an exception raised.
+say :: String -> IO a ->  IO a
+say msg act =
+  catch act
+    (\e ->
+       do hPutStrLn stderr ("\n"++msg)
+          throw (e::SomeException))
 
 ------------------------------------------------------------
 -- Deal with in-development tests:
@@ -52,11 +57,11 @@ say = when chatty . hPutStrLn stderr
 expectFailure :: String -> IO () -> IO ()
 expectFailure testname act
   | L.any (==testname) expectedFailures =
-    do say $ " ** Expecting failure for test "++testname
+    do hPutStrLn stderr $ " ** Expecting failure for test "++testname
        exn <- catch (do act
                         return False)
                     (\e ->
-                      do say $ "Caught expected exception: " ++ show (e :: SomeException)
+                      do hPutStrLn stderr $ "Caught expected exception: " ++ show (e :: SomeException)
                          return True)
        unless exn $
          error "Expected exception but did not get one!!"
@@ -213,27 +218,25 @@ interpretProg (Just name) prg =
    -- Temporarily keeping these while debugging:
    (file,hdl) <- openTempFile "./" ("temp_"++name++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-   say $ "\n   Writing file to: "++ file
-   let contents = (prettyPrint (moduleOfProg prg))
-   hPutStr hdl contents
-   hClose hdl
-   say $ "   File written."
-   -- say contents
+   say ("\n   Writing file to: "++ file) $ do
+    let contents = (prettyPrint (moduleOfProg prg))
+    hPutStr hdl contents
+    hClose hdl
+    say ("   File written.") $
+     when False $ do
+       x <- fmap (either interpreterError id) $
+         runInterpreter $ do
+           loadModules [ file ]
+           setImportsQ [ ("Ghostbuster", Nothing )
+                       , ("Prelude", Nothing) ]
+           interpret "main" infer
+       say "   Interpreter complete.  Got IO action from loaded program.  Running:" $ do
+        () <- x
+        return ()
 
-   when False $ do
-      x <- fmap (either interpreterError id) $
-        runInterpreter $ do
-          loadModules [ file ]
-          setImportsQ [ ("Ghostbuster", Nothing )
-                      , ("Prelude", Nothing) ]
-          interpret "main" infer
-      say "   Interpreter complete.  Got IO action from loaded program.  Running:"
-      () <- x
-      return ()
+    ExitSuccess <- system $ "runghc "++file
 
-   ExitSuccess <- system $ "runghc "++file
-
-   return ()
+    return ()
 
 interpreterError :: InterpreterError -> a
 interpreterError e
@@ -263,14 +266,15 @@ runAllProgs =
 runAllLoweredProgs :: [TestTree]
 runAllLoweredProgs =
     [ mkTestCase (printf "runAllLoweredProgs%02d" ix) $
-       do say "  Original:"
-          say . show $ doc prg
-          say "  Lowered:"
-          say . show $ doc $ lowerDicts prg
-          say "  Interpreted:"
-          say . show $ doc $ interp $ lowerDicts prg
-  --        evaluate $ rnf $ show $ interp $ lowerDicts prg
-          return ()
+       let p2 = lowerDicts prg
+           p3 = interp p2
+       in say ("\n  Original:\n"++
+               show (doc prg)++
+               "\n  Lowered:\n"++
+               show (doc p2)++
+               "\n  Interpreted:\n"++
+               show (doc p3))
+            (evaluate $ rnf $ show p3)
     | prg <- allProgs
     | ix <- [1::Int ..]
     ]
@@ -288,11 +292,8 @@ runAndCompareLowered =
 codegenAllProgs :: [TestTree]
 codegenAllProgs =
   [ mkTestCase (printf "codegenAllProgs%02d" ix) $
-    do say "  Original:"
-       say . show $ doc prg
-       -- evaluate $ rnf $ show $
-       --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
-       interpretProg Nothing $ lowerDicts prg
+    say ("  Original:\n"++ show (doc prg)) $ do
+     interpretProg Nothing $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]
@@ -300,17 +301,17 @@ codegenAllProgs =
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
   [ mkTestCase testname $ expectFailure testname $ do
-    say "\n ***** Full ghostbuster test "
-    say "  Original:"
-    say . show $ doc ddefs
     let p2 = Core.ghostbuster ddefs mainE
         mainE = (ForAll [] (ConTy "Int" []), (EK "Three"))
         p3 = lowerDicts p2
-    say "  Busted:"
-    say . show $ doc p2
-    say "  Lowered:"
-    say . show $ doc p3
-    interpretProg (Just testname) p3
+    say ("\n ***** Full ghostbuster test "++
+        "\n  Original:\n"++
+        show (doc ddefs)++
+        "\n  Busted:\n"++
+        show (doc p2)++
+        "\n  Lowered:\n"++
+        show (doc p3))
+     (interpretProg (Just testname) p3)
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
   , let testname = printf "ghostbust%02d" ix
@@ -351,7 +352,8 @@ main =
         ghostbustAllProgs ++
         codegenAllProgs ++
         [ downList
-        , downFeldspar ]
+        , downFeldspar
+        , testCase "foo" (say "SAY SAY SAY" $ assertEqual "" 1 3)]
 
 -- | Some tests are expected to fail as we develop new functionality.
 --   This documents that fact.  Update as we fix things.
