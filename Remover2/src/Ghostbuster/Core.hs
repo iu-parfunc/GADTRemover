@@ -98,7 +98,7 @@ maskStrippedVars up
 
 
 gadtToStrippedByClause
-    :: [DDef]   -- all declarations in the program, because somehow this is required??
+    :: [DDef]   -- all top-level declarations
     -> DDef     -- original GADT
     -> KCons    -- GADT constructor under inspection
     -> KCons
@@ -106,14 +106,7 @@ gadtToStrippedByClause alldefs up this =
     KCons name' fields' outputs'
   where
     name'       = gadtDownName (conName this)
-{-  FIXME: outputs should just be (map (stripMono alldefs))!!! and then take the "keep" prefix -}
-    outputs'    = mask (outputs this)
-
-    mask        = map snd . filter fst . zip predicate
-    predicate   = maskStrippedVars up
-
-    -- TLM: the old method, doesn't work...
-    -- RRN: Why/how??
+    outputs'    = take (length (kVars up)) (map (stripMono alldefs) (outputs this))
     fields'     = map TypeDictTy (getKConsDicts alldefs (conName this))
                ++ map (stripMono alldefs) (fields this)
 
