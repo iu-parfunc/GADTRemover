@@ -10,11 +10,11 @@ module Ghostbuster.Core
 --  , ghostbusterDDef )
   where
 
-import Ghostbuster.Types
-import Ghostbuster.Utils
-
-import Control.Exception                        ( assert )
-import qualified Data.Map                       as HM
+import           Control.Exception ( assert )
+import qualified Data.Map as HM
+import qualified Data.Set as S
+import           Ghostbuster.Types
+import           Ghostbuster.Utils
 
 
 type Equations  = (HM.Map TyVar [TyVar])
@@ -127,6 +127,8 @@ stripMono alldefs monoty =
   case monoty of
     ArrowTy mono1 mono2 -> ArrowTy (go mono1) (go mono2)
     ConTy tname monos
+      | any (containErased alldefs) monos ->
+         error$ "stripMono: not handling erased as argument to type constructor: "++show monoty
       | isErased alldefs tname -> ConTy (gadtDownName tname)
                                         (map go (onlyKeep alldefs tname monos))
       | otherwise -> ConTy tname (map go monos)
@@ -135,6 +137,17 @@ stripMono alldefs monoty =
 
   where
   go = stripMono alldefs
+
+-- | Is any type-with-erased-vars mentioned under this `MonoTy`?
+containErased :: [DDef] -> MonoTy -> Bool
+containErased alldefs mono =
+  not $ S.null $
+   S.intersection busted
+     (gatherTypesMentioned mono)
+ where
+  busted = S.fromList $
+           filter (isErased alldefs) $
+           map tyName alldefs
 
 -- | Is the data type affected by Ghostbuster?  Or is it left alone.
 isErased :: [DDef] -> TName -> Bool

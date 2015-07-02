@@ -181,7 +181,7 @@ interpretProg Nothing p = interpretProg (Just "Ghostbuster") p
 interpretProg (Just name) prg =
  do
    -- Temporarily keeping these while debugging:
-   (file,hdl) <- openTempFile "./" ("temp_"++name++ ".hs")
+   (file,hdl) <- openTempFile "./" ("temp_"++name++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
    putStrLn $ "\n   Writing file to: "++ file
    let contents = (prettyPrint (moduleOfProg prg))

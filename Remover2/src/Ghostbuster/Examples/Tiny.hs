@@ -283,4 +283,3 @@ existential2_err
   $ VDef "existential2"
          (ForAll [] "Foo")
          (ECase (EApp (EK "Foo") (EK "One")) [ (Pat "Foo" ["x"], "x") ])
-
