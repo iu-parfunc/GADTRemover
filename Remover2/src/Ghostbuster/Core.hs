@@ -352,7 +352,6 @@ generateDown alldefs which =
   -- We need to build dictionaries for its type-level arguments:
   dispatch substs  vr (ConTy name tyargs)
     | isErased alldefs name =
-        trace ("UNIFYING, substs: "++show substs) $
         appLst (EVar (downName name))
                (map (bindDictVars substs) tyargs ++ [EVar vr])
     | otherwise = EVar vr
@@ -387,9 +386,24 @@ buildDict ty =
 bindDictVars :: HM.Map TyVar MonoTy -> MonoTy -> Exp
 bindDictVars subst mono = loop (S.toList $ ftv mono)
   where
+  flipped = HM.fromList $
+            [ (v,VarTy w) | (w,VarTy v) <- HM.toList subst ]
+
+  subst' = HM.union flipped subst
+
   loop [] = buildDict mono
   loop (fv:rst) =
-    trace ("FINISHME: buildDictVars " ++show subst++ "\n"++ show (fv)) $
-    ELet (dictArgify fv, ForAll [] (ConTy "FINISHME_Ty" []), EVar "FINISHME_Exp") $
-     loop rst
---    error $
+    case HM.lookup fv subst' of
+      Nothing -> trace ("FINISHME: need to do some work here "++show (fv) ++" -> " ++show subst)
+                       (EVar$ "needswork-"+++ fv)
+      Just ty ->
+       -- fv is equal to ty, thus we use it to build the dict
+       let dicttype =
+             case ty of
+               VarTy v -> TypeDictTy v
+               _ -> (TypeDictTy (mkVar (show ty)))
+       in
+          ELet (dictArgify fv, ForAll [] dicttype, buildDict ty) $
+           loop rst
+
+       -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
