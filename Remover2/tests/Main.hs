@@ -21,14 +21,13 @@ import           Control.DeepSeq
 import           Control.Exception (evaluate, catch, SomeException)
 import           Control.Monad
 import qualified Data.List as L
-import           Data.Typeable
 import           Ghostbuster.CodeGen.Prog as CG
 import           Language.Haskell.Exts.Pretty
 import           Language.Haskell.Interpreter as Hint
 import           System.Environment (withArgs, getArgs)
 import           System.Exit
 import           System.IO
-import           System.IO.Temp
+-- import           System.IO.Temp
 import           System.Process
 import           Test.Tasty
 import           Test.Tasty.HUnit
@@ -49,13 +48,6 @@ say = when chatty . hPutStrLn stderr
 
 ------------------------------------------------------------
 -- Deal with in-development tests:
-
--- | Some tests are expected to fail as we develop new functionality.
---   This documents that fact.  Update as we fix things.
-expectedFailures :: [String]
-expectedFailures =
- [ -- "ghostbust17"  -- Fixed now!
- ]
 
 expectFailure :: String -> IO () -> IO ()
 expectFailure testname act
@@ -311,10 +303,8 @@ ghostbustAllProgs =
     say "\n ***** Full ghostbuster test "
     say "  Original:"
     say . show $ doc ddefs
-    let p2 = Core.ghostbuster ddefs vtop
-        vtop = VDef "ghostbuster"
-                    (ForAll [] (ConTy "Int" []))
-                    (EK "Three")
+    let p2 = Core.ghostbuster ddefs mainE
+        mainE = (ForAll [] (ConTy "Int" []), (EK "Three"))
         p3 = lowerDicts p2
     say "  Busted:"
     say . show $ doc p2
@@ -329,15 +319,24 @@ ghostbustAllProgs =
 downList :: TestTree
 downList = mkTestCase tname $
  do let Prog {prgDefs} = p11_bustedList
-        vtop = VDef "ghostbuster"
-                    (ForAll [] (ConTy "List'" []))
-                    (appLst "downList"
-                      [ EDict "Int"
-                      , appLst (EK "Cons") [EK "Three", EK "Nil"]])
+        mainE = (ForAll [] (ConTy "List'" []),
+                 (appLst "downList"
+                                  [ EDict "Int"
+                                  , appLst (EK "Cons") [EK "Three", EK "Nil"]]))
     interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster prgDefs vtop
+       lowerDicts $ Core.ghostbuster prgDefs mainE
   where
    tname = "Down-convert-list"
+
+
+downFeldspar :: TestTree
+downFeldspar = mkTestCase tname $
+  interpretProg (Just tname) $
+    lowerDicts $ Core.ghostbuster feldspar_gadt $
+      (ForAll [] (ConTy "Int" []), EK "Three")
+  where
+   tname = "Down-convert-feldspar"
+
 
 main :: IO ()
 main =
@@ -345,9 +344,18 @@ main =
      withArgs (["-t","2"] ++ args) $
       defaultMain $
         testGroup "" $
-        [ downList, testsAbove ] ++
+        [ testsAbove ] ++
         runAllProgs ++
         runAllLoweredProgs ++
         runAndCompareLowered ++
         ghostbustAllProgs ++
-        codegenAllProgs
+        codegenAllProgs ++
+        [ downList
+        , downFeldspar ]
+
+-- | Some tests are expected to fail as we develop new functionality.
+--   This documents that fact.  Update as we fix things.
+expectedFailures :: [String]
+expectedFailures =
+ [ "Down-convert-feldspar"
+ ]

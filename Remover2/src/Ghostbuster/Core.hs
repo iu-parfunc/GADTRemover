@@ -20,9 +20,13 @@ import           Ghostbuster.Utils
 type Equations  = (HM.Map TyVar [TyVar])
 type Patterns   = (HM.Map TyVar MonoTy)
 
-ghostbuster :: [DDef] -> VDef -> Prog
-ghostbuster ddefs vtop = Prog (ddefs ++ ddefsNew) vdefsNew vtop
+-- | Given a set of definitions and a "main" expression to execute,
+--   generate a full program that executes that expression in the
+--   context of the ghostbuster-generated definitions.
+ghostbuster :: [DDef] -> (TyScheme,Exp) -> Prog
+ghostbuster ddefs (topTy,topExp) = Prog (ddefs ++ ddefsNew) vdefsNew vtop
   where
+  vtop = VDef "ghostbuster" topTy topExp
 
   allddefs      = ddefs ++ primitiveTypes
   bustedDefs    = [ dd | dd@DDef {cVars,sVars} <- allddefs
