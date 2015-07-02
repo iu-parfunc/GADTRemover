@@ -40,9 +40,6 @@ import           Prelude hiding ( putStrLn, print ) -- use 'say' instead!!
 ------------------------------------------------------------
 -- Print something to console
 
-chatty :: Bool
-chatty = True
-
 -- | This deferred version ONLY chats when there's an exception raised.
 say :: String -> IO a ->  IO a
 say msg act =
