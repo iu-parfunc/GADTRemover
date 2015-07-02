@@ -48,6 +48,32 @@ say :: String -> IO ()
 say = when chatty . hPutStrLn stderr
 
 ------------------------------------------------------------
+-- Deal with in-development tests:
+
+-- | Some tests are expected to fail as we develop new functionality.
+--   This documents that fact.  Update as we fix things.
+expectedFailures :: [String]
+expectedFailures =
+ [ -- "ghostbust17"  -- Fixed now!
+ ]
+
+expectFailure :: String -> IO () -> IO ()
+expectFailure testname act
+  | L.any (==testname) expectedFailures =
+    do say $ " ** Expecting failure for test "++testname
+       exn <- catch (do act
+                        return False)
+                    (\e ->
+                      do say $ "Caught expected exception: " ++ show (e :: SomeException)
+                         return True)
+       unless exn $
+         error "Expected exception but did not get one!!"
+  | otherwise = act
+
+mkTestCase :: TestName -> IO () -> TestTree
+mkTestCase tname act = testCase tname (expectFailure tname act)
+
+------------------------------------------------------------
 
 case_E02 :: Assertion
 case_E02 = assertEqual "interp_case"
@@ -236,7 +262,7 @@ testsAbove = $(testGroupGenerator)
 -- don't check the outputs.
 runAllProgs :: [TestTree]
 runAllProgs =
-  [ testCase (printf "runAllProgs%02d" ix) $ evaluate $ rnf $ show $
+  [ mkTestCase (printf "runAllProgs%02d" ix) $ evaluate $ rnf $ show $
     interp prg
   | prg <- allProgs
   | ix <- [1::Int ..]
@@ -244,7 +270,7 @@ runAllProgs =
 
 runAllLoweredProgs :: [TestTree]
 runAllLoweredProgs =
-    [ testCase (printf "runAllLoweredProgs%02d" ix) $
+    [ mkTestCase (printf "runAllLoweredProgs%02d" ix) $
        do say "  Original:"
           say . show $ doc prg
           say "  Lowered:"
@@ -259,7 +285,7 @@ runAllLoweredProgs =
 
 runAndCompareLowered :: [TestTree]
 runAndCompareLowered =
-  [ testCase (printf "runAndCompareLowered%02d" ix) $
+  [ mkTestCase (printf "runAndCompareLowered%02d" ix) $
      do let res1 = interp prg
             res2 = interp $ lowerDicts prg
         assertEqual "interp and (interp . lower) yield the same" res1 res2
@@ -269,7 +295,7 @@ runAndCompareLowered =
 
 codegenAllProgs :: [TestTree]
 codegenAllProgs =
-  [ testCase (printf "codegenAllProgs%02d" ix) $
+  [ mkTestCase (printf "codegenAllProgs%02d" ix) $
     do say "  Original:"
        say . show $ doc prg
        -- evaluate $ rnf $ show $
@@ -279,29 +305,9 @@ codegenAllProgs =
   | ix <- [1::Int ..]
   ]
 
--- | Some tests are expected to fail as we develop new functionality.
---   This documents that fact.  Update as we fix things.
-expectedFailures :: [String]
-expectedFailures =
- [ -- "ghostbust17"  -- Fixed now!
- ]
-
-expectFailure :: String -> IO () -> IO ()
-expectFailure testname act
-  | L.any (==testname) expectedFailures =
-    do say $ " ** Expecting failure for test "++testname
-       exn <- catch (do act
-                        return False)
-                    (\e ->
-                      do say $ "Caught expected exception: " ++ show (e :: SomeException)
-                         return True)
-       unless exn $
-         error "Expected exception but did not get one!!"
-  | otherwise = act
-
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
-  [ testCase testname $ expectFailure testname $ do
+  [ mkTestCase testname $ expectFailure testname $ do
     say "\n ***** Full ghostbuster test "
     say "  Original:"
     say . show $ doc ddefs
@@ -321,7 +327,7 @@ ghostbustAllProgs =
   ]
 
 downList :: TestTree
-downList = testCase tname $
+downList = mkTestCase tname $
  do let Prog {prgDefs} = p11_bustedList
         vtop = VDef "ghostbuster"
                     (ForAll [] (ConTy "List'" []))
