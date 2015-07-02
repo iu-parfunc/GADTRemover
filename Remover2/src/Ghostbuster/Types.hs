@@ -134,6 +134,7 @@ primitiveTypes =
   , ints
   , maybeD
   , boolD
+  , unitD
   ] ++
   tupsD
 
@@ -170,6 +171,10 @@ boolD = DDef "Bool" [] [] []
       [ KCons "True" [] []
       , KCons "False" [] []
       ]
+
+unitD :: DDef
+unitD = DDef "Unit" [] [] []
+        [ KCons "Unit" [] []]
 
 -- RRN: We can use "," or "Tup2" as the constructor.
 tupsD :: [DDef]

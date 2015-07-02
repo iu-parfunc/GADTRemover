@@ -345,12 +345,16 @@ downList2 = mkTestCase tname $
    tname = "Down-convert-list2"
 
 
-
 downFeldspar :: TestTree
 downFeldspar = mkTestCase tname $
   interpretProg (Just tname) $
     lowerDicts $ Core.ghostbuster feldspar_gadt $
-      (ForAll [] (ConTy "Int" []), EK "Three")
+      (ForAll [] (ConTy "Exp'" []),
+       appLst "downExp"
+              [ EDict "Unit"
+              , EDict "Int"
+              , EApp (EK "Con") (EK "Three")
+              ])
   where
    tname = "Down-convert-feldspar"
 
