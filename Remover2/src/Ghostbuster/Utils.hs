@@ -103,6 +103,16 @@ nonErased getStatus mt =
  where
  lp = nonErased getStatus
 
+-- | Does the type variable occur existentially in this constructor?
+isExistential :: TyVar -> KCons -> Bool
+isExistential tv kc =
+  S.member tv $ allExistentials kc
+
+allExistentials :: KCons -> S.Set TyVar
+allExistentials KCons {fields,outputs} =
+  S.difference (ftv fields)
+               (ftv outputs)
+
 -- | Partition type variables into (kept,checked,synth)
 splitTyArgs :: Show t => [TyStatus] -> [t] -> ([t],[t],[t])
 splitTyArgs myStatus outputs

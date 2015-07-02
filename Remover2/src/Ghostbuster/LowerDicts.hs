@@ -46,7 +46,9 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
                     , S.member tyName allDictsSet ]
 
   dictGADT =
-    DDef "TypeDict" [("a",Star)] [] []
+    DDef "TypeDict" [("a",Star)] [] [] $
+    -- Include this one as a built-in:
+    KCons {conName= "ExistentialDict", fields= [], outputs= ["any"]} :
     [ KCons name
             [ ConTy "TypeDict" [VarTy $ mkVar c]
             | (c) <- letters ]
@@ -55,7 +57,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
     , let name = (dictConsName tn)
           letters = map (\(c,_) -> [c]) $
                     zip ['a' ..] (getArgStatus ddefs tn)
-   ]
+    ]
 
 -- | Gather all the type constructor names whose dictionaries are
 -- refied or tested against.
@@ -126,13 +128,16 @@ doExp ddefs e =
        -- funBindLet (go x1) (ConTy "TypeDict" ["any"]) $ \x1' ->
        ECase (go x1) $
              [ (Pat (dictConsName name) vars , go x2)
-             ] ++ -- otherwise case for EVERY other dictionary:
+             ] -- otherwise case for EVERY other dictionary:
+-- TEMP: DISABLING ALL FALSE CASES TEMPORARILY:
+{-
+             ++
              [ (Pat (dictConsName oth) vars', x3')
              | oth <- allDicts, oth /= name
              , let vars' = take (length $ getArgStatus ddefs oth)
                                 (patVars)
              ]
-
+-}
     -- (3) Equality tests call the out-of-line library function that
     -- we generate on the side.
     (EIfTyEq (x0,x1) x2 x3) ->

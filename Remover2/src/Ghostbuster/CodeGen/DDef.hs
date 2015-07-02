@@ -2,12 +2,12 @@
 
 module Ghostbuster.CodeGen.DDef
   where
-
+import Debug.Trace
 import Ghostbuster.Types
 import Ghostbuster.CodeGen.Base
 
 import Language.Haskell.Exts
-import Language.Haskell.Exts.SrcLoc                     ( noLoc )
+import Language.Haskell.Exts.SrcLoc ( noLoc )
 
 
 -- Convert a single datatype definition into a top-level GADT data type
@@ -34,6 +34,7 @@ gadtOfDDef deriveShow DDef{..} =
 --
 mkGADTCtor :: TName -> KCons -> GadtDecl
 mkGADTCtor tyName KCons{..} =
+  trace ("mkGADTCtor "++show outputs) $
   GadtDecl
     noLoc                       -- source location
     (varName conName)
@@ -42,4 +43,3 @@ mkGADTCtor tyName KCons{..} =
   where
     theType     = foldr1 TyFun
                 $ map mkType (fields ++ [ConTy tyName outputs])
-

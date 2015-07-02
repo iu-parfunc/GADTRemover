@@ -320,11 +320,12 @@ generateDown alldefs which =
       appLst (EVar (gadtDownName conName)) $
        (map (EVar . dictArgify) newDicts) ++
          -- (map EDict newDicts) ++
-      [ (dispatch substs arg ty)
+      [ (dispatch substs existentials arg ty)
       | (arg,ty) <- zip args fields ])
-    | KCons {conName,fields,outputs} <- cases
+    | kc@KCons {conName,fields,outputs} <- cases
     , let args = (take (length fields) patVars)
           newDicts = getKConsDicts alldefs conName
+          existentials = allExistentials kc
           substs = case runTI $
                         do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
                                       (zip allVars outputs)
@@ -350,20 +351,21 @@ generateDown alldefs which =
 
   -- For a type T_i, we dispatch to downT_i
   -- We need to build dictionaries for its type-level arguments:
-  dispatch substs  vr (ConTy name tyargs)
+  dispatch substs existentials vr (ConTy name tyargs)
     | isErased alldefs name =
         appLst (EVar (downName name))
-               (map (bindDictVars substs) tyargs ++ [EVar vr])
+               (map (bindDictVars substs existentials) tyargs
+                ++ [EVar vr])
     | otherwise = EVar vr
 
   -- If we just have an abstract type, we return it.  No recursions.
-  dispatch _substs vr (VarTy _)       = EVar vr
+  dispatch _ _ vr (VarTy _)       = EVar vr
   -- For now functions are left alone.  Later we should generate proxies.
-  dispatch _substs vr (ArrowTy _ _)   = EVar vr
+  dispatch _ _ vr (ArrowTy _ _)   = EVar vr
 
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
-  dispatch _substs vr (TypeDictTy _)  = EVar vr
+  dispatch _ _ vr (TypeDictTy _)  = EVar vr
 
 -- | Establish a (local) convention for how to name dictionary arguments
 dictArgify :: Var -> Var
@@ -383,8 +385,8 @@ buildDict ty =
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
-bindDictVars :: HM.Map TyVar MonoTy -> MonoTy -> Exp
-bindDictVars subst mono = loop (S.toList $ ftv mono)
+bindDictVars :: HM.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
+bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
   where
 
   flipped = HM.fromList $
@@ -408,35 +410,42 @@ bindDictVars subst mono = loop (S.toList $ ftv mono)
 
        -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
 
-  findPath fv =
-    case filter (\(_,ty) -> S.member fv (ftv ty)) $
-               HM.toList subst of
-      (start,path):_ -> digItOut start path fv
-      [] ->
-        EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
-        -- error$ "failed to find "++show fv++" in subst "++show subst
+  findPath fv
+    | S.member fv existentials = specialExistentialDict
+    | otherwise =
+      case filter (\(_,ty) -> S.member fv (ftv ty)) $
+                 HM.toList subst of
+        (start,path):_ -> digItOut (start) path fv
+        [] ->
+          EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
+          -- error$ "generateDown: failed to find "++show fv++" in subst "++show subst
 
-  digItOut start mono dest =
-    case mono of
+  digItOut :: TyVar -> MonoTy -> TyVar -> Exp
+  digItOut cursor monty dest =
+    case monty of
      (VarTy x) -> if x == dest
-                     then EVar (dictArgify dest)
+                     then EVar cursor
                      else error "internal error, generateDown"
-     (ArrowTy x1 x2) -> ECaseDict (EVar start)
+     (ArrowTy x1 x2) -> ECaseDict (EVar $ dictArgify cursor)
                            ("ArrowTy", ["left","right"],
                             if S.member dest (ftv x1)
                             then digItOut "left" x1 dest
                             else digItOut "right" x2 dest)
-                           (EDict "Any")
-     (ConTy tn ls) -> ECaseDict (EVar start)
-                         (tn, take 3 patVars,
+                           specialExistentialDict
+     (ConTy tn ls) -> ECaseDict (EVar $ dictArgify cursor)
+                         (tn, take (length ls) patVars,
                           head
                            [ digItOut (vr) arg dest
                            | (vr,arg) <- zip patVars ls
                            , S.member dest (ftv arg) ])
-                         (EDict "Any")
+                         specialExistentialDict
      (TypeDictTy x) -> error "FINISHME"
 
   -- EVar (dictArgify start)
 
 -- trace ("FINISHME: need to do some work here "++show (fv) ++" -> " ++show path)
 --       (EVar$ "needswork-"+++ fv)
+
+
+specialExistentialDict :: Exp
+specialExistentialDict = EDict "Existential"

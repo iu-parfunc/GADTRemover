@@ -81,4 +81,3 @@ matchOfExp fn (splitArgs -> (vs, e)) =
 splitArgs :: G.Exp -> ( [G.Var], G.Exp )
 splitArgs (ELam (v,_) rhs) = let (vs,r) = splitArgs rhs in (v:vs, r)
 splitArgs rhs              = ([], rhs)
-
