@@ -386,6 +386,7 @@ buildDict ty =
 bindDictVars :: HM.Map TyVar MonoTy -> MonoTy -> Exp
 bindDictVars subst mono = loop (S.toList $ ftv mono)
   where
+
   flipped = HM.fromList $
             [ (v,VarTy w) | (w,VarTy v) <- HM.toList subst ]
 
@@ -394,8 +395,7 @@ bindDictVars subst mono = loop (S.toList $ ftv mono)
   loop [] = buildDict mono
   loop (fv:rst) =
     case HM.lookup fv subst' of
-      Nothing -> trace ("FINISHME: need to do some work here "++show (fv) ++" -> " ++show subst)
-                       (EVar$ "needswork-"+++ fv)
+      Nothing -> findPath fv
       Just ty ->
        -- fv is equal to ty, thus we use it to build the dict
        let dicttype =
@@ -407,3 +407,36 @@ bindDictVars subst mono = loop (S.toList $ ftv mono)
            loop rst
 
        -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
+
+  findPath fv =
+    case filter (\(_,ty) -> S.member fv (ftv ty)) $
+               HM.toList subst of
+      (start,path):_ -> digItOut start path fv
+      [] ->
+        EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
+        -- error$ "failed to find "++show fv++" in subst "++show subst
+
+  digItOut start mono dest =
+    case mono of
+     (VarTy x) -> if x == dest
+                     then EVar (dictArgify dest)
+                     else error "internal error, generateDown"
+     (ArrowTy x1 x2) -> ECaseDict (EVar start)
+                           ("ArrowTy", ["left","right"],
+                            if S.member dest (ftv x1)
+                            then digItOut "left" x1 dest
+                            else digItOut "right" x2 dest)
+                           (EDict "Any")
+     (ConTy tn ls) -> ECaseDict (EVar start)
+                         (tn, take 3 patVars,
+                          head
+                           [ digItOut (vr) arg dest
+                           | (vr,arg) <- zip patVars ls
+                           , S.member dest (ftv arg) ])
+                         (EDict "Any")
+     (TypeDictTy x) -> error "FINISHME"
+
+  -- EVar (dictArgify start)
+
+-- trace ("FINISHME: need to do some work here "++show (fv) ++" -> " ++show path)
+--       (EVar$ "needswork-"+++ fv)
