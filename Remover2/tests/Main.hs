@@ -325,7 +325,25 @@ downList = mkTestCase tname $
     interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
-   tname = "Down-convert-list"
+   tname = "Down-convert-list1"
+
+-- | Test with the SAME name used in T and K:
+downList2 :: TestTree
+downList2 = mkTestCase tname $
+ do let prgDefs = [DDef "List" [] [] [("a", Star)]
+                      [ KCons "Nil" [] ["a"]
+                      , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
+                      ]
+                  ]
+        mainE = (ForAll [] (ConTy "List'" []),
+                 (appLst "downList"
+                                  [ EDict "Int"
+                                  , appLst (EK "Cons") [EK "Three", EK "Nil"]]))
+    interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster prgDefs mainE
+  where
+   tname = "Down-convert-list2"
+
 
 
 downFeldspar :: TestTree
@@ -349,7 +367,7 @@ main =
         runAndCompareLowered ++
         ghostbustAllProgs ++
         codegenAllProgs ++
-        [ downList
+        [ downList, downList2
         , downFeldspar
         ]
 
@@ -358,4 +376,5 @@ main =
 expectedFailures :: [String]
 expectedFailures =
  [ -- "Down-convert-feldspar"
+   "Down-convert-list2"
  ]
