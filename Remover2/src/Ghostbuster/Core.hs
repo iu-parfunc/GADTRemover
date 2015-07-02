@@ -343,12 +343,11 @@ generateDown alldefs which =
   allVars       = kVars++cVars++sVars
 
   -- For a type T_i, we dispatch to downT_i
-  -- FIXME: We need to add extra dictionary arguments here.
-  dispatch vr (ConTy name _)
-    | name == which = appLst (EVar (downName name))
-                             (map EVar $ dictArgs++[vr]) -- DELETE THIS LINE
-    | otherwise = error$  "generateDown: UNFINISHED: need some logic here to dispatch a call to "
-                  ++ show name ++" while providing the right dictionary arguments."
+  -- We need to build dictionaries for its type-level arguments:
+  dispatch vr (ConTy name tyargs) =
+    appLst (EVar (downName name))
+           (map buildDict tyargs)
+
   -- If we just have an abstract type, we return it.  No recursions.
   dispatch vr (VarTy _)       = EVar vr
   -- For now functions are left alone.  Later we should generate proxies.
@@ -357,3 +356,9 @@ generateDown alldefs which =
   -- Are dicts ALLOWED in the input program, or just the output?
   -- For now they are allowed...
   dispatch vr (TypeDictTy _)  = EVar vr
+
+
+buildDict :: MonoTy -> Exp
+buildDict ty =
+  case ty of
+    _ -> error$ "FINISHME: need to build dictionary for type: "++show ty
