@@ -325,8 +325,12 @@ generateDown alldefs which =
     | KCons {conName,fields,outputs} <- cases
     , let args = (take (length fields) patVars)
           newDicts = getKConsDicts alldefs conName
-          substs = [ fst $ runTI (unify (VarTy arg) rhsTy)
-                   | ((arg,_),rhsTy) <- zip allVars outputs ]
+          substs = case runTI $
+                        do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
+                                      (zip allVars outputs)
+                           return $ foldl1 composeSubst ls of
+                     (Left e,_) -> error$ "generateDown: error unifying: "++show e
+                     (Right s,_) -> s
     ]
   where
   params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ]
@@ -350,7 +354,7 @@ generateDown alldefs which =
     | isErased alldefs name =
         trace ("UNIFYING, substs: "++show substs) $
         appLst (EVar (downName name))
-               (map buildDict tyargs ++ [EVar vr])
+               (map (bindDictVars substs) tyargs ++ [EVar vr])
     | otherwise = EVar vr
 
   -- If we just have an abstract type, we return it.  No recursions.
@@ -366,10 +370,26 @@ generateDown alldefs which =
 dictArgify :: Var -> Var
 dictArgify = (+++ "_dict")
 
+-- | Build the final dictionary, assuming all the required variable
+-- names are in scope.
 buildDict :: MonoTy -> Exp
 buildDict ty =
   case ty of
     (VarTy t)       -> EVar $ dictArgify t
-    (ConTy k ls)    -> appLst (EDict k)         (map buildDict ls)
-    (ArrowTy t1 t2) -> appLst (EDict "ArrowTy") [buildDict t1, buildDict t2]
+    (ConTy k ls)    -> appLst (EDict k)         (map go ls)
+    (ArrowTy t1 t2) -> appLst (EDict "ArrowTy") [go t1, go t2]
     (TypeDictTy _)  -> error$ "Core:buildDict: should never build a dictionary of a dictionary: "++show ty
+  where
+  go = buildDict
+
+-- | Bind dictionaries for ALL variable names that occur free in the monotype.
+--   Use a substitution to determine relevant equalities.
+bindDictVars :: HM.Map TyVar MonoTy -> MonoTy -> Exp
+bindDictVars subst mono = loop (S.toList $ ftv mono)
+  where
+  loop [] = buildDict mono
+  loop (fv:rst) =
+    trace ("FINISHME: buildDictVars " ++show subst++ "\n"++ show (fv)) $
+    ELet (dictArgify fv, ForAll [] (ConTy "FINISHME_Ty" []), EVar "FINISHME_Exp") $
+     loop rst
+--    error $
