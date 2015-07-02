@@ -36,6 +36,17 @@ import           Test.Tasty.TH
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Text.Printf
 
+import           Prelude hiding ( putStrLn, print ) -- use 'say' instead!!
+
+------------------------------------------------------------
+-- Print something to console
+
+chatty :: Bool
+chatty = True
+
+say :: String -> IO ()
+say = when chatty . hPutStrLn stderr
+
 ------------------------------------------------------------
 
 case_E02 :: Assertion
@@ -184,12 +195,12 @@ interpretProg (Just name) prg =
    -- Temporarily keeping these while debugging:
    (file,hdl) <- openTempFile "./" ("temp_"++name++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-   putStrLn $ "\n   Writing file to: "++ file
+   say $ "\n   Writing file to: "++ file
    let contents = (prettyPrint (moduleOfProg prg))
    hPutStr hdl contents
    hClose hdl
-   putStrLn $ "   File written."
-   -- putStrLn contents
+   say $ "   File written."
+   -- say contents
 
    when False $ do
       x <- fmap (either interpreterError id) $
@@ -198,7 +209,7 @@ interpretProg (Just name) prg =
           setImportsQ [ ("Ghostbuster", Nothing )
                       , ("Prelude", Nothing) ]
           interpret "main" infer
-      putStrLn "   Interpreter complete.  Got IO action from loaded program.  Running:"
+      say "   Interpreter complete.  Got IO action from loaded program.  Running:"
       () <- x
       return ()
 
@@ -234,12 +245,12 @@ runAllProgs =
 runAllLoweredProgs :: [TestTree]
 runAllLoweredProgs =
     [ testCase (printf "runAllLoweredProgs%02d" ix) $
-       do putStrLn "  Original:"
-          print $ doc prg
-          putStrLn "  Lowered:"
-          print $ doc $ lowerDicts prg
-          putStrLn "  Interpreted:"
-          print $ doc $ interp $ lowerDicts prg
+       do say "  Original:"
+          say . show $ doc prg
+          say "  Lowered:"
+          say . show $ doc $ lowerDicts prg
+          say "  Interpreted:"
+          say . show $ doc $ interp $ lowerDicts prg
   --        evaluate $ rnf $ show $ interp $ lowerDicts prg
           return ()
     | prg <- allProgs
@@ -259,8 +270,8 @@ runAndCompareLowered =
 codegenAllProgs :: [TestTree]
 codegenAllProgs =
   [ testCase (printf "codegenAllProgs%02d" ix) $
-    do putStrLn "  Original:"
-       print $ doc prg
+    do say "  Original:"
+       say . show $ doc prg
        -- evaluate $ rnf $ show $
        --  prettyPrint $ CG.moduleOfProg $ lowerDicts prg
        interpretProg Nothing $ lowerDicts prg
@@ -278,11 +289,11 @@ expectedFailures =
 expectFailure :: String -> IO () -> IO ()
 expectFailure testname act
   | L.any (==testname) expectedFailures =
-    do putStrLn $ " ** Expecting failure for test "++testname
+    do say $ " ** Expecting failure for test "++testname
        exn <- catch (do act
                         return False)
                     (\e ->
-                      do putStrLn$ "Caught expected exception: " ++ show(e :: SomeException)
+                      do say $ "Caught expected exception: " ++ show (e :: SomeException)
                          return True)
        unless exn $
          error "Expected exception but did not get one!!"
@@ -291,18 +302,18 @@ expectFailure testname act
 ghostbustAllProgs :: [TestTree]
 ghostbustAllProgs =
   [ testCase testname $ expectFailure testname $ do
-    putStrLn "\n ***** Full ghostbuster test "
-    putStrLn "  Original:"
-    print $ doc ddefs
+    say "\n ***** Full ghostbuster test "
+    say "  Original:"
+    say . show $ doc ddefs
     let p2 = Core.ghostbuster ddefs vtop
         vtop = VDef "ghostbuster"
                     (ForAll [] (ConTy "Int" []))
                     (EK "Three")
         p3 = lowerDicts p2
-    putStrLn "  Busted:"
-    print $ doc p2
-    putStrLn "  Lowered:"
-    print $ doc p3
+    say "  Busted:"
+    say . show $ doc p2
+    say "  Lowered:"
+    say . show $ doc p3
     interpretProg (Just testname) p3
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
