@@ -34,6 +34,7 @@ import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.TH
 import           Text.PrettyPrint.GenericPretty (Out(doc))
+import           Text.Printf
 
 ------------------------------------------------------------
 
@@ -224,7 +225,7 @@ testsAbove = $(testGroupGenerator)
 -- don't check the outputs.
 runAllProgs :: [TestTree]
 runAllProgs =
-  [ testCase ("runAllProgs"++show ix) $ evaluate $ rnf $ show $
+  [ testCase (printf "runAllProgs%02d" ix) $ evaluate $ rnf $ show $
     interp prg
   | prg <- allProgs
   | ix <- [1::Int ..]
@@ -232,7 +233,7 @@ runAllProgs =
 
 runAllLoweredProgs :: [TestTree]
 runAllLoweredProgs =
-    [ testCase ("runAllLoweredProgs"++show ix) $
+    [ testCase (printf "runAllLoweredProgs%02d" ix) $
        do putStrLn "  Original:"
           print $ doc prg
           putStrLn "  Lowered:"
@@ -247,7 +248,7 @@ runAllLoweredProgs =
 
 runAndCompareLowered :: [TestTree]
 runAndCompareLowered =
-  [ testCase ("runAndCompareLowered"++show ix) $
+  [ testCase (printf "runAndCompareLowered%02d" ix) $
      do let res1 = interp prg
             res2 = interp $ lowerDicts prg
         assertEqual "interp and (interp . lower) yield the same" res1 res2
@@ -257,7 +258,7 @@ runAndCompareLowered =
 
 codegenAllProgs :: [TestTree]
 codegenAllProgs =
-  [ testCase ("codegenAllProgs"++show ix) $
+  [ testCase (printf "codegenAllProgs%02d" ix) $
     do putStrLn "  Original:"
        print $ doc prg
        -- evaluate $ rnf $ show $
@@ -305,7 +306,7 @@ ghostbustAllProgs =
     interpretProg (Just testname) p3
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
-  , let testname = ("ghostbust"++show ix)
+  , let testname = printf "ghostbust%02d" ix
   ]
 
 downList :: TestTree
