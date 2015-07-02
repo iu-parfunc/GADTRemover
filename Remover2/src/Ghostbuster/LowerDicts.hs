@@ -208,14 +208,3 @@ mkTeq ddefs = VDef "checkTEQ" typesig $
 reflDef :: DDef
 reflDef = DDef "TyEquality" [("a",Star),("b",Star)] [] []
           [KCons "Refl" [] ["a","a"]]
-
-
---------------------------------------------------------------------------------
--- Naming conventions
-
-dictConsName :: Var -> Var
-dictConsName (Var v) = Var (v `B.append` "Dict")
-
-
-typeDict :: MonoTy -> MonoTy
-typeDict x = ConTy "TypeDict" [x]

@@ -19,6 +19,17 @@ import           Ghostbuster.Types
 
 
 --------------------------------------------------------------------------------
+-- Naming conventions
+
+-- | What is the name of a dictionary for a given type `T_i`?
+dictConsName :: TName -> Var
+dictConsName (Var v) = Var (v `B.append` "Dict")
+
+-- | What is the name of the (single) dictionary GADT produced by LowerDicts?
+typeDict :: MonoTy -> MonoTy
+typeDict x = ConTy "TypeDict" [x]
+
+--------------------------------------------------------------------------------
 -- Misc Helpers
 
 -- | Add something to any error message that comes through.

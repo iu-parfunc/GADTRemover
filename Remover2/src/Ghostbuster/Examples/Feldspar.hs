@@ -18,17 +18,17 @@ data Exp (e :: *) (a :: *) where
   App :: Exp e (a -> b) -> Exp e a -> Exp e b
 -}
 dd1 :: DDef
-dd1 = DDef "Exp" [] [("e",Star)] [("a",Star)]
-      [ KCons "Con" [int]                               ["e",int]
-      , KCons "Add" [ exp ["e", int]
-                    , exp ["e", int]]                   ["e",int]
-      , KCons "Mul" [ exp ["e", int]
-                    , exp ["e", int]]                   ["e",int]
-      , KCons "Var" [ ConTy "Var" ["e","a"]]            ["e","a"]
-      , KCons "Abs" [ ConTy "Typ" ["a"]
-                    , exp [tup "e" "a", "b"]]           ["e",arr "a" "b"]
-      , KCons "App" [ exp ["e", arr "a" "b"]
-                    , exp ["e", "a"]]                   ["e","b"]
+dd1 = DDef "Exp" [] [("env",Star)] [("ans",Star)]
+      [ KCons "Con" [int]                               ["e1",int]
+      , KCons "Add" [ exp ["e2", int]
+                    , exp ["e2", int]]                  ["e2",int]
+      , KCons "Mul" [ exp ["e3", int]
+                    , exp ["e3", int]]                  ["e3",int]
+      , KCons "Var" [ ConTy "Var" ["e4","u"]]           ["e4","u"]
+      , KCons "Abs" [ ConTy "Typ" ["r"]
+                    , exp [tup "e5" "r", "s"]]          ["e5",arr "r" "s"]
+      , KCons "App" [ exp ["e6", arr "x" "y"]
+                    , exp ["e6", "x"]]                  ["e6","y"]
       ]
   where
   exp ts = ConTy "Exp" ts
@@ -173,4 +173,3 @@ ex2 :: Val
 ex2 = interp
     $ Prog feldspar_gadt []
     $ VDef "ex2" undefined exp1
-
