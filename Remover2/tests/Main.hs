@@ -350,7 +350,7 @@ main =
         codegenAllProgs ++
         [ downList
         , downFeldspar
-        , testCase "foo" (say "SAY SAY SAY" $ assertEqual "" 1 3)]
+        ]
 
 -- | Some tests are expected to fail as we develop new functionality.
 --   This documents that fact.  Update as we fix things.
