@@ -1,5 +1,6 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 
 -- | Rewrite dictionary primitives as explicit datatype operations.
 
@@ -130,14 +131,14 @@ doExp ddefs e =
              [ (Pat (dictConsName name) vars , go x2)
              ] -- otherwise case for EVERY other dictionary:
 -- TEMP: DISABLING ALL FALSE CASES TEMPORARILY:
-{-
+#if 1
              ++
              [ (Pat (dictConsName oth) vars', x3')
              | oth <- allDicts, oth /= name
              , let vars' = take (length $ getArgStatus ddefs oth)
                                 (patVars)
              ]
--}
+#endif
     -- (3) Equality tests call the out-of-line library function that
     -- we generate on the side.
     (EIfTyEq (x0,x1) x2 x3) ->

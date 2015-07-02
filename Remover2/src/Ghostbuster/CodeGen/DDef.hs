@@ -2,7 +2,7 @@
 
 module Ghostbuster.CodeGen.DDef
   where
-import Debug.Trace
+
 import Ghostbuster.Types
 import Ghostbuster.CodeGen.Base
 
@@ -34,7 +34,6 @@ gadtOfDDef deriveShow DDef{..} =
 --
 mkGADTCtor :: TName -> KCons -> GadtDecl
 mkGADTCtor tyName KCons{..} =
-  trace ("mkGADTCtor "++show outputs) $
   GadtDecl
     noLoc                       -- source location
     (varName conName)
