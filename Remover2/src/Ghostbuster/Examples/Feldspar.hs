@@ -44,16 +44,16 @@ int = ConTy "Int" []
 
 -- | Var is also ghostbusted with e=checked, a=synth:
 dd2 :: DDef
-dd2 = DDef "Var" [] [("e",Star)] [("a",Star)]
-      [ KCons "Zro" []                      [tup "e" "a", "a"]
-      , KCons "Suc" [ConTy "Var" ["e","a"]] [tup "e" "b", "a"]
+dd2 = DDef "Var" [] [("env",Star)] [("ans",Star)]
+      [ KCons "Zro" []                      [tup "e1" "a", "a"]
+      , KCons "Suc" [ConTy "Var" ["e2","x"]] [tup "e2" "y", "x"]
       ]
 
 dd3 :: DDef
-dd3 = DDef "Typ" [] [] [("a",Star)]
+dd3 = DDef "Typ" [] [] [("arr",Star)]
       [ KCons "Int" []                          [int]
-      , KCons "Arr" [ ConTy "Typ" ["a"]
-                    , ConTy "Typ" ["b"]]        [arr "a" "b"]
+      , KCons "Arr" [ ConTy "Typ" ["v"]
+                    , ConTy "Typ" ["w"]]        [arr "v" "w"]
       ]
 
 feldspar_gadt :: [DDef]

@@ -20,6 +20,7 @@ import           Ghostbuster.Utils
 import           Control.Monad.Error
 import           Control.Monad.Reader
 import           Control.Monad.State
+import           Control.Monad.Identity
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map              as Map
 import qualified Data.Set              as Set
@@ -55,7 +56,7 @@ data TIEnv = TIEnv
 data TIState = TIState { tiSupply :: Int
                        ,  tiSubst  :: Subst}
 
-type TI a = ErrorT String (ReaderT TIEnv (StateT TIState IO)) a
+type TI a = ErrorT String (ReaderT TIEnv (StateT TIState Identity)) a
 
 ------------------------------ Utility Functions ------------------------------
 
@@ -73,11 +74,12 @@ generalize :: TypeEnv -> MonoTy -> TyScheme
 generalize env t = ForAll vars t
   where vars = map (,Star) $ Set.toList $ (ftv t) `Set.difference` (ftv env)
 
-runTI :: TI a -> IO (Either String a, TIState)
-runTI t =
-    do (res, st) <- runStateT (runReaderT (runErrorT t) initTIEnv) initTIState
-       return (res, st)
-  where initTIEnv = TIEnv{}
+runTI :: TI a -> (Either String a, TIState)
+runTI t = runIdentity z
+  where x = (runErrorT t)
+        y = (runReaderT x initTIEnv)
+        z = runStateT y initTIState
+        initTIEnv = TIEnv{}
         initTIState = TIState{tiSupply = 0,
                               tiSubst = Map.empty}
 
@@ -155,7 +157,7 @@ checkPat denv tenv ty (Pat name tvars) = do
                  show name ++ " isn't a constructor"
   -- Get the substitutions that we need, and ensure that they can all unify with the type constructor
   -- If it all works out, return it.
-  s1 <- trace ("About to try and unify some stuff " ++ show ty ++ " and " ++ show (ConTy name' tvs') ++ "orig: " ++ show ty') 
+  s1 <- trace ("About to try and unify some stuff " ++ show ty ++ " and " ++ show (ConTy name' tvs') ++ "orig: " ++ show ty')
               unify ty (ConTy name' tvs')
   -- This guy succeeded so we know that we have the rigt name
   case ddefLookup denv name of
@@ -167,12 +169,12 @@ checkPat denv tenv ty (Pat name tvars) = do
       return (foldr composeSubst nullSubst (s2s ++ [s1]), TypeEnv (Map.union (Map.fromList (zip tvars (map (ForAll [])(fields kcons)))) tenv'))
 
 unifyAll :: [DDef] -> TypeEnv -> [(Subst, MonoTy)] -> TI (MonoTy, [Subst])
-unifyAll denv env (t : ts) = do
+unifyAll _denv _env (t : ts) = do
   -- Make sure they all unify with the same type
   substs <- mapM ((unify (snd t)) . snd) ts
   -- Return that type, and all the substitutions that we came up with
   return (snd t, fst t : substs)
-unifyAll denv env [] = throwError "Found case expression with no RHS"
+unifyAll _denv _env [] = throwError "Found case expression with no RHS"
 
 checkClause :: [DDef] -> TypeEnv -> MonoTy -> (Pat, Exp) -> TI (Subst, MonoTy)
 checkClause denv tenv ty (pat, alt) = do
@@ -182,13 +184,13 @@ checkClause denv tenv ty (pat, alt) = do
 
 
 inferExp :: [DDef] -> TypeEnv -> Exp -> TI (Subst, MonoTy)
-inferExp denv (TypeEnv env) (EVar var) =
+inferExp _denv (TypeEnv env) (EVar var) =
   case Map.lookup var env of
     Nothing -> throwError $ "Unbound variable " ++ show var
     Just scheme  -> do t <- instantiate scheme
                        return (nullSubst, t)
 inferExp denv env (ELam (var, typ) e) =
-  do tv <- newTyVar "a"
+  do _tv <- newTyVar "a"
      let TypeEnv env' = remove env var
          env'' = TypeEnv (env' `Map.union` (Map.singleton var (ForAll [] typ)))
      (s1, t1) <- inferExp denv env'' e
@@ -199,14 +201,14 @@ inferExp denv env (EApp e1 e2) =
       (s2, t2) <- inferExp denv (apply s1 env) e2
       s3 <- unify (apply s2 t1) (ArrowTy t2 tv)
       return (s3 `composeSubst` s2 `composeSubst` s1, apply s3 tv)
-inferExp denv env (ELet (x, s, e1) e2) =
+inferExp denv env (ELet (x, _s, e1) e2) =
     do  (s1, t1) <- inferExp denv env e1
         let TypeEnv env' = remove env x
             t' = generalize (apply s1 env) t1
             env'' = TypeEnv (Map.insert x t' env')
         (s2, t2) <- inferExp denv (apply s1 env'') e2
         return (s1 `composeSubst` s2, t2)
-inferExp denv env (EK name) =
+inferExp denv _env (EK name) =
   case ddefLookup denv name of
     Nothing -> error $ "Unbound data constructor found! " ++ show name
     Just (topDef, constr) ->
@@ -221,7 +223,7 @@ inferExp denv env (ECase e1 pats) = do
   -- return the type of the alts, and we need to be optimisitic and apply
   -- all the substitutions to the environment (right??)
   return (foldr composeSubst s1 substs, typ)
-inferExp denv env t = error $ "Type = " ++ show t
+inferExp _denv _env t = error $ "Type = " ++ show t
 
 typeInference :: [DDef] -> Map.Map TermVar TyScheme -> Exp -> TI MonoTy
 typeInference denv env e =
@@ -252,7 +254,7 @@ terr4  =  ELet (Var (B.pack "id"), ForAll [((Var (B.pack "a")),Star)]
 
 test :: [DDef] -> Exp -> IO ()
 test denv e =
-    do  (res, _) <- runTI (typeInference denv Map.empty e)
+    do  let (res, _) = runTI (typeInference denv Map.empty e)
         case res of
           Left err  ->  putStrLn $ "error: " ++ err
           Right t   ->  putStrLn $ " :: " ++ show t
