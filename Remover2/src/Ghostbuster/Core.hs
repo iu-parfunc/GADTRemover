@@ -318,8 +318,9 @@ generateDown alldefs which =
     ECase "orig" $
     [ (Pat conName args,
       appLst (EVar (gadtDownName conName)) $
-       (map (EVar . dictArgify) newDicts) ++
-         -- (map EDict newDicts) ++
+
+       (map (bindDictVars substs existentials . VarTy) newDicts) ++
+
       [ (dispatch substs existentials arg ty)
       | (arg,ty) <- zip args fields ])
     | kc@KCons {conName,fields,outputs} <- cases
