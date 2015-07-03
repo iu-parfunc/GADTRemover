@@ -369,6 +369,11 @@ downFeldspar =
       , EDict "Int"
       , app (lamN zro) (lit "Two")
       ]
+    , [ EDict "Unit"
+      , EDict "Int"
+      , appLst (EK "Mul") [lit "One",
+        appLst (EK "Add") [lit "Two", lit "Three"]]
+      ]
     ]
   | ix <- [1::Int ..]
   , let tname = "Down-convert-feldspar"++show ix]
