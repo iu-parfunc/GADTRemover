@@ -18,6 +18,7 @@ import           Ghostbuster.Types        as G
 import           Language.Haskell.Exts    as H
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Control.Monad
+import           Control.Applicative
 import           Data.Maybe
 import           Data.List
 import           Debug.Trace
@@ -78,7 +79,7 @@ kindTyVar (UnkindedVar name)    = (fromName name, G.Star)
 -- VDef:
 --  --> TypeSig
 -- Exp:
---  --> 
+--  -->
 gParseProg :: [Decl] -> G.Prog
 gParseProg decls = G.Prog ddefs vdefs exp
   where
@@ -138,7 +139,7 @@ convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx (ConDecl name typs)
     where
       gatherFields :: Type -> [MonoTy] -> [MonoTy]
       gatherFields t acc =
-        case convertType t of 
+        case convertType t of
           Nothing -> acc
           Just t -> t : acc
 
@@ -147,7 +148,7 @@ convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx (ConDecl name typs)
 
 -- | For a GADT data definition, convert it into a corresponding DDef in our internal language
 convertGadtDecl :: GadtDecl -> KCons
-convertGadtDecl g@(GadtDecl _ name (constr : constrs) typ) = 
+convertGadtDecl g@(GadtDecl _ name (constr : constrs) typ) =
   let Just (inputs, outputs) = toGadtType typ
   in KCons (fromName name) inputs outputs
 convertGadtDecl g@(GadtDecl _ name [] typ) =

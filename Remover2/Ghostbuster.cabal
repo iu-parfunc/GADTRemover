@@ -33,6 +33,7 @@ library
                        Ghostbuster.CodeGen.Prog
                        Ghostbuster.CodeGen.VDef
                        Ghostbuster.Core
+                       Ghostbuster.Parser.Prog
   -- other-modules:
   -- other-extensions:
   build-depends:       GenericPretty >= 1.2
