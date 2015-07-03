@@ -330,7 +330,7 @@ downList = mkTestCase tname $
 -- | Test with the SAME name used in T and K:
 downList2 :: TestTree
 downList2 = mkTestCase tname $
- do let prgDefs = [DDef "List" [] [] [("a", Star)]
+ do let prgDefs = [DDef "List" [] [("a", Star)] []
                       [ KCons "Nil" [] ["a"]
                       , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
                       ]

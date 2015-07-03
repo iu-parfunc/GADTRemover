@@ -12,15 +12,15 @@ module Ghostbuster.Core
   where
 
 import           Control.Exception ( assert )
-import qualified Data.Map as HM
+import qualified Data.Map as M
 import qualified Data.Set as S
 import           Debug.Trace
 import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
 
-type Equations  = (HM.Map TyVar [TyVar])
-type Patterns   = (HM.Map TyVar MonoTy)
+type Equations  = (M.Map TyVar [TyVar])
+type Patterns   = (M.Map TyVar MonoTy)
 
 -- | Given a set of definitions and a "main" expression to execute,
 --   generate a full program that executes that expression in the
@@ -189,11 +189,11 @@ equalityRemovalByClause clause =
   , equations2
   )
   where
-    (newfields, equations1)  = equalityRemovalMonoList (fields clause) HM.empty
+    (newfields, equations1)  = equalityRemovalMonoList (fields clause) M.empty
     (newoutputs, equations2) = equalityRemovalMonoList (outputs clause) equations1
 
 equalityRemovalMonoList :: [MonoTy] -> Equations -> ([MonoTy], Equations)
-equalityRemovalMonoList []         _equations = ([], HM.empty)
+equalityRemovalMonoList []         _equations = ([], M.empty)
 equalityRemovalMonoList (mono:rest) equations = (newmono:newrest, equations2)
   where
     (newmono, equations1) = equalityRemovalMono mono equations
@@ -201,9 +201,9 @@ equalityRemovalMonoList (mono:rest) equations = (newmono:newrest, equations2)
 
 equalityRemovalMono :: MonoTy -> Equations -> (MonoTy, Equations)
 equalityRemovalMono monoty equations = case monoty of
-  VarTy var -> case HM.lookup var equations of
-     Just listOfVars -> (toVarTy newvar, HM.insert var (newvar:listOfVars) equations)
-     Nothing -> (monoty, HM.insert var [] equations)
+  VarTy var -> case M.lookup var equations of
+     Just listOfVars -> (toVarTy newvar, M.insert var (newvar:listOfVars) equations)
+     Nothing -> (monoty, M.insert var [] equations)
   ArrowTy mono1 mono2 -> ((ArrowTy mono1' mono2'), equations2)
      where
      (mono1', equations1) = equalityRemovalMono mono1 equations
@@ -211,7 +211,7 @@ equalityRemovalMono monoty equations = case monoty of
   ConTy name monos -> ((ConTy name newmonos), equations1)
      where
      (newmonos, equations1) = equalityRemovalMonoList monos equations
-  _ -> (monoty, HM.empty)
+  _ -> (monoty, M.empty)
   where
   newvar = (mkVar "newVar")
 
@@ -233,7 +233,7 @@ pmRemovalByClause clause =
   where
     (newfields, pattern1)  = unzip (map pmRemovalMono (fields clause))
     (newoutputs, pattern2) = unzip (map pmRemovalMono (outputs clause))
-    patterns               = HM.union (HM.unions pattern1) (HM.unions pattern2)
+    patterns               = M.union (M.unions pattern1) (M.unions pattern2)
 
 pmRemovalMono :: MonoTy -> (MonoTy, Patterns)
 pmRemovalMono monoty = case monoty of
@@ -241,12 +241,12 @@ pmRemovalMono monoty = case monoty of
      where
      (mono1', pattern1) = pmRemovalMono mono1
      (mono2', pattern2) = pmRemovalMono mono2
-     patterns = HM.insert newvar (ArrowTy mono1' mono2') (HM.union pattern1 pattern2)
+     patterns = M.insert newvar (ArrowTy mono1' mono2') (M.union pattern1 pattern2)
   ConTy name monos -> (toVarTy newvar, patterns)
      where
      (newmonos, pattern1) = unzip (map pmRemovalMono monos)
-     patterns = HM.insert newvar (ConTy name newmonos) (HM.unions pattern1)
-  _ -> (monoty, HM.empty)
+     patterns = M.insert newvar (ConTy name newmonos) (M.unions pattern1)
+  _ -> (monoty, M.empty)
   where
   newvar = (mkVar "newVr")
 
@@ -317,57 +317,155 @@ toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 -- | This is an attempt at a "single pass" version of the algorithm.
 genUp2 :: [DDef] -> TName -> VDef
 genUp2 alldefs which =
-  VDef (upconvName which) upFunSig
-       "undefined"
+  VDef (upconvName which) upFunSig $
+    mkLams params $
+     ECase "lower" $
+     [ (Pat (gadtDownName conName) args,
+       openConstraints dictArgs cOutputs
+        (\() -> doRecursions alldefs initDictMap kc unseal
+                             (\ls -> seal $ appLst (EVar conName) ls)))
+     | kc@KCons {conName,fields,outputs} <- cases
+     , let args = map dictArgify (getKConsDicts alldefs conName)
+                  ++ (take (length fields) patVars)
+           cOutputs = [ x | (x,Check) <- zip outputs $ getArgStatus alldefs which ]
+     --       newDicts = getKConsDicts alldefs conName
+     --       existentials = allExistentials kc
+     --       substs = case runTI $
+     --                     do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
+     --                                   (zip allVars outputs)
+     --                        return $ foldl1 composeSubst ls of
+     --                  (Left e,_) -> error$ "generateDown: error unifying: "++show e
+     --                  (Right s,_) -> s
+     ]
  where
+  params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs cVars ]
+               ++ [("lower",startTy)]
+
+  initDictMap   = M.fromList $ zip (map fst cVars) (map (EVar . fst) params)
+
   -- The sig of the up function takes dictionaries for checked args.
   upFunSig = (ForAll (kVars ++ cVars)
                      (mkFunTy (dictTys ++ [startTy]) endTy))
 
-  -- dictArgs      = map dictArgify erased
-  -- erased        = map fst $ cVars ++ sVars
   dictTys       = map (TypeDictTy . fst) cVars
+  dictArgs      = map (dictArgify . fst) cVars
 
-  -- IFF we have synthesized vars we produce a sealed name:
-  endTy         = if null sVars
-                     then ConTy tyName                (map (VarTy . fst) (kVars++cVars))
-                     else ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
   startTy       = ConTy tyName' (map (VarTy . fst) kVars)
   tyName'       = gadtDownName tyName
-  allVars       = kVars++cVars++sVars
   DDef{..}      = lookupDDef alldefs which
+
+  -- IFF we have synthesized vars we produce/consume a sealed output:
+  ---------------------------------------------------------
+  endTy  | null sVars = ConTy tyName                (map (VarTy . fst) (kVars++cVars))
+         | otherwise  = ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
+  seal x | null sVars = x
+         | otherwise  = appLst (EK (toSealedName tyName)) (["undefined" | _ <- sVars] ++ [x])
+  unseal :: UnsealFn
+  unseal tn x k
+         | null sVars = k x
+         | otherwise  = k $
+            ECase x
+            [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["finishme"]),
+              -- TODO: need to add the dictionaries to the
+                "undefined" )]
+  ---------------------------------------------------------
+
+getSVars :: [DDef] -> TName -> [TyVar]
+getSVars defs = map fst . sVars . lookupDDef defs
+
+getCVars :: [DDef] -> TName -> [TyVar]
+getCVars defs = map fst . cVars . lookupDDef defs
+
+type UnsealFn = (TName -> Exp -> (Exp -> Exp) -> Exp)
+
+-- | Unlike in the down case, we open up ALL the constraints we can
+-- based on what the pattern match tells us about the dictionaries
+-- we're given as arguments.
+openConstraints :: [Var] -> [MonoTy] -> (() -> Exp) -> Exp
+openConstraints [] [] k = k ()
+openConstraints (d:dictArgs) (o:outputs) k =
+  openConstraint d o $
+   (\() -> openConstraints dictArgs outputs k)
+openConstraints _ _ _  = error "openConstraints"
+
+
+openConstraint :: Var -> MonoTy -> (() -> Exp) -> Exp
+openConstraint dv outTy k =
+ trace ("OpenConstraint : "++show (dv,outTy)) $
+ case outTy of
+   (VarTy _) -> k ()
+   (ArrowTy _ _) -> ECaseDict (EVar dv)
+                           ("ArrowTy", ["_","_"], k ())
+                           "undefined"
+   (ConTy tn ls) -> ECaseDict (EVar dv)
+                        (tn, replicate (length ls) "_", k ())
+                        "undefined"
+   (TypeDictTy _) -> error$
+      "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
+
+-- | Create the recursive calls, breaking open the evidence one at a time.
+doRecursions :: [DDef] -> M.Map TyVar Exp -> KCons
+             -> UnsealFn
+             -> ([Exp] -> Exp) -> Exp
+doRecursions alldefs initDictMap KCons{fields} unseal kont =
+  loop (zip patVars fields) initDictMap []
+  where
+  -- Finally, when we have all args in scope, with the right type
+  -- evidence visible, we can make the constructor call:
+  loop [] _mp args = kont (reverse args)
+
+  loop ((var,field):rst) mp args =
+    doField var field
+     (\e -> loop rst mp (e : args))
+
+  doField var (ConTy tn _) k
+    | hasErased alldefs tn =
+        dispatchRecursion tn (EVar var)
+                          (\e -> unseal tn e k)
+    | otherwise = k (EVar var)
+  doField var field k
+    -- NOTE: one of our current rules is that there are not
+    -- `hasErased` types under here:
+    | containErased alldefs field =
+      error $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
+    | otherwise = k (EVar var)
+
+
+  dispatchRecursion tn expr k =
+    k $ appLst (EVar$ upconvName tn) (["undefined" | _ <- getCVars alldefs tn] ++[expr])
 
 --------------------------------------------------------------------------------
 -- Downward conversion
 --------------------------------------------------------------------------------
+
 -- | Create a down-conversion function.  This is a simple tree-walk
 -- over the input datatype, without any laborious type checking
 -- obligations to discharge.
 --
 generateDown :: [DDef] -> TName -> VDef
 generateDown alldefs which =
-  VDef (downName tyName) (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
-   mkLams params $
-    ECase "orig" $
-    [ (Pat conName args,
-      appLst (EVar (gadtDownName conName)) $
-
-       (map (bindDictVars substs existentials . VarTy) newDicts) ++
-
-      [ (dispatch substs existentials arg ty)
-      | (arg,ty) <- zip args fields ])
-    | kc@KCons {conName,fields,outputs} <- cases
-    , let args = (take (length fields) patVars)
-          newDicts = getKConsDicts alldefs conName
-          existentials = allExistentials kc
-          substs = case runTI $
-                        do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
-                                      (zip allVars outputs)
-                           return $ foldl1 composeSubst ls of
-                     (Left e,_) -> error$ "generateDown: error unifying: "++show e
-                     (Right s,_) -> s
-    ]
-  where
+  VDef (gendownName tyName) (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
+    mkLams params $
+     ECase "orig" $
+     [ (Pat conName args,
+       -- Call the (lower) data constructor right at the top:
+       appLst (EVar (gadtDownName conName)) $
+        (map (bindDictVars substs existentials . VarTy) newDicts) ++
+        -- Perform the recursions inside the operands:
+       [ (dispatch substs existentials arg ty)
+       | (arg,ty) <- zip args fields ])
+     | kc@KCons {conName,fields,outputs} <- cases
+     , let args = (take (length fields) patVars)
+           newDicts = getKConsDicts alldefs conName
+           existentials = allExistentials kc
+           substs = case runTI $
+                         do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
+                                       (zip allVars outputs)
+                            return $ foldl1 composeSubst ls of
+                      (Left e,_) -> error$ "generateDown: error unifying: "++show e
+                      (Right s,_) -> s
+     ]
+ where
   params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ]
                ++ [("orig",startTy)]
 
@@ -386,7 +484,7 @@ generateDown alldefs which =
   -- We need to build dictionaries for its type-level arguments:
   dispatch substs existentials vr (ConTy name tyargs)
     | hasErased alldefs name
-    = appLst (EVar (downName name))
+    = appLst (EVar (gendownName name))
              (map (bindDictVars substs existentials) tyargs ++ [EVar vr])
     | otherwise = EVar vr
 
@@ -412,16 +510,16 @@ buildDict ty =
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
-bindDictVars :: HM.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
+bindDictVars :: M.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
 bindDictVars subst existentials mono =
     -- trace ("\n*** Start BINDDICTVARS for mono "++show mono++" with existentials "++show existentials) $
     loop (S.toList $ ftv mono)
   where
 
-  flipped = HM.fromList $
-            [ (v,VarTy w) | (w,VarTy v) <- HM.toList subst ]
+  flipped = M.fromList $
+            [ (v,VarTy w) | (w,VarTy v) <- M.toList subst ]
 
-  subst' = HM.union flipped subst
+  subst' = M.union flipped subst
 
   loop :: [TyVar] -> Exp
   loop []       = -- trace ("   all vars bound, now buildDict of "++show mono) $
@@ -429,7 +527,7 @@ bindDictVars subst existentials mono =
   loop (fv:rst) =
     let fv_dict = dictArgify fv in
     -- trace ("  bindDictVars:loop, creating binding for "++show fv)$
-    case HM.lookup fv subst' of
+    case M.lookup fv subst' of
       Nothing ->
          ELet (fv_dict, ForAll [] "_", findPath fv)
               (loop rst)
@@ -449,7 +547,7 @@ bindDictVars subst existentials mono =
     | S.member fv existentials = specialExistentialDict
     | otherwise =
       case filter (\(_,ty) -> S.member fv (ftv ty)) $
-                 HM.toList subst of
+                 M.toList subst of
         (start,path):_ -> digItOut start path fv
         -- The reason we get here is that a~a constraints don't add anything
         -- to the substitution:
@@ -500,15 +598,15 @@ specialExistentialDict :: Exp
 specialExistentialDict = EDict "Existential"
 
 upconvName :: Var -> Var
-upconvName tyname = mkVar ("upconv" ++ (unMkVar tyname))
+upconvName tyname = mkVar ("up" ++ (unMkVar tyname))
 
 toSealedName :: Var -> Var
 toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
 
 -- | The name of the down-conversion function.
 --
-downName :: TName -> TermVar
-downName tyName = mkVar ("down" ++ (unMkVar tyName))
+gendownName :: TName -> TermVar
+gendownName tyName = mkVar ("down" ++ (unMkVar tyName))
 
 -- | Take a type or data constructor from the higher (pre-stripping) type to the
 -- lower one.

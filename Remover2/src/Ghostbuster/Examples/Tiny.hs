@@ -224,7 +224,7 @@ p10_mut_add_even = Prog
 
 p11_bustedList :: Prog
 p11_bustedList = Prog
-  [DDef "List" [] [] [("t", Star)]
+  [DDef "List" [] [("t", Star)] []
       [ KCons "Nil" [] ["a"]
       , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
       ]
