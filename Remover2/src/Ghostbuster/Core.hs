@@ -442,7 +442,7 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
                                then digItOut "left"  x1 dest
                                else digItOut "right" x2 dest
                           )
-                          specialExistentialDict
+                          errorCase
       ConTy tn ls -> ECaseDict (EVar $ dictArgify cursor)
                         ( tn
                         , take (length ls) patVars
@@ -451,15 +451,18 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
                                                       , S.member dest (ftv arg)
                                ]
                         )
-                        specialExistentialDict
+                        errorCase
       TypeDictTy x -> error "Core.digItOut: FINISHME"
 
-  -- EVar (dictArgify start)
 
--- trace ("FINISHME: need to do some work here "++show (fv) ++" -> " ++show path)
---       (EVar$ "needswork-"+++ fv)
 
+-- | This isn't bound within our core language, but we could make it
+-- part of a prelude and define it as Omega.  Also, we know it will be
+-- bound in the generated Haskell code.
+--
+-- Alternatively, we could simply include a core form "EErr".
+errorCase :: Exp
+errorCase = (EVar "undefined")
 
 specialExistentialDict :: Exp
 specialExistentialDict = EDict "Existential"
-
