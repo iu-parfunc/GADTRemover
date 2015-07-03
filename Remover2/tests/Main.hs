@@ -351,32 +351,24 @@ downFeldspar =
      interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster feldspar_gadt $
          (ForAll [] (ConTy "Exp'" []),
-          appLst "downExp" mainE)
-  | mainE <-
-    [ [ EDict "Unit"
-      , EDict "Int"
-      , lit "Three"
-      ]
-    , [ EDict "Unit"
-      , intToIntDict
-      , lamN (lit "Three")
-      ]
-    , [ EDict "Unit"
-      , intToIntDict
-      , (lamN zro)
-      ]
-    , [ EDict "Unit"
-      , EDict "Int"
-      , app (lamN zro) (lit "Two")
-      ]
-    , [ EDict "Unit"
-      , EDict "Int"
-      , appLst (EK "Mul") [lit "One",
-        appLst (EK "Add") [lit "Two", lit "Three"]]
-      ]
-    ]
+          appLst "downExp" [EDict "Unit" , typ, expr])
+  | (typ,expr) <- feldSpar_progs
   | ix <- [1::Int ..]
   , let tname = "Down-convert-feldspar"++show ix]
+
+feldSpar_progs :: [(Exp, Exp)]
+feldSpar_progs = [ ( EDict "Int"
+                   , lit "Three")
+                 , ( intToIntDict
+                   , lamN (lit "Three"))
+                 , ( intToIntDict
+                   , (lamN zro))
+                 , ( EDict "Int"
+                   , app (lamN zro) (lit "Two"))
+                 , ( EDict "Int"
+                   , appLst (EK "Mul") [lit "One",
+                     appLst (EK "Add") [lit "Two", lit "Three"]])
+                 ]
 
 
 ----------------------------------------
