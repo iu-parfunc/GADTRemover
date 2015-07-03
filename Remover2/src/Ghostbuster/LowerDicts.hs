@@ -128,10 +128,12 @@ doExp ddefs e =
        -- leftleftLambda (go x1) (ConTy "TypeDict" ["any"]) $ \x1' ->
        -- funBindLet (go x1) (ConTy "TypeDict" ["any"]) $ \x1' ->
        ECase (go x1) $
-             [ (Pat (dictConsName name) vars , go x2)
-             ] -- otherwise case for EVERY other dictionary:
+             [ (Pat (dictConsName name) vars, go x2)    -- positive case
+             , (Pat "_"                 []  , x3')      -- fall-through for all other cases
+             ]
 -- TEMP: DISABLING ALL FALSE CASES TEMPORARILY:
-#if 1
+#if 0
+             -- otherwise case for EVERY other dictionary:
              ++
              [ (Pat (dictConsName oth) vars', x3')
              | oth <- allDicts, oth /= name

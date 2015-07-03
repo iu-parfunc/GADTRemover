@@ -1,4 +1,5 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns      #-}
 
 module Ghostbuster.CodeGen.Exp
   where
@@ -28,7 +29,8 @@ mkAlt p e =
   Alt noLoc (mkPat p) (mkRhs e) (BDecls [])
 
 mkPat :: G.Pat -> H.Pat
-mkPat (Pat pn pv) = pApp (varName pn) (map (pvar . varName) pv)
+mkPat (Pat "_" []) = wildcard
+mkPat (Pat pn  pv) = pApp (varName pn) (map (pvar . varName) pv)
 
 mkArg :: G.Var -> H.Pat
 mkArg = pvar . varName
@@ -81,3 +83,4 @@ matchOfExp fn (splitArgs -> (vs, e)) =
 splitArgs :: G.Exp -> ( [G.Var], G.Exp )
 splitArgs (ELam (v,_) rhs) = let (vs,r) = splitArgs rhs in (v:vs, r)
 splitArgs rhs              = ([], rhs)
+
