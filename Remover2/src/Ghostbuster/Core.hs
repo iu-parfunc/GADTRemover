@@ -14,6 +14,7 @@ module Ghostbuster.Core
 import           Control.Exception ( assert )
 import qualified Data.Map as HM
 import qualified Data.Set as S
+import           Debug.Trace
 import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
@@ -384,7 +385,9 @@ buildDict ty =
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
 bindDictVars :: HM.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
-bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
+bindDictVars subst existentials mono =
+    trace ("\n*** Start BINDDICTVARS for mono "++show mono++" with existentials "++show existentials) $
+    loop (S.toList $ ftv mono)
   where
 
   flipped = HM.fromList $
@@ -393,18 +396,21 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
   subst' = HM.union flipped subst
 
   loop :: [TyVar] -> Exp
-  loop []       = buildDict mono
+  loop []       = trace ("   all vars bound, now buildDict of "++show mono) $
+                  buildDict mono
   loop (fv:rst) =
+    let fv_dict = dictArgify fv in
+    trace ("  bindDictVars:loop, creating binding for "++show fv)$
     case HM.lookup fv subst' of
-      Nothing -> findPath fv
+      Nothing ->
+         ELet (fv_dict, ForAll [] "_", findPath fv)
+              (loop rst)
       Just ty ->
        -- fv is equal to ty, thus we use it to build the dict
        let dicttype =
              case ty of
                VarTy v -> TypeDictTy v
-               _       -> TypeDictTy (mkVar (show ty))
-
-           fv_dict = dictArgify fv
+               _       -> TypeDictTy (mkVar (show ty)) -- FINISHME
 
            wrap x =
              case mono of
@@ -414,9 +420,11 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
 --                 | otherwise     -> error "Core.bindDictVars: dodgy hack doesn't know what to do now ):"
                _ -> x
        in
-       ELet (fv_dict, ForAll [] dicttype, buildDict ty) (wrap (loop rst))
+       ELet (fv_dict, ForAll [] dicttype, buildDict ty)
+            (loop rst) -- (wrap (loop rst))
        -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
 
+  -- Compute the dictionary for `fv` by digging into other dictionaries.
   findPath fv
     | S.member fv existentials = specialExistentialDict
     | otherwise =
@@ -431,6 +439,7 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
 
   digItOut :: TyVar -> MonoTy -> TyVar -> Exp
   digItOut cursor monty dest =
+    trace ("   Digitout "++ show (cursor, monty, dest)) $
     case monty of
       VarTy x -> if x == dest
                     then EVar cursor
@@ -452,7 +461,7 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
                                ]
                         )
                         errorCase
-      TypeDictTy _ -> EVar cursor
+      TypeDictTy _ -> EVar cursor -- Test me.  How to make this reachable?
 
 
 -- | This isn't bound within our core language, but we could make it
