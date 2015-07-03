@@ -43,13 +43,13 @@ moduleOfProg (Prog ddefs vdefs vtop) =
 
     ddefs'      = ddefs ++ primitiveTypes       -- Add the "Prelude" types
     showable    = showableDefs ddefs'
-    showit tn   = S.member tn showable
+    canshow tn  = S.member tn showable
 
     topShowable = case valTy vtop of
-                    ForAll [] (ConTy tn _) -> showit tn
+                    ForAll [] (ConTy tn _) -> canshow tn
                     _                      -> False
 
-    decls       = map (\d -> gadtOfDDef (showit (tyName d)) d) ddefs'
+    decls       = map (\d -> gadtOfDDef (canshow (tyName d)) d) ddefs'
                ++ concatMap declOfVDef vdefs
                ++ declOfVDef vtop
                ++ declOfVDef (mkMain topShowable vtop)
