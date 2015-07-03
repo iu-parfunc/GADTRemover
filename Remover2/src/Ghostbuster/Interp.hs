@@ -89,7 +89,8 @@ exp defs env exp0 =
  doCases val [] =
    error $ "value did not match any patterns in ECase: " ++show val
 
- doCases val ((Pat kname vars, rhs ) : rst) =
+ doCases _   ((Pat "_"   [],   rhs) : _)   = exp defs env rhs
+ doCases val ((Pat kname vars, rhs) : rst) =
     case val of
       (VK k2 args) | k2 == kname ->
                        if length vars == length args
