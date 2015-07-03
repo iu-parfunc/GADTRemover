@@ -414,7 +414,7 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
     | otherwise =
       case filter (\(_,ty) -> S.member fv (ftv ty)) $
                  HM.toList subst of
-        (start,path):_ -> digItOut (start) path fv
+        (start,path):_ -> digItOut start path fv
         -- The reason we get here is that a~a constraints don't add anything
         -- to the substitution:
         [] -> EVar$ dictArgify fv
@@ -424,27 +424,27 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
   digItOut :: TyVar -> MonoTy -> TyVar -> Exp
   digItOut cursor monty dest =
     case monty of
-     (VarTy x) -> if x == dest
-                     then EVar cursor
-                     else error "internal error, generateDown"
-     (ArrowTy x1 x2) -> ECaseDict (EVar $ dictArgify cursor)
-                           ( "ArrowTy"
-                           , ["left","right"]
-                           , if S.member dest (ftv x1)
-                                then digItOut "left"  x1 dest
-                                else digItOut "right" x2 dest
-                           )
-                           specialExistentialDict
-     (ConTy tn ls) -> ECaseDict (EVar $ dictArgify cursor)
-                         ( tn
-                         , take (length ls) patVars
-                         , head [ digItOut vr arg dest | vr  <- patVars
-                                                       | arg <- ls
-                                                       , S.member dest (ftv arg)
-                                ]
-                         )
-                         specialExistentialDict
-     (TypeDictTy x) -> error "FINISHME"
+      VarTy x -> if x == dest
+                    then EVar cursor
+                    else error "internal error, generateDown"
+      ArrowTy x1 x2 -> ECaseDict (EVar $ dictArgify cursor)
+                          ( "ArrowTy"
+                          , ["left","right"]
+                          , if S.member dest (ftv x1)
+                               then digItOut "left"  x1 dest
+                               else digItOut "right" x2 dest
+                          )
+                          specialExistentialDict
+      ConTy tn ls -> ECaseDict (EVar $ dictArgify cursor)
+                        ( tn
+                        , take (length ls) patVars
+                        , head [ digItOut vr arg dest | vr  <- patVars
+                                                      | arg <- ls
+                                                      , S.member dest (ftv arg)
+                               ]
+                        )
+                        specialExistentialDict
+      TypeDictTy x -> error "Core.digItOut: FINISHME"
 
   -- EVar (dictArgify start)
 
