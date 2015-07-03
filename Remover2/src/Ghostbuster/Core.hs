@@ -50,7 +50,7 @@ ghostbuster ddefs (topTy,topExp) = Prog (ddefs ++ ddefsNew) vdefsNew vtop
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
     returnVDefs = [ generateDown   allddefs (tyName ddef)
                   -- , generateUp allddefs patterns equalities ddefNormilized
-                  -- , genUp2 allddefs (tyName ddef)
+                  , genUp2 allddefs (tyName ddef)
                   ]
 
 --------------------------------------------------------------------------------
@@ -293,12 +293,12 @@ generateUpMono n patterns equalities introduction conclusion =
   case introduction of
     -- here generate pattern matching, equalities, and the finish with:
     --   (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
-    []          -> error "generateUpMono: finalise"
+    []          -> EVar "generateUpMono_FINISHME_finalise"
     (mono:rest) ->
       case mono of
-        VarTy{}      -> error "generateUpMono: VarTy"
-        ArrowTy{}    -> error "generateUpMono: ArrowTy"
-        TypeDictTy{} -> error "generateUpMono: TypeDictTy"
+        VarTy{}      -> EVar "generateUpMono_FINISHME_VarTy"
+        ArrowTy{}    -> EVar "generateUpMono_FINISHME_ArrowTy"
+        TypeDictTy{} -> EVar "generateUpMono_FINISHME_TypeDictTy"
         ConTy name monos ->
           ECase (EApp (EVar (upconvName name)) (EVar (mkVar ("x" ++ show n))))
                 [( Pat (toSealedName name) (map toVarFromMono monos)
@@ -311,16 +311,42 @@ toVarFromMono (VarTy var) = var
 toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 
 --------------------------------------------------------------------------------
--- Downward conversion
+-- A second attempt at genUp
 --------------------------------------------------------------------------------
 
+-- | This is an attempt at a "single pass" version of the algorithm.
+genUp2 :: [DDef] -> TName -> VDef
+genUp2 alldefs which =
+  VDef (upconvName which) upFunSig
+       "undefined"
+ where
+  -- The sig of the up function takes dictionaries for checked args.
+  upFunSig = (ForAll (kVars ++ cVars)
+                     (mkFunTy (dictTys ++ [startTy]) endTy))
+
+  -- dictArgs      = map dictArgify erased
+  -- erased        = map fst $ cVars ++ sVars
+  dictTys       = map (TypeDictTy . fst) cVars
+
+  -- IFF we have synthesized vars we produce a sealed name:
+  endTy         = if null sVars
+                     then ConTy tyName                (map (VarTy . fst) (kVars++cVars))
+                     else ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
+  startTy       = ConTy tyName' (map (VarTy . fst) kVars)
+  tyName'       = gadtDownName tyName
+  allVars       = kVars++cVars++sVars
+  DDef{..}      = lookupDDef alldefs which
+
+--------------------------------------------------------------------------------
+-- Downward conversion
+--------------------------------------------------------------------------------
 -- | Create a down-conversion function.  This is a simple tree-walk
 -- over the input datatype, without any laborious type checking
 -- obligations to discharge.
 --
 generateDown :: [DDef] -> TName -> VDef
 generateDown alldefs which =
-  VDef down (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
+  VDef (downName tyName) (ForAll allVars (mkFunTy (dictTys ++ [startTy]) endTy)) $
    mkLams params $
     ECase "orig" $
     [ (Pat conName args,
@@ -349,13 +375,12 @@ generateDown alldefs which =
 
   erased        = map fst $ cVars ++ sVars
   dictTys       = map TypeDictTy erased
-  DDef{..}      = lookupDDef alldefs which
 
-  down          = downName tyName
   startTy       = ConTy tyName  (map (VarTy . fst) allVars)
   endTy         = ConTy tyName' (map (VarTy . fst) kVars)
   tyName'       = gadtDownName tyName
   allVars       = kVars++cVars++sVars
+  DDef{..}      = lookupDDef alldefs which
 
   -- For a type T_i, we dispatch to downT_i
   -- We need to build dictionaries for its type-level arguments:
