@@ -50,21 +50,12 @@ ghostbuster ddefs (topTy,topExp) = Prog (ddefs ++ ddefsNew) vdefsNew vtop
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
     returnVDefs = [ generateDown   allddefs (tyName ddef)
                   -- , generateUp allddefs patterns equalities ddefNormilized
+                  -- , genUp2 allddefs (tyName ddef)
                   ]
 
-toSealedName :: Var -> Var
-toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
-
--- | The name of the down-conversion function.
---
-downName :: TName -> TermVar
-downName tyName = mkVar ("down" ++ (unMkVar tyName))
-
--- | Take a type or data constructor from the higher (pre-stripping) type to the
--- lower one.
---
-gadtDownName :: TName -> TName
-gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
+--------------------------------------------------------------------------------
+-- Converting the data types
+--------------------------------------------------------------------------------
 
 -- | For a given `Foo`, create the datatype `Foo'`.
 --   This replaces *any* references to data-types with erased variables with
@@ -128,7 +119,7 @@ stripMono alldefs monoty =
     ConTy tname monos
       | any (containErased alldefs) monos ->
          error$ "stripMono: not handling erased as argument to type constructor: "++show monoty
-      | isErased alldefs tname -> ConTy (gadtDownName tname)
+      | hasErased alldefs tname -> ConTy (gadtDownName tname)
                                         (map go (onlyKeep alldefs tname monos))
       | otherwise -> ConTy tname (map go monos)
     (VarTy _)           -> monoty
@@ -145,12 +136,13 @@ containErased alldefs mono =
      (gatherTypesMentioned mono)
  where
   busted = S.fromList $
-           filter (isErased alldefs) $
+           filter (hasErased alldefs) $
            map tyName alldefs
 
--- | Is the data type affected by Ghostbuster?  Or is it left alone.
-isErased :: [DDef] -> TName -> Bool
-isErased defs tn = not (null (cVars++sVars))
+-- | Is the data type affected by Ghostbuster?  I.e. does it have
+-- checked or synthesized type variables?  Or is it left alone?
+hasErased :: [DDef] -> TName -> Bool
+hasErased defs tn = not (null (cVars++sVars))
   where
   DDef {cVars,sVars} = lookupDDef defs tn
 
@@ -158,6 +150,10 @@ isErased defs tn = not (null (cVars++sVars))
 --
 onlyKeep :: [DDef] -> TName -> [MonoTy] -> [MonoTy]
 onlyKeep alldefs tname monos = take (numberOfKeep alldefs tname) monos
+
+--------------------------------------------------------------------------------
+-- Generating "Sealed" versions of the original data types
+--------------------------------------------------------------------------------
 
 generateSealed :: DDef -> DDef
 generateSealed (DDef tyName k c s _cases) =
@@ -175,6 +171,10 @@ generateSealed (DDef tyName k c s _cases) =
     synthVars   = map fst s
     allVars     = keepVars ++ checkVars ++ synthVars
     conTy       = [ConTy tyName (map toVarTy allVars)]
+
+--------------------------------------------------------------------------------
+-- Helper "passes" for generateUp:
+--------------------------------------------------------------------------------
 
 equalityRemoval :: DDef -> (DDef, [Equations])
 equalityRemoval ddef = (ddef {cases = newcases} , patterns)
@@ -250,6 +250,9 @@ pmRemovalMono monoty = case monoty of
   where
   newvar = (mkVar "newVr")
 
+--------------------------------------------------------------------------------
+-- Main generateUp function:
+
 generateUp :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
 generateUp _alldefs patterns equalities ddef =
   VDef { valName = upconvname
@@ -258,11 +261,14 @@ generateUp _alldefs patterns equalities ddef =
        }
   where
     upconvname           = upconvName (tyName ddef)
-    signature            = ForAll onlyKeepAndCheck (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars) (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
+    signature            = ForAll onlyKeepAndCheck
+                                (ArrowTy (ConTy (gadtDownName (tyName ddef)) onlyKeepVars)
+                                         (ConTy "Maybe" [ConTy (toSealedName (tyName ddef)) onlyKeepAndCheckVars]))
     onlyKeepAndCheck     = kVars ddef ++ cVars ddef
     onlyKeepAndCheckVars = map toVarTy (map fst onlyKeepAndCheck)
     onlyKeepVars         = map toVarTy (map fst (kVars ddef))
-    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpByClause patterns equalities) (cases ddef)))
+    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) [])
+                                (ECase "x" (map (generateUpByClause patterns equalities) (cases ddef)))
 
 generateUpByClause
     :: [Patterns]
@@ -304,9 +310,9 @@ toVarFromMono :: MonoTy -> Var
 toVarFromMono (VarTy var) = var
 toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 
-upconvName :: Var -> Var
-upconvName tyname = mkVar ("upconv" ++ (unMkVar tyname))
-
+--------------------------------------------------------------------------------
+-- Downward conversion
+--------------------------------------------------------------------------------
 
 -- | Create a down-conversion function.  This is a simple tree-walk
 -- over the input datatype, without any laborious type checking
@@ -354,7 +360,7 @@ generateDown alldefs which =
   -- For a type T_i, we dispatch to downT_i
   -- We need to build dictionaries for its type-level arguments:
   dispatch substs existentials vr (ConTy name tyargs)
-    | isErased alldefs name
+    | hasErased alldefs name
     = appLst (EVar (downName name))
              (map (bindDictVars substs existentials) tyargs ++ [EVar vr])
     | otherwise = EVar vr
@@ -368,9 +374,6 @@ generateDown alldefs which =
   -- For now they are allowed...
   dispatch _ _ vr (TypeDictTy _)  = EVar vr
 
--- | Establish a (local) convention for how to name dictionary arguments
-dictArgify :: Var -> Var
-dictArgify = (+++ "_dict")
 
 -- | Build the final dictionary, assuming all the required variable
 -- names are in scope.
@@ -456,6 +459,10 @@ bindDictVars subst existentials mono =
       TypeDictTy _ -> EVar cursor -- Test me.  How to make this reachable?
 
 
+--------------------------------------------------------------------------------
+-- Conventions and Naming
+--------------------------------------------------------------------------------
+
 -- | This isn't bound within our core language, but we could make it
 -- part of a prelude and define it as Omega.  Also, we know it will be
 -- bound in the generated Haskell code.
@@ -466,3 +473,24 @@ errorCase = (EVar "undefined")
 
 specialExistentialDict :: Exp
 specialExistentialDict = EDict "Existential"
+
+upconvName :: Var -> Var
+upconvName tyname = mkVar ("upconv" ++ (unMkVar tyname))
+
+toSealedName :: Var -> Var
+toSealedName tyName = mkVar ("Sealed" ++ (unMkVar tyName))
+
+-- | The name of the down-conversion function.
+--
+downName :: TName -> TermVar
+downName tyName = mkVar ("down" ++ (unMkVar tyName))
+
+-- | Take a type or data constructor from the higher (pre-stripping) type to the
+-- lower one.
+--
+gadtDownName :: TName -> TName
+gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
+
+-- | Establish a (local) convention for how to name dictionary arguments
+dictArgify :: Var -> Var
+dictArgify = (+++ "_dict")
