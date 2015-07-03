@@ -317,23 +317,28 @@ toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 -- | This is an attempt at a "single pass" version of the algorithm.
 genUp2 :: [DDef] -> TName -> VDef
 genUp2 alldefs which =
+  trace ("GENUP2, initDictMap "++show initDictMap) $
   VDef (upconvName which) upFunSig $
     mkLams params $
      ECase "lower" $
-     [ (Pat (gadtDownName conName) args,
-       openConstraints (zip dictArgs cOutputs)
+     [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
+       openConstraints denv (zip dictArgs cOutputs)
         (\() -> doRecursions alldefs initDictMap kc unseal
                              (\ls -> seal $ appLst (EVar conName) ls)))
      | kc@KCons {conName,fields,outputs} <- cases
-     , let args = map dictArgify (getKConsDicts alldefs conName)
-                  ++ (take (length fields) patVars)
+     , let kdictargs = map dictArgify (getKConsDicts alldefs conName)
+           kvalargs  = take (length fields) patVars
            cOutputs = [ x | (x,Check) <- zip outputs $ getArgStatus alldefs which ]
+           denv = initDictMap `M.union`
+                  M.fromList [ (VarTy v, dictArgify v) | v <- getKConsDicts alldefs conName ]
      ]
  where
   params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs cVars ]
                ++ [("lower",startTy)]
 
-  initDictMap   = M.fromList $ zip (map fst cVars) (map (EVar . fst) params)
+  -- Dictionaries seeded from the inputs to the up function:
+  initDictMap :: DictEnv
+  initDictMap   = M.fromList $ zip (map (VarTy . fst) cVars) (map (fst) params)
 
   -- The sig of the up function takes dictionaries for checked args.
   upFunSig = (ForAll (kVars ++ cVars)
@@ -370,20 +375,32 @@ getCVars defs = map fst . cVars . lookupDDef defs
 
 type UnsealFn = (TName -> Exp -> (Exp -> Exp) -> Exp)
 
+-- | All the dictionaries we know about, and which are accessible in our
+-- lexical environment through a simple variable reference.
+--
+-- If `(ty,vr)` is in this map, that means `vr :: TypeDictTy ty`.
+type DictEnv = M.Map MonoTy TermVar
+
 -- | Unlike in the down case, we open up ALL the constraints we can
 -- based on what the pattern match tells us about the dictionaries
 -- we're given as arguments.
-openConstraints :: [(Var,MonoTy)] -> (() -> Exp) -> Exp
-openConstraints [] k = k ()
-openConstraints ((d,o):rest) k =
-  openConstraint d o $
-   (\() -> openConstraints rest k)
+openConstraints :: DictEnv -> [(Var,MonoTy)] -> (() -> Exp) -> Exp
+openConstraints _ [] k = k ()
+openConstraints mp ((d,o):rest) k =
+  openConstraint mp d o $
+   (\() -> openConstraints mp rest k)
 
-openConstraint :: Var -> MonoTy -> (() -> Exp) -> Exp
-openConstraint dv outTy k =
- trace ("OpenConstraint : "++show (dv,outTy)) $
+openConstraint :: DictEnv -> Var -> MonoTy -> (() -> Exp) -> Exp
+openConstraint denv dv outTy k =
+ trace ("OpenConstraint, equality : "++show (outTy,dv)++ " in denv "++show denv) $
  case outTy of
-   (VarTy _) -> k ()
+   (VarTy _) ->
+     -- Check if there's a dict variable in scope of type "TypeDictTy va"
+     case M.lookup outTy denv of
+       Nothing -> k ()
+       Just termVar ->
+         EIfTyEq (EVar dv, EVar termVar)
+                 (k ()) "undefined"
    (ArrowTy _ _) -> ECaseDict (EVar dv)
                            ("ArrowTy", ["_","_"], k ())
                            "undefined"
@@ -394,7 +411,7 @@ openConstraint dv outTy k =
       "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
 
 -- | Create the recursive calls, breaking open the evidence one at a time.
-doRecursions :: [DDef] -> M.Map TyVar Exp -> KCons
+doRecursions :: [DDef] -> DictEnv -> KCons
              -> UnsealFn
              -> ([Exp] -> Exp) -> Exp
 doRecursions alldefs initDictMap KCons{fields} unseal kont =
@@ -422,7 +439,7 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
 
 
   dispatchRecursion tn expr k =
-    k $ appLst (EVar$ upconvName tn) (["undefined" | _ <- getCVars alldefs tn] ++[expr])
+    k $ appLst (EVar$ upconvName tn) ([buildDict (VarTy v) | v <- getCVars alldefs tn] ++[expr])
 
 --------------------------------------------------------------------------------
 -- Downward conversion
@@ -492,6 +509,7 @@ generateDown alldefs which =
 -- names are in scope.
 buildDict :: MonoTy -> Exp
 buildDict ty =
+  trace ("    buildDict: "++show ty) $
   case ty of
     VarTy t       -> EVar $ dictArgify t
     ConTy k ls    -> appLst (EDict k)         (map buildDict ls)

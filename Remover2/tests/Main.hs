@@ -327,7 +327,7 @@ downList = mkTestCase tname $
   where
    tname = "Down-convert-list1"
 
--- | Test with the SAME name used in T and K:
+ -- | Test with the SAME name used in T and K:
 downList2 :: TestTree
 downList2 = mkTestCase tname $
  do let prgDefs = [DDef "List" [] [("a", Star)] []
@@ -343,6 +343,21 @@ downList2 = mkTestCase tname $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
    tname = "Down-convert-list2"
+
+
+updownList1 :: TestTree
+updownList1 = mkTestCase tname $
+ do let Prog {prgDefs} = p11_bustedList
+        mainE = (ForAll [] (ConTy "List" ["Int"]),
+                 (appLst "upList"
+                  [ EDict "Int"
+                  , (appLst "downList"
+                                     [ EDict "Int"
+                                     , appLst (EK "Cons") [EK "Three", EK "Nil"]])]))
+    interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster prgDefs mainE
+  where
+   tname = "Updown-convert-list1"
 
 
 downFeldspar :: [TestTree]
@@ -408,6 +423,7 @@ main =
         codegenAllProgs ++
         downFeldspar ++
         [ downList, downList2
+        , updownList1
         ]
 
 -- | Some tests are expected to fail as we develop new functionality.
