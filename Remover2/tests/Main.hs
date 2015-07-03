@@ -417,6 +417,6 @@ main =
 --   This documents that fact.  Update as we fix things.
 expectedFailures :: [String]
 expectedFailures =
- [ "Down-convert-feldspar4"
+ [ -- "Down-convert-feldspar4"
    -- "Down-convert-list2"
  ]

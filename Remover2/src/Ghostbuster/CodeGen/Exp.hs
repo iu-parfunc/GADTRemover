@@ -19,10 +19,13 @@ mkExp (G.EVar n)                = var (varName n)
 mkExp (G.EApp a b)              = app (mkExp a) (mkExp b)
 mkExp (G.ELam (x,_) b)          = lamE noLoc [mkPat (Pat x [])] (mkExp b)       -- TLM: add local type signature?
 mkExp (G.ECase e ps)            = caseE (mkExp e) (map (uncurry mkAlt) ps)
-mkExp (G.ELet (v,t,bnd) body)   = letE [ mkTypeSig v t, mkDeclOfExp v bnd ] (mkExp body)
 mkExp G.EDict{}                 = error "EDict: not handled by codegen"
 mkExp G.ECaseDict{}             = error "ECaseDict: not handled by codegen"
 mkExp G.EIfTyEq{}               = error "EIfTyEq: not handled by codegen"
+mkExp (G.ELet (v,t,bnd) body)   =
+    if t == ForAll [] "_"
+       then letE [ mkDeclOfExp v bnd ] (mkExp body)
+       else letE [ mkTypeSig v t, mkDeclOfExp v bnd ] (mkExp body)
 
 mkAlt :: G.Pat -> G.Exp -> H.Alt
 mkAlt p e =
@@ -83,4 +86,3 @@ matchOfExp fn (splitArgs -> (vs, e)) =
 splitArgs :: G.Exp -> ( [G.Var], G.Exp )
 splitArgs (ELam (v,_) rhs) = let (vs,r) = splitArgs rhs in (v:vs, r)
 splitArgs rhs              = ([], rhs)
-

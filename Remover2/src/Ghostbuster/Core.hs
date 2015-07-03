@@ -386,7 +386,7 @@ buildDict ty =
 --   Use a substitution to determine relevant equalities.
 bindDictVars :: HM.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
 bindDictVars subst existentials mono =
-    trace ("\n*** Start BINDDICTVARS for mono "++show mono++" with existentials "++show existentials) $
+    -- trace ("\n*** Start BINDDICTVARS for mono "++show mono++" with existentials "++show existentials) $
     loop (S.toList $ ftv mono)
   where
 
@@ -396,11 +396,11 @@ bindDictVars subst existentials mono =
   subst' = HM.union flipped subst
 
   loop :: [TyVar] -> Exp
-  loop []       = trace ("   all vars bound, now buildDict of "++show mono) $
+  loop []       = -- trace ("   all vars bound, now buildDict of "++show mono) $
                   buildDict mono
   loop (fv:rst) =
     let fv_dict = dictArgify fv in
-    trace ("  bindDictVars:loop, creating binding for "++show fv)$
+    -- trace ("  bindDictVars:loop, creating binding for "++show fv)$
     case HM.lookup fv subst' of
       Nothing ->
          ELet (fv_dict, ForAll [] "_", findPath fv)
@@ -410,15 +410,7 @@ bindDictVars subst existentials mono =
        let dicttype =
              case ty of
                VarTy v -> TypeDictTy v
-               _       -> TypeDictTy (mkVar (show ty)) -- FINISHME
-
-           wrap x =
-             case mono of
-               ConTy "Tup2" [l,r]
-                 | VarTy fv == l -> appLst (EDict "Tup2") [EVar fv_dict, x]
-                 | VarTy fv == r -> appLst (EDict "Tup2") [x, EVar fv_dict]
---                 | otherwise     -> error "Core.bindDictVars: dodgy hack doesn't know what to do now ):"
-               _ -> x
+               _       -> "_"
        in
        ELet (fv_dict, ForAll [] dicttype, buildDict ty)
             (loop rst) -- (wrap (loop rst))
@@ -439,7 +431,7 @@ bindDictVars subst existentials mono =
 
   digItOut :: TyVar -> MonoTy -> TyVar -> Exp
   digItOut cursor monty dest =
-    trace ("   Digitout "++ show (cursor, monty, dest)) $
+    -- trace ("   Digitout "++ show (cursor, monty, dest)) $
     case monty of
       VarTy x -> if x == dest
                     then EVar cursor
