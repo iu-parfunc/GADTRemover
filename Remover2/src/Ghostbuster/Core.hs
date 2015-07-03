@@ -452,8 +452,7 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
                                ]
                         )
                         errorCase
-      TypeDictTy x -> error "Core.digItOut: FINISHME"
-
+      TypeDictTy _ -> EVar cursor
 
 
 -- | This isn't bound within our core language, but we could make it
