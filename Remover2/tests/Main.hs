@@ -364,8 +364,12 @@ downFeldspar =
     , [ EDict "Unit"
       , intToIntDict
       , (lamN zro)
-      -- , app (lamN (EK "Zro")) (lit "Two")
-      ] ]
+      ]
+    , [ EDict "Unit"
+      , EDict "Int"
+      , app (lamN zro) (lit "Two")
+      ]
+    ]
   | ix <- [1::Int ..]
   , let tname = "Down-convert-feldspar"++show ix]
 
@@ -413,6 +417,6 @@ main =
 --   This documents that fact.  Update as we fix things.
 expectedFailures :: [String]
 expectedFailures =
- [ -- "Down-convert-feldspar"
+ [ "Down-convert-feldspar4"
    -- "Down-convert-list2"
  ]
