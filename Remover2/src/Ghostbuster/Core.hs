@@ -321,21 +321,13 @@ genUp2 alldefs which =
     mkLams params $
      ECase "lower" $
      [ (Pat (gadtDownName conName) args,
-       openConstraints dictArgs cOutputs
+       openConstraints (zip dictArgs cOutputs)
         (\() -> doRecursions alldefs initDictMap kc unseal
                              (\ls -> seal $ appLst (EVar conName) ls)))
      | kc@KCons {conName,fields,outputs} <- cases
      , let args = map dictArgify (getKConsDicts alldefs conName)
                   ++ (take (length fields) patVars)
            cOutputs = [ x | (x,Check) <- zip outputs $ getArgStatus alldefs which ]
-     --       newDicts = getKConsDicts alldefs conName
-     --       existentials = allExistentials kc
-     --       substs = case runTI $
-     --                     do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
-     --                                   (zip allVars outputs)
-     --                        return $ foldl1 composeSubst ls of
-     --                  (Left e,_) -> error$ "generateDown: error unifying: "++show e
-     --                  (Right s,_) -> s
      ]
  where
   params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs cVars ]
@@ -381,13 +373,11 @@ type UnsealFn = (TName -> Exp -> (Exp -> Exp) -> Exp)
 -- | Unlike in the down case, we open up ALL the constraints we can
 -- based on what the pattern match tells us about the dictionaries
 -- we're given as arguments.
-openConstraints :: [Var] -> [MonoTy] -> (() -> Exp) -> Exp
-openConstraints [] [] k = k ()
-openConstraints (d:dictArgs) (o:outputs) k =
+openConstraints :: [(Var,MonoTy)] -> (() -> Exp) -> Exp
+openConstraints [] k = k ()
+openConstraints ((d,o):rest) k =
   openConstraint d o $
-   (\() -> openConstraints dictArgs outputs k)
-openConstraints _ _ _  = error "openConstraints"
-
+   (\() -> openConstraints rest k)
 
 openConstraint :: Var -> MonoTy -> (() -> Exp) -> Exp
 openConstraint dv outTy k =
