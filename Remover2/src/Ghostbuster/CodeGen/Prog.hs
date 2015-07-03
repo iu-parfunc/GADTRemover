@@ -26,6 +26,7 @@ moduleOfProg (Prog ddefs vdefs vtop) =
   where
     pragmas     = [ LanguagePragma noLoc [ Ident "GADTs" ]
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
+                  , LanguagePragma noLoc [ Ident "BangPatterns" ]
                   , OptionsPragma noLoc (Just GHC) " -Wall "
                   , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-binds "

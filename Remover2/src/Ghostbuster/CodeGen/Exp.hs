@@ -33,7 +33,7 @@ mkPat (Pat "_" []) = wildcard
 mkPat (Pat pn  pv) = pApp (varName pn) (map (pvar . varName) pv)
 
 mkArg :: G.Var -> H.Pat
-mkArg = pvar . varName
+mkArg = PBangPat . pvar . varName
 
 mkRhs :: G.Exp -> H.Rhs
 mkRhs = UnGuardedRhs . mkExp
