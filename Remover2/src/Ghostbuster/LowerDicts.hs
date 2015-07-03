@@ -122,12 +122,12 @@ doExp ddefs e =
       -- to provide a pattern for ALL of the cases of TypeDict, and so we
       -- probably want to let-bind "x3" if it's non-trivial.
       --
-      letBindNonTriv (go x3) $ \x3' ->
+      --letBindNonTriv (go x3) $ \x3' ->
        -- leftleftLambda (go x1) (ConTy "TypeDict" ["any"]) $ \x1' ->
        -- funBindLet (go x1) (ConTy "TypeDict" ["any"]) $ \x1' ->
        ECase (go x1) $
              [ (Pat (dictConsName name) vars, go x2)    -- positive case
-             , (Pat "_"                 []  , x3')      -- fall-through for all other cases
+             , (Pat "_"                 []  , go x3)    -- fall-through for all other cases
              ]
 -- TEMP: DISABLING ALL FALSE CASES TEMPORARILY:
 #if 0
