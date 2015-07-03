@@ -366,24 +366,42 @@ downFeldspar =
      interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster feldspar_gadt $
          (ForAll [] (ConTy "Exp'" []),
-          appLst "downExp" [EDict "Unit" , typ, expr])
-  | (typ,expr) <- feldSpar_progs
+          appLst "downExp" [EDict "Unit" , dictE, expr])
+  | (_,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
   , let tname = "Down-convert-feldspar"++show ix]
 
-feldSpar_progs :: [(Exp, Exp)]
-feldSpar_progs = [ ( EDict "Int"
-                   , lit "Three")
-                 , ( intToIntDict
-                   , lamN (lit "Three"))
-                 , ( intToIntDict
-                   , (lamN zro))
-                 , ( EDict "Int"
-                   , app (lamN zro) (lit "Two"))
-                 , ( EDict "Int"
-                   , appLst (EK "Mul") [lit "One",
-                     appLst (EK "Add") [lit "Two", lit "Three"]])
-                 ]
+updownFeldspar :: [TestTree]
+updownFeldspar =
+  [ mkTestCase tname $
+     interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster feldspar_gadt $
+         (ForAll []
+           -- (ConTy "Exp" ["Unit", typ]),
+           (ConTy "SealedExp" ["Unit"]),
+          appLst "upExp"
+                 [EDict "Unit",
+                  appLst "downExp" [EDict "Unit" , dictE, expr]] )
+  | (typ,dictE,expr) <- feldspar_progs
+  | ix <- [1::Int ..]
+  , let tname = "Updown-convert-feldspar"++show ix]
+
+feldspar_progs :: [(MonoTy, Exp, Exp)]
+feldspar_progs = feldspar_intprogs ++ feldspar_funprogs
+
+feldspar_intprogs :: [(MonoTy, Exp, Exp)]
+feldspar_intprogs = [ ( "Int", EDict "Int", lit "Three" )
+                    , ( "Int", EDict "Int"
+                      , app (lamN zro) (lit "Two"))
+                    , ( "Int", EDict "Int"
+                      , appLst (EK "Mul") [lit "One",
+                        appLst (EK "Add") [lit "Two", lit "Three"]])
+                    ]
+
+feldspar_funprogs = [ ( ArrowTy "Int" "Int", intToIntDict
+                      , lamN (lit "Three"))
+                    , ( ArrowTy "Int" "Int", intToIntDict
+                      , (lamN zro)) ]
 
 
 ----------------------------------------
@@ -421,7 +439,7 @@ main =
         runAndCompareLowered ++
         ghostbustAllProgs ++
         codegenAllProgs ++
-        downFeldspar ++
+        downFeldspar ++ updownFeldspar ++
         [ downList, downList2
         , updownList1
         ]
