@@ -342,21 +342,20 @@ generateDown alldefs which =
 
   erased        = map fst $ cVars ++ sVars
   dictTys       = map TypeDictTy erased
-  DDef {..}     = lookupDDef alldefs which
+  DDef{..}      = lookupDDef alldefs which
 
-  down          = (downName tyName)
-  startTy       = (ConTy tyName  (map (VarTy . fst) allVars))
-  endTy         = (ConTy tyName' (map (VarTy . fst) kVars))
+  down          = downName tyName
+  startTy       = ConTy tyName  (map (VarTy . fst) allVars)
+  endTy         = ConTy tyName' (map (VarTy . fst) kVars)
   tyName'       = gadtDownName tyName
   allVars       = kVars++cVars++sVars
 
   -- For a type T_i, we dispatch to downT_i
   -- We need to build dictionaries for its type-level arguments:
   dispatch substs existentials vr (ConTy name tyargs)
-    | isErased alldefs name =
-        appLst (EVar (downName name))
-               (map (bindDictVars substs existentials) tyargs
-                ++ [EVar vr])
+    | isErased alldefs name
+    = appLst (EVar (downName name))
+             (map (bindDictVars substs existentials) tyargs ++ [EVar vr])
     | otherwise = EVar vr
 
   -- If we just have an abstract type, we return it.  No recursions.
@@ -393,7 +392,8 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
 
   subst' = HM.union flipped subst
 
-  loop [] = buildDict mono
+  loop :: [TyVar] -> Exp
+  loop []       = buildDict mono
   loop (fv:rst) =
     case HM.lookup fv subst' of
       Nothing -> findPath fv
@@ -402,11 +402,19 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
        let dicttype =
              case ty of
                VarTy v -> TypeDictTy v
-               _ -> (TypeDictTy (mkVar (show ty)))
-       in
-          ELet (dictArgify fv, ForAll [] dicttype, buildDict ty) $
-           loop rst
+               _       -> TypeDictTy (mkVar (show ty))
 
+           fv_dict = dictArgify fv
+
+           wrap x =
+             case mono of
+               ConTy "Tup2" [l,r]
+                 | VarTy fv == l -> appLst (EDict "Tup2") [EVar fv_dict, x]
+                 | VarTy fv == r -> appLst (EDict "Tup2") [x, EVar fv_dict]
+--                 | otherwise     -> error "Core.bindDictVars: dodgy hack doesn't know what to do now ):"
+               _ -> x
+       in
+       ELet (fv_dict, ForAll [] dicttype, buildDict ty) (wrap (loop rst))
        -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
 
   findPath fv
