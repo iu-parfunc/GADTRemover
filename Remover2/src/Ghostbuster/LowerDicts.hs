@@ -8,10 +8,8 @@ module Ghostbuster.LowerDicts
   (lowerDicts, gatherDicts) where
 
 import           Control.Exception
-import qualified Data.ByteString.Char8 as B
 import           Data.List as L
 import qualified Data.Set as S
-import           Debug.Trace
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
 
@@ -157,7 +155,7 @@ doExp ddefs e =
     (ELet (v,t,x1) x2) -> ELet (v,t,go x1) (go x2)
     (ECase x1 x2) -> ECase (go x1) [ (p,go x) | (p,x) <- x2]
  where
-  allDicts = L.map tyName ddefs
+  -- allDicts = L.map tyName ddefs
   go = doExp ddefs
 
 
@@ -178,14 +176,17 @@ app2 f x y = EApp (EApp f x) y
 --
 --   The code size here will be quadratic in the number of constructors of TypeDict.
 mkTeq :: [DDef] -> VDef
-mkTeq ddefs = VDef "checkTEQ" typesig $
-              ELam ("x", typeDict "a") $
-              ELam ("y", typeDict "b") $
-              ECase "x"
-               [ (Pat (dictConsName tyName) patVs, makeInner tyName patVs)
-               | dd@DDef{tyName} <- ddefs
-               , let patVs = (mkPatVars dd "1")
-               ]
+mkTeq ddefs
+  = VDef "checkTEQ" typesig
+  $ ELam ("x", typeDict "a")
+  $ ELam ("y", typeDict "b")
+  $ ECase "x"
+  $ reverse
+  $ (Pat "_" [], EK "Nothing")
+  : [ (Pat (dictConsName tyName) patVs, makeInner tyName patVs)
+        | dd@DDef{tyName} <- ddefs
+        , let patVs = (mkPatVars dd "1")
+    ]
  where
 
  mkPatVars DDef{kVars,cVars,sVars} suff =
@@ -193,19 +194,23 @@ mkTeq ddefs = VDef "checkTEQ" typesig $
    in map (+++ suff) $ take arity patVars
 
  -- Construct the inner of the two-step pattern match:
- makeInner outerT outerPatVs =
-   ECase "y" [ (Pat (dictConsName tn) innerPatVs
-               , if tn == outerT
-                    then doRecurs $ zip outerPatVs innerPatVs
-                    else (EK "Nothing"))
-             | dd@DDef{tyName=tn} <- ddefs
-             , let innerPatVs = (mkPatVars dd "2")
-                   doRecurs [] = justRefl
-                   doRecurs ((a,b):rst) =
-                     unpackJustRefl (app2 "checkTEQ" (EVar a) (EVar b))
-                                    (doRecurs rst)
-                                    (EK "Nothing")
-             ]
+ makeInner outerT outerPatVs
+   = ECase "y"
+   $ reverse
+   $ (Pat "_" [], EK "Nothing")
+   : [ (Pat (dictConsName tn) innerPatVs
+       , if tn == outerT
+            then doRecurs $ zip outerPatVs innerPatVs
+            else (EK "Nothing")
+       )
+       | dd@DDef{tyName=tn} <- ddefs
+       , let innerPatVs           = mkPatVars dd "2"
+             doRecurs []          = justRefl
+             doRecurs ((a,b):rst) =
+               unpackJustRefl (app2 "checkTEQ" (EVar a) (EVar b))
+                              (doRecurs rst)
+                              (EK "Nothing")
+     ]
 
  justRefl = EApp (EK "Just") (EK "Refl")
 
