@@ -26,9 +26,7 @@ lowerDicts origprog@(Prog ddefs vdefs main) =
   finalProg = Prog (dictGADT : reflDef : ddefs)
                    vdefs''
                    (main { valExp = doExp ddefSubset (valExp main) })
-  vdefs'' = if null allDicts
-               then vdefs'
-               else (mkTeq ddefSubset : vdefs')
+  vdefs'' = (mkTeq ddefSubset : vdefs')
 
   vdefs' = [ VDef v t (doExp ddefSubset e)
            | VDef v t e <- vdefs ]
