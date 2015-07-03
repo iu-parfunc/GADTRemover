@@ -49,7 +49,7 @@ ghostbuster ddefs (topTy,topExp) = Prog (ddefs ++ ddefsNew) vdefsNew vtop
 
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
     returnVDefs = [ generateDown   allddefs (tyName ddef)
-                  -- , generateUpconv allddefs patterns equalities ddefNormilized
+                  -- , generateUp allddefs patterns equalities ddefNormilized
                   ]
 
 toSealedName :: Var -> Var
@@ -250,8 +250,8 @@ pmRemovalMono monoty = case monoty of
   where
   newvar = (mkVar "newVr")
 
-generateUpconv :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
-generateUpconv _alldefs patterns equalities ddef =
+generateUp :: [DDef] -> [Patterns] -> [Equations] -> DDef -> VDef
+generateUp _alldefs patterns equalities ddef =
   VDef { valName = upconvname
        , valTy   = signature
        , valExp  = bodyOfUp
@@ -262,41 +262,41 @@ generateUpconv _alldefs patterns equalities ddef =
     onlyKeepAndCheck     = kVars ddef ++ cVars ddef
     onlyKeepAndCheckVars = map toVarTy (map fst onlyKeepAndCheck)
     onlyKeepVars         = map toVarTy (map fst (kVars ddef))
-    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpconvByClause patterns equalities) (cases ddef)))
+    bodyOfUp             = ELam ("x", ConTy (gadtDownName (tyName ddef)) []) (ECase "x" (map (generateUpByClause patterns equalities) (cases ddef)))
 
-generateUpconvByClause
+generateUpByClause
     :: [Patterns]
     -> [Equations]
     -> KCons
     -> (Pat,Exp)
-generateUpconvByClause patterns equalities clause =
+generateUpByClause patterns equalities clause =
   ( Pat (gadtDownName (conName clause)) newVars
-  , generateUpconvMono 1 patterns equalities (fields clause) (outputs clause)
+  , generateUpMono 1 patterns equalities (fields clause) (outputs clause)
   )
   where
     newVars = ["x"]  -- to change in x1 x2 x3..
 
-generateUpconvMono
+generateUpMono
     :: Int
     -> [Patterns]
     -> [Equations]
     -> [MonoTy]
     -> [MonoTy]
     -> Exp
-generateUpconvMono n patterns equalities introduction conclusion =
+generateUpMono n patterns equalities introduction conclusion =
   case introduction of
     -- here generate pattern matching, equalities, and the finish with:
     --   (EApp "SealedTyp" (EApp (EApp "Arr" "a") "b" )))
-    []          -> error "generateUpconvMono: finalise"
+    []          -> error "generateUpMono: finalise"
     (mono:rest) ->
       case mono of
-        VarTy{}      -> error "generateUpconvMono: VarTy"
-        ArrowTy{}    -> error "generateUpconvMono: ArrowTy"
-        TypeDictTy{} -> error "generateUpconvMono: TypeDictTy"
+        VarTy{}      -> error "generateUpMono: VarTy"
+        ArrowTy{}    -> error "generateUpMono: ArrowTy"
+        TypeDictTy{} -> error "generateUpMono: TypeDictTy"
         ConTy name monos ->
           ECase (EApp (EVar (upconvName name)) (EVar (mkVar ("x" ++ show n))))
                 [( Pat (toSealedName name) (map toVarFromMono monos)
-                 , generateUpconvMono (n+1) patterns equalities rest conclusion
+                 , generateUpMono (n+1) patterns equalities rest conclusion
                  )
                 ]
 
