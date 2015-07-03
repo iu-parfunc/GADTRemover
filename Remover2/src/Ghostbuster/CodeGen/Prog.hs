@@ -26,8 +26,10 @@ moduleOfProg (Prog ddefs vdefs vtop) =
   where
     pragmas     = [ LanguagePragma noLoc [ Ident "GADTs" ]
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
+                  , OptionsPragma noLoc (Just GHC) " -Wall "
                   , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-binds "
+                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-matches "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-name-shadowing "
 --                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
 --                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
