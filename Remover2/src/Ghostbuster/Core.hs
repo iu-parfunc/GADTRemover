@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE ParallelListComp           #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
@@ -13,7 +14,6 @@ module Ghostbuster.Core
 import           Control.Exception ( assert )
 import qualified Data.Map as HM
 import qualified Data.Set as S
-import           Debug.Trace
 import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
@@ -377,12 +377,10 @@ dictArgify = (+++ "_dict")
 buildDict :: MonoTy -> Exp
 buildDict ty =
   case ty of
-    (VarTy t)       -> EVar $ dictArgify t
-    (ConTy k ls)    -> appLst (EDict k)         (map go ls)
-    (ArrowTy t1 t2) -> appLst (EDict "ArrowTy") [go t1, go t2]
-    (TypeDictTy _)  -> error$ "Core:buildDict: should never build a dictionary of a dictionary: "++show ty
-  where
-  go = buildDict
+    VarTy t       -> EVar $ dictArgify t
+    ConTy k ls    -> appLst (EDict k)         (map buildDict ls)
+    ArrowTy t1 t2 -> appLst (EDict "ArrowTy") [buildDict t1, buildDict t2]
+    TypeDictTy _  -> error $ "Core.buildDict: should never build a dictionary of a dictionary: "++show ty
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
@@ -430,17 +428,21 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
                      then EVar cursor
                      else error "internal error, generateDown"
      (ArrowTy x1 x2) -> ECaseDict (EVar $ dictArgify cursor)
-                           ("ArrowTy", ["left","right"],
-                            if S.member dest (ftv x1)
-                            then digItOut "left" x1 dest
-                            else digItOut "right" x2 dest)
+                           ( "ArrowTy"
+                           , ["left","right"]
+                           , if S.member dest (ftv x1)
+                                then digItOut "left"  x1 dest
+                                else digItOut "right" x2 dest
+                           )
                            specialExistentialDict
      (ConTy tn ls) -> ECaseDict (EVar $ dictArgify cursor)
-                         (tn, take (length ls) patVars,
-                          head
-                           [ digItOut (vr) arg dest
-                           | (vr,arg) <- zip patVars ls
-                           , S.member dest (ftv arg) ])
+                         ( tn
+                         , take (length ls) patVars
+                         , head [ digItOut vr arg dest | vr  <- patVars
+                                                       | arg <- ls
+                                                       , S.member dest (ftv arg)
+                                ]
+                         )
                          specialExistentialDict
      (TypeDictTy x) -> error "FINISHME"
 
@@ -452,3 +454,4 @@ bindDictVars subst existentials mono = loop (S.toList $ ftv mono)
 
 specialExistentialDict :: Exp
 specialExistentialDict = EDict "Existential"
+
