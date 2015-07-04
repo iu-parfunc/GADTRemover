@@ -12,6 +12,7 @@ module Ghostbuster.Core
   where
 
 import           Control.Exception ( assert )
+import           Data.List (isSuffixOf)
 import qualified Data.Map as M
 import qualified Data.Set as S
 import           Debug.Trace
@@ -367,7 +368,8 @@ genUp2 alldefs which =
          | null sVars = k denv ([],x)
          | otherwise  =
             let vr' = vr +++ "'"
-                newDictVs = getSVars alldefs tn
+                newDictVs = [ dictArgify (tv +++ "_" +++ vr')
+                            | tv <- getSVars alldefs tn ]
             in ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
                  -- TODO: need to add the dictionaries to the denv
@@ -485,7 +487,19 @@ buildDict' denv ty =
   case M.lookup ty denv of
     Just v -> trace ("    ! buildDict' short circuited to DictEnv "++show (ty,v)) $
               EVar v
-    Nothing -> buildDict ty
+    -- Nothing -> buildDict ty
+    Nothing -> bindDictVars (denvToEqualities denv) existentials ty
+  where
+  existentials = trace ("    FIXME: buildDict' existentials") S.empty
+
+
+-- This is inefficient and ugly... refactor it away
+denvToEqualities :: DictEnv -> M.Map TyVar MonoTy
+denvToEqualities denv =
+  M.fromList
+  [ (unDictVar dv,ty) | (ty,dv) <- M.toList denv ]
+
+
 
 --------------------------------------------------------------------------------
 -- Downward conversion
@@ -592,7 +606,7 @@ bindDictVars subst existentials mono =
        -- fv is equal to ty, thus we use it to build the dict
        let dicttype =
              case ty of
-               VarTy v -> TypeDictTy v
+               -- VarTy v -> TypeDictTy v -- This invariant is broken with names like arr_a'_dict
                _       -> "_"
        in
        ELet (fv_dict, ForAll [] dicttype, buildDict ty)
@@ -672,5 +686,10 @@ gadtDownName :: TName -> TName
 gadtDownName tyname = mkVar ((unMkVar tyname) ++ "'")
 
 -- | Establish a (local) convention for how to name dictionary arguments
-dictArgify :: Var -> Var
+dictArgify :: TyVar -> TermVar
 dictArgify = (+++ "_dict")
+
+unDictVar :: TermVar -> TyVar
+unDictVar v | isSuffixOf "_dict" (unMkVar v) = mkVar $ reverse $ drop 5 $
+                                               reverse $ unMkVar v
+            | otherwise = error$ "unDictVar: bad input "++show v
