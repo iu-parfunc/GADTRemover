@@ -8,7 +8,8 @@
 
 module Ghostbuster.Core
 --  ( ghostbuster
---  , ghostbusterDDef )
+--  , ghostbusterDDef
+    -- )
   where
 
 import           Control.Exception ( assert )
@@ -329,12 +330,12 @@ genUp2 alldefs which =
            doRecursions alldefs denv'' kc unseal
             (\denv''' ls ->
                -- Before the final sealing, we make sure there is a dict binding for all our output variables:
-               -- bindDictVars toBind existentials $
+               bindDictVars toBind existentials (map fst sVars) $
                  seal denv''' $ appLst (EVar conName) ls)))
      | kc@KCons {conName,fields,outputs} <- cases
      , let kdictargs = map dictArgify (getKConsDicts alldefs conName)
            kvalargs  = take (length fields) patVars
-           (kOutputs,cOutputs,sOutputs) = splitTyArgs (getArgStatus alldefs which) outputs
+           (_kOutputs,cOutputs,sOutputs) = splitTyArgs (getArgStatus alldefs which) outputs
            denv = initDictMap `M.union`
                   M.fromList [ (VarTy v, dictArgify v) | v <- getKConsDicts alldefs conName ]
            -- The other equalities from the RHS we will need for later.
@@ -378,12 +379,12 @@ genUp2 alldefs which =
          | null sVars = k denv ([],x)
          | otherwise  =
             let vr' = vr +++ "'"
-                sVars = getSVars alldefs tn
+                sVs = getSVars alldefs tn
                 newDictVs = [ dictArgify (tv +++ "_" +++ vr')
-                            | tv <- sVars ]
+                            | tv <- sVs ]
                 -- TODO: There may be an issue with needing FRESH type variable names here.
                 -- To actually generate the correct code we may need to use scoped type variables.
-                newEntries = (M.fromList (zip (map VarTy sVars) newDictVs))
+                _newEntries = (M.fromList (zip (map VarTy sVs) newDictVs))
                 denv' = denv -- M.union newEntries denv
             in ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
@@ -429,11 +430,12 @@ openConstraint denv dv outTy k =
  trace ("   OpenConstraint, equality : "++show (dv,outTy)++ " in denv "++show denv) $
  let denv' = M.insert outTy dv denv in
  case outTy of
-   (VarTy _) ->
+   (VarTy vr) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
      case M.lookup outTy denv of
        Nothing ->
-         trace (" WARNING openConstraint: could not check equality, "++show (outTy, dv)++ "\n  DENV: "++show denv) $
+         -- trace (" WARNING openConstraint: could not check equality, "++show (outTy, dv)++ "\n  DENV: "++show denv) $
+         ELet (dictArgify vr, ForAll [] "_", EVar dv) $
          k denv' ()
        Just termVar ->
          EIfTyEq (EVar dv, EVar termVar)
@@ -506,7 +508,7 @@ buildDict' denv ty =
     -- Nothing -> buildDict ty
     Nothing ->
       trace ("    ! buildDict' calling off to bindDictVars "++show ty++ " with denv "++show denv) $
-      bindDictVars (denvToEqualities denv) existentials ty
+      bindDictVars (denvToEqualities denv) existentials (S.toList$ ftv ty) (buildDict ty)
   where
   existentials = trace ("    FIXME: buildDict' existentials") S.empty
 
@@ -535,7 +537,7 @@ generateDown alldefs which =
      [ (Pat conName args,
        -- Call the (lower) data constructor right at the top:
        appLst (EVar (gadtDownName conName)) $
-        (map (bindDictVars substs existentials . VarTy) newDicts) ++
+        (map (\dv -> bindDictVars substs existentials [dv] (buildDict (VarTy dv))) newDicts) ++
         -- Perform the recursions inside the operands:
        [ (dispatch substs existentials arg ty)
        | (arg,ty) <- zip args fields ])
@@ -570,7 +572,8 @@ generateDown alldefs which =
   dispatch substs existentials vr (ConTy name tyargs)
     | hasErased alldefs name
     = appLst (EVar (gendownName name))
-             (map (bindDictVars substs existentials) tyargs ++ [EVar vr])
+             (map (\ty -> bindDictVars substs existentials (S.toList$ ftv ty) (buildDict ty))
+                   tyargs ++ [EVar vr])
     | otherwise = EVar vr
 
   -- If we just have an abstract type, we return it.  No recursions.
@@ -599,10 +602,10 @@ buildDict oty =
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
-bindDictVars :: M.Map TyVar MonoTy -> S.Set TyVar -> MonoTy -> Exp
-bindDictVars subst existentials mono =
+bindDictVars :: M.Map TyVar MonoTy -> S.Set TyVar -> [TyVar] -> Exp -> Exp
+bindDictVars subst existentials varsToBind body =
     -- trace ("\n*** Start BINDDICTVARS for mono "++show mono++" with existentials "++show existentials) $
-    loop (S.toList $ ftv mono)
+    loop (varsToBind)
   where
 
   flipped = M.fromList $
@@ -612,7 +615,7 @@ bindDictVars subst existentials mono =
 
   loop :: [TyVar] -> Exp
   loop []       = -- trace ("   all vars bound, now buildDict of "++show mono) $
-                  buildDict mono
+                  body
   loop (fv:rst) =
     let fv_dict = dictArgify fv in
     -- trace ("  bindDictVars:loop, creating binding for "++show fv)$
