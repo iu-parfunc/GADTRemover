@@ -424,9 +424,14 @@ openConstraint denv dv outTy k =
    (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
    (ConTy tn ls) ->
      let denv' = trace ("    FIXME1: extend denv") denv
-     in ECaseDict (EVar dv)
-            (tn, replicate (length ls) "_", k denv' ())
-            unreachable
+         tmps  = [ mkVar $ "tmp"++show ix | ix <- [1 .. length ls]]
+         vars  = [ v | VarTy v <- ls]
+     in if length vars == length ls
+           then ECaseDict (EVar dv)
+                    (tn, map dictArgify vars,
+                     k denv' ())
+                    unreachable
+           else error$ "Unfinished: need to recursively process: "++show ls
 
    (TypeDictTy _) -> error$
       "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
@@ -452,7 +457,8 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   doField denv var (ConTy tn tyargs) k
     | hasErased alldefs tn =
        let sTys = [ t | (Synth,t) <- zip (getArgStatus alldefs tn) tyargs ]
-       in dispatchRecursion denv tn (EVar var)
+           cTys = [ t | (Check,t) <- zip (getArgStatus alldefs tn) tyargs ]
+       in dispatchRecursion denv (tn,cTys) (EVar var)
           (\denv' eapp ->
             unseal (tn,var) denv' eapp
               (\denv'' (svs, thisFieldE) ->
@@ -469,10 +475,10 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     | otherwise = k denv (EVar var)
 
 
-  dispatchRecursion denv tn expr k =
+  dispatchRecursion denv (tn,checkedTys) expr k =
     k denv $
     appLst (EVar$ upconvName tn)
-           ([buildDict (VarTy v) | v <- getCVars alldefs tn] ++[expr])
+           (map buildDict checkedTys ++[expr])
 
 
 --------------------------------------------------------------------------------
