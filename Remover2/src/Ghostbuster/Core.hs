@@ -323,17 +323,26 @@ genUp2 alldefs which =
     mkLams params $
      ECase "lower" $
      [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
-       trace ("\n  Case: ("++ show conName ++")") $
+       trace ("\n  Case: ("++ show conName ++") with denv: "++show denv) $
        openConstraints denv (zip dictArgs cOutputs)
-        (\denv' () ->
-           doRecursions alldefs denv' kc unseal
-            (\denv'' ls -> seal denv'' $ appLst (EVar conName) ls)))
+        (\denv'' () ->
+           doRecursions alldefs denv'' kc unseal
+            (\denv''' ls ->
+               -- Before the final sealing, we make sure there is a dict binding for all our output variables:
+               -- bindDictVars toBind existentials $
+                 seal denv''' $ appLst (EVar conName) ls)))
      | kc@KCons {conName,fields,outputs} <- cases
      , let kdictargs = map dictArgify (getKConsDicts alldefs conName)
            kvalargs  = take (length fields) patVars
-           cOutputs = [ x | (x,Check) <- zip outputs $ getArgStatus alldefs which ]
+           (kOutputs,cOutputs,sOutputs) = splitTyArgs (getArgStatus alldefs which) outputs
            denv = initDictMap `M.union`
                   M.fromList [ (VarTy v, dictArgify v) | v <- getKConsDicts alldefs conName ]
+           -- The other equalities from the RHS we will need for later.
+           -- We don't have dictionary variables that give us a handle on these.
+           -- Rather, we will need these equalities to fabricate the dictionaries at the end.
+           toBind = M.fromList (zip (map fst sVars) sOutputs)
+           -- toBind = M.fromList (zip (map fst (kVars++sVars)) (kOutputs ++ sOutputs))
+           existentials = trace "FINISHME: genUp2 existentials " S.empty
      ]
  where
   params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs cVars ]
@@ -359,22 +368,27 @@ genUp2 alldefs which =
   ---------------------------------------------------------
   endTy  | null sVars = ConTy tyName                (map (VarTy . fst) (kVars++cVars))
          | otherwise  = ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
+  -- This takes the actual value "x" and provides the dict args itself.
   seal denv x | null sVars = x
               | otherwise  = appLst (EK (toSealedName tyName))
-                                    ([ unfinished "sealed dictionaries"
-                                     | _ <- sVars] ++ [x])
+                                    ([ buildDict (VarTy sv)
+                                     | (sv,_) <- sVars ] ++ [x])
   unseal :: UnsealFn
   unseal (tn,vr) denv x k
          | null sVars = k denv ([],x)
          | otherwise  =
             let vr' = vr +++ "'"
+                sVars = getSVars alldefs tn
                 newDictVs = [ dictArgify (tv +++ "_" +++ vr')
-                            | tv <- getSVars alldefs tn ]
+                            | tv <- sVars ]
+                -- TODO: There may be an issue with needing FRESH type variable names here.
+                -- To actually generate the correct code we may need to use scoped type variables.
+                newEntries = (M.fromList (zip (map VarTy sVars) newDictVs))
+                denv' = denv -- M.union newEntries denv
             in ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
-                 -- TODO: need to add the dictionaries to the denv
-                 let denv' = trace ("    FIXME2: Need to extend denv "++show denv) denv
-                 in k denv' (newDictVs, (EVar vr')))]
+                 -- trace ("    CHECKME: Extending denv with "++show newEntries) $
+                 k denv' (newDictVs, (EVar vr')))]
   ---------------------------------------------------------
 
 unfinished :: String -> Exp
@@ -418,18 +432,20 @@ openConstraint denv dv outTy k =
    (VarTy _) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
      case M.lookup outTy denv of
-       Nothing -> k denv' ()
+       Nothing ->
+         trace (" WARNING openConstraint: could not check equality, "++show (outTy, dv)++ "\n  DENV: "++show denv) $
+         k denv' ()
        Just termVar ->
          EIfTyEq (EVar dv, EVar termVar)
                  (k denv' ()) unreachable
    (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
    (ConTy tn ls) ->
-     let denv'' = trace ("    FIXME1: extend denv") denv'
-         -- tmps  = [ mkVar $ "tmp"++show ix | ix <- [1 .. length ls]]
-         vars  = [ v | VarTy v <- ls]
-     in if length vars == length ls
+     -- Here we check an equality and record that in the denv subsequently:
+     let denv'' = M.union (M.fromList (zip ls dictvars)) denv'
+         dictvars  = [ dictArgify v | VarTy v <- ls]
+     in if length dictvars == length ls
            then ECaseDict (EVar dv)
-                    (tn, map dictArgify vars,
+                    (tn, dictvars,
                      k denv'' ())
                     unreachable
            else error$ "Unfinished: need to recursively process: "++show ls
@@ -488,7 +504,9 @@ buildDict' denv ty =
     Just v -> trace ("    ! buildDict' short circuited to DictEnv "++show (ty,v)) $
               EVar v
     -- Nothing -> buildDict ty
-    Nothing -> bindDictVars (denvToEqualities denv) existentials ty
+    Nothing ->
+      trace ("    ! buildDict' calling off to bindDictVars "++show ty++ " with denv "++show denv) $
+      bindDictVars (denvToEqualities denv) existentials ty
   where
   existentials = trace ("    FIXME: buildDict' existentials") S.empty
 
