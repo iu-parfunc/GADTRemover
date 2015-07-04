@@ -317,11 +317,12 @@ toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 -- | This is an attempt at a "single pass" version of the algorithm.
 genUp2 :: [DDef] -> TName -> VDef
 genUp2 alldefs which =
-  trace ("GENUP2, initDictMap "++show initDictMap) $
+  trace ("\nGENUP2("++ show which ++"), initDictMap " ++show initDictMap) $
   VDef (upconvName which) upFunSig $
     mkLams params $
      ECase "lower" $
      [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
+       trace ("\n  Case: ("++ show conName ++")") $
        openConstraints denv (zip dictArgs cOutputs)
         (\denv' () ->
            doRecursions alldefs denv' kc unseal
@@ -362,14 +363,16 @@ genUp2 alldefs which =
                                     ([ unfinished "sealed dictionaries"
                                      | _ <- sVars] ++ [x])
   unseal :: UnsealFn
-  unseal tn denv x k
-         | null sVars = k denv x
+  unseal (tn,vr) denv x k
+         | null sVars = k denv ([],x)
          | otherwise  =
-            ECase x
-            [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["unsealedVal"]),
-              -- TODO: need to add the dictionaries to the denv
-              let denv' = trace ("Need to extend denv "++show denv) denv
-              in k denv' "unsealedVal")]
+            let vr' = vr +++ "'"
+                newDictVs = getSVars alldefs tn
+            in ECase x
+               [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
+                 -- TODO: need to add the dictionaries to the denv
+                 let denv' = trace ("    FIXME2: Need to extend denv "++show denv) denv
+                 in k denv' (newDictVs, (EVar vr')))]
   ---------------------------------------------------------
 
 unfinished :: String -> Exp
@@ -381,7 +384,12 @@ getSVars defs = map fst . sVars . lookupDDef defs
 getCVars :: [DDef] -> TName -> [TyVar]
 getCVars defs = map fst . cVars . lookupDDef defs
 
-type UnsealFn = (TName -> DictEnv -> Exp -> (Cont Exp) -> Exp)
+type UnsealFn
+   = ((TName,TermVar) -- ^
+   -> DictEnv
+   -> Exp
+   -> (Cont ([TermVar],Exp)) -- ^ The continuation receives new dictionaries
+   -> Exp)
 
 type Cont a = (DictEnv -> a -> Exp)
 
@@ -394,15 +402,15 @@ type DictEnv = M.Map MonoTy TermVar
 -- | Unlike in the down case, we open up ALL the constraints we can
 -- based on what the pattern match tells us about the dictionaries
 -- we're given as arguments.
-openConstraints :: DictEnv -> [(Var,MonoTy)] -> (Cont ()) -> Exp
+openConstraints :: DictEnv -> [(TermVar,MonoTy)] -> (Cont ()) -> Exp
 openConstraints denv [] k = k denv ()
 openConstraints denv ((d,o):rest) k =
   openConstraint denv d o $
    (\denv' () -> openConstraints denv' rest k)
 
-openConstraint :: DictEnv -> Var -> MonoTy -> (Cont ()) -> Exp
+openConstraint :: DictEnv -> TermVar -> MonoTy -> (Cont ()) -> Exp
 openConstraint denv dv outTy k =
- trace ("OpenConstraint, equality : "++show (outTy,dv)++ " in denv "++show denv) $
+ trace ("   OpenConstraint, equality : "++show (dv,outTy)++ " in denv "++show denv) $
  case outTy of
    (VarTy _) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
@@ -414,11 +422,8 @@ openConstraint denv dv outTy k =
          EIfTyEq (EVar dv, EVar termVar)
                  (k denv ()) unreachable
    (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
-                        -- ECaseDict (EVar dv)
-                        --   ("ArrowTy", ["_","_"], k ())
-                        --   unreachable
    (ConTy tn ls) ->
-     let denv' = trace ("FIXME: extend denv") denv
+     let denv' = trace ("    FIXME1: extend denv") denv
      in ECaseDict (EVar dv)
             (tn, replicate (length ls) "_", k denv' ())
             unreachable
@@ -442,12 +447,17 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     doField denv var field
       (\denv' e -> loop rst denv' (e : args))
 
+  -- Takes the type of the field we are processing.
   doField :: DictEnv -> TermVar -> MonoTy -> (Cont Exp) -> Exp
-  doField denv var (ConTy tn _) k
+  doField denv var (ConTy tn tyargs) k
     | hasErased alldefs tn =
-       unseal tn denv
-              (dispatchRecursion tn (EVar var))
-              k
+       let sTys = [ t | (Synth,t) <- zip (getArgStatus alldefs tn) tyargs ]
+       in unseal (tn,var) denv
+                 (dispatchRecursion tn (EVar var))
+                 (\denv' (svs, thisFieldE) ->
+                    -- Verify results of the recursion:
+                    openConstraints denv' (zip svs sTys)
+                      (\denv'' () -> k denv'' thisFieldE))
     | otherwise = k denv (EVar var)
   doField denv var field k
     -- NOTE: one of our current rules is that there are not
@@ -530,12 +540,15 @@ generateDown alldefs which =
 -- names are in scope.
 buildDict :: MonoTy -> Exp
 buildDict ty =
-  trace ("    buildDict: "++show ty) $
-  case ty of
-    VarTy t       -> EVar $ dictArgify t
-    ConTy k ls    -> appLst (EDict k)         (map buildDict ls)
-    ArrowTy t1 t2 -> appLst (EDict "ArrowTy") [buildDict t1, buildDict t2]
-    TypeDictTy _  -> error $ "Core.buildDict: should never build a dictionary of a dictionary: "++show ty
+  trace ("    buildDict for "++show ty++ " -> "++show res) res
+ where
+  res = loop ty
+  loop ty =
+    case ty of
+      VarTy t       -> EVar $ dictArgify t
+      ConTy k ls    -> appLst (EDict k)         (map loop ls)
+      ArrowTy t1 t2 -> appLst (EDict "ArrowTy") [loop t1, loop t2]
+      TypeDictTy _  -> error $ "Core.buildDict: should never build a dictionary of a dictionary: "++show ty
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
