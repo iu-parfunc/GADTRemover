@@ -411,25 +411,24 @@ openConstraints denv ((d,o):rest) k =
 openConstraint :: DictEnv -> TermVar -> MonoTy -> (Cont ()) -> Exp
 openConstraint denv dv outTy k =
  trace ("   OpenConstraint, equality : "++show (dv,outTy)++ " in denv "++show denv) $
+ let denv' = M.insert outTy dv denv in
  case outTy of
    (VarTy _) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
      case M.lookup outTy denv of
-       Nothing -> k denv ()
+       Nothing -> k denv' ()
        Just termVar ->
-         -- Note: this extends the typing environment with equalites,
-         -- but does NOT extend denv:
          EIfTyEq (EVar dv, EVar termVar)
-                 (k denv ()) unreachable
+                 (k denv' ()) unreachable
    (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
    (ConTy tn ls) ->
-     let denv' = trace ("    FIXME1: extend denv") denv
-         tmps  = [ mkVar $ "tmp"++show ix | ix <- [1 .. length ls]]
+     let denv'' = trace ("    FIXME1: extend denv") denv'
+         -- tmps  = [ mkVar $ "tmp"++show ix | ix <- [1 .. length ls]]
          vars  = [ v | VarTy v <- ls]
      in if length vars == length ls
            then ECaseDict (EVar dv)
                     (tn, map dictArgify vars,
-                     k denv' ())
+                     k denv'' ())
                     unreachable
            else error$ "Unfinished: need to recursively process: "++show ls
 
@@ -478,8 +477,15 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   dispatchRecursion denv (tn,checkedTys) expr k =
     k denv $
     appLst (EVar$ upconvName tn)
-           (map buildDict checkedTys ++[expr])
+           (map (buildDict' denv) checkedTys ++[expr])
 
+
+buildDict' :: DictEnv -> MonoTy -> Exp
+buildDict' denv ty =
+  case M.lookup ty denv of
+    Just v -> trace ("    ! buildDict' short circuited to DictEnv "++show (ty,v)) $
+              EVar v
+    Nothing -> buildDict ty
 
 --------------------------------------------------------------------------------
 -- Downward conversion
