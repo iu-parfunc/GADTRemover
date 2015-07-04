@@ -452,12 +452,14 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   doField denv var (ConTy tn tyargs) k
     | hasErased alldefs tn =
        let sTys = [ t | (Synth,t) <- zip (getArgStatus alldefs tn) tyargs ]
-       in unseal (tn,var) denv
-                 (dispatchRecursion tn (EVar var))
-                 (\denv' (svs, thisFieldE) ->
-                    -- Verify results of the recursion:
-                    openConstraints denv' (zip svs sTys)
-                      (\denv'' () -> k denv'' thisFieldE))
+       in dispatchRecursion denv tn (EVar var)
+          (\denv' eapp ->
+            unseal (tn,var) denv' eapp
+              (\denv'' (svs, thisFieldE) ->
+                -- Verify results of the recursion:
+                openConstraints denv'' (zip svs sTys)
+                  (\denv''' () -> k denv''' thisFieldE)))
+
     | otherwise = k denv (EVar var)
   doField denv var field k
     -- NOTE: one of our current rules is that there are not
@@ -467,7 +469,8 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     | otherwise = k denv (EVar var)
 
 
-  dispatchRecursion tn expr =
+  dispatchRecursion denv tn expr k =
+    k denv $
     appLst (EVar$ upconvName tn)
            ([buildDict (VarTy v) | v <- getCVars alldefs tn] ++[expr])
 
@@ -539,10 +542,10 @@ generateDown alldefs which =
 -- | Build the final dictionary, assuming all the required variable
 -- names are in scope.
 buildDict :: MonoTy -> Exp
-buildDict ty =
-  trace ("    buildDict for "++show ty++ " -> "++show res) res
+buildDict oty =
+  trace ("    buildDict for "++show oty++ " -> "++show res) res
  where
-  res = loop ty
+  res = loop oty
   loop ty =
     case ty of
       VarTy t       -> EVar $ dictArgify t
