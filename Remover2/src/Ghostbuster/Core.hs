@@ -24,6 +24,16 @@ import           Ghostbuster.Utils
 type Equations  = (M.Map TyVar [TyVar])
 type Patterns   = (M.Map TyVar MonoTy)
 
+-- Toggle these to turn on debugging prints:
+-- uptrace = trace
+uptrace :: String -> t1 -> t1
+uptrace _ x = x
+
+downtrace :: String  -> t1 -> t1
+-- downtrace = trace
+downtrace _ x = x
+
+
 -- | Given a set of definitions and a "main" expression to execute,
 --   generate a full program that executes that expression in the
 --   context of the ghostbuster-generated definitions.
@@ -319,12 +329,12 @@ toVarFromMono _           = error "toVarFromMono called with non-VarTy"
 -- | This is an attempt at a "single pass" version of the algorithm.
 genUp2 :: [DDef] -> TName -> VDef
 genUp2 alldefs which =
-  trace ("\nGENUP2("++ show which ++"), initDictMap " ++show initDictMap) $
+  uptrace ("\nGENUP2("++ show which ++"), initDictMap " ++show initDictMap) $
   VDef (upconvName which) upFunSig $
     mkLams params $
      ECase "lower" $
      [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
-       trace ("\n  Case: ("++ show conName ++") with denv: "++show denv) $
+       uptrace ("\n  Case: ("++ show conName ++") with denv: "++show denv) $
        openConstraints denv (zip dictArgs cOutputs)
         (\denv'' () ->
            doRecursions alldefs denv'' kc unseal
@@ -370,10 +380,10 @@ genUp2 alldefs which =
   endTy  | null sVars = ConTy tyName                (map (VarTy . fst) (kVars++cVars))
          | otherwise  = ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
   -- This takes the actual value "x" and provides the dict args itself.
-  seal denv x | null sVars = x
-              | otherwise  = appLst (EK (toSealedName tyName))
-                                    ([ buildDict (VarTy sv)
-                                     | (sv,_) <- sVars ] ++ [x])
+  seal _denv x | null sVars = x
+               | otherwise  = appLst (EK (toSealedName tyName))
+                                     ([ buildDict (VarTy sv)
+                                      | (sv,_) <- sVars ] ++ [x])
   unseal :: UnsealFn
   unseal (tn,vr) denv x k
          | null sVars = k denv ([],x)
@@ -384,12 +394,9 @@ genUp2 alldefs which =
                             | tv <- sVs ]
                 -- TODO: There may be an issue with needing FRESH type variable names here.
                 -- To actually generate the correct code we may need to use scoped type variables.
-                _newEntries = (M.fromList (zip (map VarTy sVs) newDictVs))
-                denv' = denv -- M.union newEntries denv
             in ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
-                 -- trace ("    CHECKME: Extending denv with "++show newEntries) $
-                 k denv' (newDictVs, (EVar vr')))]
+                 k denv (newDictVs, (EVar vr')))]
   ---------------------------------------------------------
 
 unfinished :: String -> Exp
@@ -427,17 +434,19 @@ openConstraints denv ((d,o):rest) k =
 
 openConstraint :: DictEnv -> TermVar -> MonoTy -> (Cont ()) -> Exp
 openConstraint denv dv outTy k =
- trace ("   OpenConstraint, equality : "++show (dv,outTy)++ " in denv "++show denv) $
+ uptrace ("   OpenConstraint, equality : "++show (dv,outTy)++ " in denv "++show denv) $
  let denv' = M.insert outTy dv denv in
  case outTy of
    (VarTy vr) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
      case M.lookup outTy denv of
        Nothing ->
-         -- trace (" WARNING openConstraint: could not check equality, "++show (outTy, dv)++ "\n  DENV: "++show denv) $
+         -- Here we already have the dictionary, and just introduce an alias:
          ELet (dictArgify vr, ForAll [] "_", EVar dv) $
          k denv' ()
        Just termVar ->
+         -- Here we have existing variables for both dictionaries, and
+         -- must assert they are the same type at runtime.
          EIfTyEq (EVar dv, EVar termVar)
                  (k denv' ()) unreachable
    (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
@@ -503,11 +512,11 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
 buildDict' :: DictEnv -> MonoTy -> Exp
 buildDict' denv ty =
   case M.lookup ty denv of
-    Just v -> trace ("    ! buildDict' short circuited to DictEnv "++show (ty,v)) $
+    Just v -> uptrace ("    ! buildDict' short circuited to DictEnv "++show (ty,v)) $
               EVar v
     -- Nothing -> buildDict ty
     Nothing ->
-      trace ("    ! buildDict' calling off to bindDictVars "++show ty++ " with denv "++show denv) $
+      uptrace ("    ! buildDict' calling off to bindDictVars "++show ty++ " with denv "++show denv) $
       bindDictVars (denvToEqualities denv) existentials (S.toList$ ftv ty) (buildDict ty)
   where
   existentials = trace ("    FIXME: buildDict' existentials") S.empty
@@ -590,7 +599,7 @@ generateDown alldefs which =
 -- names are in scope.
 buildDict :: MonoTy -> Exp
 buildDict oty =
-  trace ("    buildDict for "++show oty++ " -> "++show res) res
+  downtrace ("    buildDict for "++show oty++ " -> "++show res) res
  where
   res = loop oty
   loop ty =

@@ -325,7 +325,7 @@ downList = mkTestCase tname $
     interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
-   tname = "Down-convert-list1"
+   tname = "Down-list1"
 
  -- | Test with the SAME name used in T and K:
 downList2 :: TestTree
@@ -342,11 +342,11 @@ downList2 = mkTestCase tname $
     interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
-   tname = "Down-convert-list2"
+   tname = "Down-list2"
 
 
-updownList1 :: TestTree
-updownList1 = mkTestCase tname $
+downupList1 :: TestTree
+downupList1 = mkTestCase tname $
  do let Prog {prgDefs} = p11_bustedList
         mainE = (ForAll [] (ConTy "List" ["Int"]),
                  (appLst "upList"
@@ -357,7 +357,7 @@ updownList1 = mkTestCase tname $
     interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
-   tname = "Updown-convert-list1"
+   tname = "Downup-list1"
 
 
 downFeldspar :: [TestTree]
@@ -369,10 +369,10 @@ downFeldspar =
           appLst "downExp" [EDict "Unit" , dictE, expr])
   | (_,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
-  , let tname = "Down-convert-feldspar"++show ix]
+  , let tname = "Down-feldspar"++show ix]
 
-updownFeldspar :: [TestTree]
-updownFeldspar =
+downupFeldspar :: [TestTree]
+downupFeldspar =
   [ mkTestCase tname $
      interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster feldspar_gadt $
@@ -385,7 +385,8 @@ updownFeldspar =
                   appLst "downExp" [EDict "Unit" , dictE, expr]] )
   | (typ,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
-  , let tname = "Updown-convert-feldspar"++show ix]
+  , let tname = "Downup-feldspar"++show ix]
+
 
 openSealedExp :: MonoTy -> Exp -> Exp
 openSealedExp typ e =
@@ -457,16 +458,16 @@ main =
         runAndCompareLowered ++
         ghostbustAllProgs ++
         codegenAllProgs ++
-        downFeldspar ++ updownFeldspar ++
+        downFeldspar ++ downupFeldspar ++
         [ downList, downList2
-        , updownList1
+        , downupList1
         ]
 
 -- | Some tests are expected to fail as we develop new functionality.
 --   This documents that fact.  Update as we fix things.
 expectedFailures :: [String]
 expectedFailures =
- [ -- "Down-convert-feldspar4"
-   -- "Down-convert-list2"
- -- "Updown-convert-feldspar"++show i | i <- [1..5 :: Int]
+ [ -- "Down-feldspar4"
+   -- "Down-list2"
+ -- "Downup-feldspar"++show i | i <- [1..5 :: Int]
  ]
