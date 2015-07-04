@@ -359,13 +359,14 @@ genUp2 alldefs which =
          | otherwise  = appLst (EK (toSealedName tyName))
                                ([unfinished "sealed dictionaries" | _ <- sVars] ++ [x])
   unseal :: UnsealFn
-  unseal tn x k
-         | null sVars = k x
-         | otherwise  = k $
+  unseal tn denv x k
+         | null sVars = k denv x
+         | otherwise  =
             ECase x
-            [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["finishme"]),
+            [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["unsealedVal"]),
               -- TODO: need to add the dictionaries to the denv
-              unfinished "add denv to k")]
+              let denv' = error $ "Need to extend denv "++show denv
+              in k denv' "unsealedVal")]
   ---------------------------------------------------------
 
 unfinished :: String -> Exp
@@ -377,7 +378,9 @@ getSVars defs = map fst . sVars . lookupDDef defs
 getCVars :: [DDef] -> TName -> [TyVar]
 getCVars defs = map fst . cVars . lookupDDef defs
 
-type UnsealFn = (TName -> Exp -> (Exp -> Exp) -> Exp)
+type UnsealFn = (TName -> DictEnv -> Exp -> (Cont Exp) -> Exp)
+
+type Cont a = (DictEnv -> a -> Exp)
 
 -- | All the dictionaries we know about, and which are accessible in our
 -- lexical environment through a simple variable reference.
@@ -426,25 +429,29 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   -- evidence visible, we can make the constructor call:
   loop [] _mp args = kont (reverse args)
 
-  loop ((var,field):rst) mp args =
-    doField var field
-     (\e -> loop rst mp (e : args))
+  loop ((var,field):rst) denv args =
+    doField denv var field
+      (\denv' e -> loop rst denv' (e : args))
 
-  doField var (ConTy tn _) k
+  doField :: DictEnv -> TermVar -> MonoTy -> (Cont Exp) -> Exp
+  doField denv var (ConTy tn _) k
     | hasErased alldefs tn =
-        dispatchRecursion tn (EVar var)
-                          (\e -> unseal tn e k)
-    | otherwise = k (EVar var)
-  doField var field k
+       unseal tn denv
+              (dispatchRecursion tn (EVar var))
+              k
+    | otherwise = k denv (EVar var)
+  doField denv var field k
     -- NOTE: one of our current rules is that there are not
     -- `hasErased` types under here:
     | containErased alldefs field =
       error $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
-    | otherwise = k (EVar var)
+    | otherwise = k denv (EVar var)
 
 
-  dispatchRecursion tn expr k =
-    k $ appLst (EVar$ upconvName tn) ([buildDict (VarTy v) | v <- getCVars alldefs tn] ++[expr])
+  dispatchRecursion tn expr =
+    appLst (EVar$ upconvName tn)
+           ([buildDict (VarTy v) | v <- getCVars alldefs tn] ++[expr])
+
 
 --------------------------------------------------------------------------------
 -- Downward conversion
