@@ -387,6 +387,23 @@ downupFeldspar =
   | ix <- [1::Int ..]
   , let tname = "Downup-feldspar"++show ix]
 
+downupdownFeldspar :: [TestTree]
+downupdownFeldspar =
+  [ mkTestCase tname $
+     interpretProg (Just tname) $
+       lowerDicts $ Core.ghostbuster feldspar_gadt $
+         (ForAll []
+          (ConTy "Exp'" []),
+          appLst "downExp"
+            [ EDict "Unit", dictE
+            , openSealedExp typ $
+               appLst "upExp"
+                      [EDict "Unit",
+                       appLst "downExp" [EDict "Unit" , dictE, expr]] ]
+                     )
+  | (typ,dictE,expr) <- feldspar_progs
+  | ix <- [1::Int ..]
+  , let tname = "Downupdown-feldspar"++show ix]
 
 openSealedExp :: MonoTy -> Exp -> Exp
 openSealedExp typ e =
@@ -458,7 +475,7 @@ main =
         runAndCompareLowered ++
         ghostbustAllProgs ++
         codegenAllProgs ++
-        downFeldspar ++ downupFeldspar ++
+        downFeldspar ++ downupFeldspar ++ downupdownFeldspar ++
         [ downList, downList2
         , downupList1
         ]
