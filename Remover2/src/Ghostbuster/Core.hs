@@ -323,8 +323,9 @@ genUp2 alldefs which =
      ECase "lower" $
      [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
        openConstraints denv (zip dictArgs cOutputs)
-        (\() -> doRecursions alldefs initDictMap kc unseal
-                             (\ls -> seal $ appLst (EVar conName) ls)))
+        (\denv' () ->
+           doRecursions alldefs denv' kc unseal
+            (\denv'' ls -> seal denv'' $ appLst (EVar conName) ls)))
      | kc@KCons {conName,fields,outputs} <- cases
      , let kdictargs = map dictArgify (getKConsDicts alldefs conName)
            kvalargs  = take (length fields) patVars
@@ -352,12 +353,14 @@ genUp2 alldefs which =
   DDef{..}      = lookupDDef alldefs which
 
   -- IFF we have synthesized vars we produce/consume a sealed output:
+  -- (Probably easier to always produce a sealed output but seal zero variables.)
   ---------------------------------------------------------
   endTy  | null sVars = ConTy tyName                (map (VarTy . fst) (kVars++cVars))
          | otherwise  = ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
-  seal x | null sVars = x
-         | otherwise  = appLst (EK (toSealedName tyName))
-                               ([unfinished "sealed dictionaries" | _ <- sVars] ++ [x])
+  seal denv x | null sVars = x
+              | otherwise  = appLst (EK (toSealedName tyName))
+                                    ([ unfinished "sealed dictionaries"
+                                     | _ <- sVars] ++ [x])
   unseal :: UnsealFn
   unseal tn denv x k
          | null sVars = k denv x
@@ -365,7 +368,7 @@ genUp2 alldefs which =
             ECase x
             [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["unsealedVal"]),
               -- TODO: need to add the dictionaries to the denv
-              let denv' = error $ "Need to extend denv "++show denv
+              let denv' = trace ("Need to extend denv "++show denv) denv
               in k denv' "unsealedVal")]
   ---------------------------------------------------------
 
@@ -391,29 +394,35 @@ type DictEnv = M.Map MonoTy TermVar
 -- | Unlike in the down case, we open up ALL the constraints we can
 -- based on what the pattern match tells us about the dictionaries
 -- we're given as arguments.
-openConstraints :: DictEnv -> [(Var,MonoTy)] -> (() -> Exp) -> Exp
-openConstraints _ [] k = k ()
-openConstraints mp ((d,o):rest) k =
-  openConstraint mp d o $
-   (\() -> openConstraints mp rest k)
+openConstraints :: DictEnv -> [(Var,MonoTy)] -> (Cont ()) -> Exp
+openConstraints denv [] k = k denv ()
+openConstraints denv ((d,o):rest) k =
+  openConstraint denv d o $
+   (\denv' () -> openConstraints denv' rest k)
 
-openConstraint :: DictEnv -> Var -> MonoTy -> (() -> Exp) -> Exp
+openConstraint :: DictEnv -> Var -> MonoTy -> (Cont ()) -> Exp
 openConstraint denv dv outTy k =
  trace ("OpenConstraint, equality : "++show (outTy,dv)++ " in denv "++show denv) $
  case outTy of
    (VarTy _) ->
      -- Check if there's a dict variable in scope of type "TypeDictTy va"
      case M.lookup outTy denv of
-       Nothing -> k ()
+       Nothing -> k denv ()
        Just termVar ->
+         -- Note: this extends the typing environment with equalites,
+         -- but does NOT extend denv:
          EIfTyEq (EVar dv, EVar termVar)
-                 (k ()) unreachable
-   (ArrowTy _ _) -> ECaseDict (EVar dv)
-                           ("ArrowTy", ["_","_"], k ())
-                           unreachable
-   (ConTy tn ls) -> ECaseDict (EVar dv)
-                        (tn, replicate (length ls) "_", k ())
-                        unreachable
+                 (k denv ()) unreachable
+   (ArrowTy t1 t2) -> openConstraint denv dv (ConTy "ArrowTy" [t1,t2]) k
+                        -- ECaseDict (EVar dv)
+                        --   ("ArrowTy", ["_","_"], k ())
+                        --   unreachable
+   (ConTy tn ls) ->
+     let denv' = trace ("FIXME: extend denv") denv
+     in ECaseDict (EVar dv)
+            (tn, replicate (length ls) "_", k denv' ())
+            unreachable
+
    (TypeDictTy _) -> error$
       "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
 
@@ -421,13 +430,13 @@ openConstraint denv dv outTy k =
 -- | Create the recursive calls, breaking open the evidence one at a time.
 doRecursions :: [DDef] -> DictEnv -> KCons
              -> UnsealFn
-             -> ([Exp] -> Exp) -> Exp
+             -> (Cont [Exp]) -> Exp
 doRecursions alldefs initDictMap KCons{fields} unseal kont =
   loop (zip patVars fields) initDictMap []
   where
   -- Finally, when we have all args in scope, with the right type
   -- evidence visible, we can make the constructor call:
-  loop [] _mp args = kont (reverse args)
+  loop [] denv args = kont denv (reverse args)
 
   loop ((var,field):rst) denv args =
     doField denv var field
