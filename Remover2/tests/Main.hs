@@ -468,6 +468,5 @@ expectedFailures :: [String]
 expectedFailures =
  [ -- "Down-convert-feldspar4"
    -- "Down-convert-list2"
-   "Updown-convert-feldspar"++show i
- | i <- [1..5 :: Int]
+ -- "Updown-convert-feldspar"++show i | i <- [1..5 :: Int]
  ]
