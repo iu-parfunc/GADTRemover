@@ -356,16 +356,20 @@ genUp2 alldefs which =
   endTy  | null sVars = ConTy tyName                (map (VarTy . fst) (kVars++cVars))
          | otherwise  = ConTy (toSealedName tyName) (map (VarTy . fst) (kVars++cVars))
   seal x | null sVars = x
-         | otherwise  = appLst (EK (toSealedName tyName)) (["undefined" | _ <- sVars] ++ [x])
+         | otherwise  = appLst (EK (toSealedName tyName))
+                               ([unfinished "sealed dictionaries" | _ <- sVars] ++ [x])
   unseal :: UnsealFn
   unseal tn x k
          | null sVars = k x
          | otherwise  = k $
             ECase x
             [ ( Pat (toSealedName tn) (getSVars alldefs tn ++ ["finishme"]),
-              -- TODO: need to add the dictionaries to the
-                "undefined" )]
+              -- TODO: need to add the dictionaries to the denv
+              unfinished "add denv to k")]
   ---------------------------------------------------------
+
+unfinished :: String -> Exp
+unfinished _ = "undefined"
 
 getSVars :: [DDef] -> TName -> [TyVar]
 getSVars defs = map fst . sVars . lookupDDef defs
@@ -400,15 +404,16 @@ openConstraint denv dv outTy k =
        Nothing -> k ()
        Just termVar ->
          EIfTyEq (EVar dv, EVar termVar)
-                 (k ()) "undefined"
+                 (k ()) unreachable
    (ArrowTy _ _) -> ECaseDict (EVar dv)
                            ("ArrowTy", ["_","_"], k ())
-                           "undefined"
+                           unreachable
    (ConTy tn ls) -> ECaseDict (EVar dv)
                         (tn, replicate (length ls) "_", k ())
-                        "undefined"
+                        unreachable
    (TypeDictTy _) -> error$
       "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
+
 
 -- | Create the recursive calls, breaking open the evidence one at a time.
 doRecursions :: [DDef] -> DictEnv -> KCons
@@ -577,7 +582,7 @@ bindDictVars subst existentials mono =
                                then digItOut "left"  x1 dest
                                else digItOut "right" x2 dest
                           )
-                          errorCase
+                          unreachable
       ConTy tn ls -> ECaseDict (EVar $ dictArgify cursor)
                         ( tn
                         , take (length ls) patVars
@@ -586,7 +591,7 @@ bindDictVars subst existentials mono =
                                                       , S.member dest (ftv arg)
                                ]
                         )
-                        errorCase
+                        unreachable
       TypeDictTy _ -> EVar cursor -- Test me.  How to make this reachable?
 
 
@@ -599,8 +604,8 @@ bindDictVars subst existentials mono =
 -- bound in the generated Haskell code.
 --
 -- Alternatively, we could simply include a core form "EErr".
-errorCase :: Exp
-errorCase = (EVar "undefined")
+unreachable :: Exp
+unreachable = (EVar "undefined")
 
 specialExistentialDict :: Exp
 specialExistentialDict = EDict "Existential"

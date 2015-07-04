@@ -377,14 +377,21 @@ updownFeldspar =
      interpretProg (Just tname) $
        lowerDicts $ Core.ghostbuster feldspar_gadt $
          (ForAll []
-           -- (ConTy "Exp" ["Unit", typ]),
-           (ConTy "SealedExp" ["Unit"]),
+          -- (ConTy "SealedExp" ["Unit"]),
+          (ConTy "Exp" ["Unit", typ]),
+          openSealedExp typ $
           appLst "upExp"
                  [EDict "Unit",
                   appLst "downExp" [EDict "Unit" , dictE, expr]] )
   | (typ,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
   , let tname = "Updown-convert-feldspar"++show ix]
+
+openSealedExp :: MonoTy -> Exp -> Exp
+openSealedExp typ e =
+  ECase e
+    [ (Pat "SealedExp" ["dict","x"],
+       EIfTyEq ("dict", mkDict typ) "x" "undefined")]
 
 feldspar_progs :: [(MonoTy, Exp, Exp)]
 feldspar_progs = feldspar_intprogs ++ feldspar_funprogs
@@ -398,6 +405,7 @@ feldspar_intprogs = [ ( "Int", EDict "Int", lit "Three" )
                         appLst (EK "Add") [lit "Two", lit "Three"]])
                     ]
 
+feldspar_funprogs :: [(MonoTy, Exp, Exp)]
 feldspar_funprogs = [ ( ArrowTy "Int" "Int", intToIntDict
                       , lamN (lit "Three"))
                     , ( ArrowTy "Int" "Int", intToIntDict
@@ -414,7 +422,17 @@ zro :: Exp
 zro = EApp (EK "Var") (EK "Zro")
 
 intToIntDict :: Exp
-intToIntDict = appLst (EDict "ArrowTy") [EDict "Int",EDict "Int"]
+intToIntDict = mkDict (ArrowTy intT intT)
+-- appLst (EDict "ArrowTy") [EDict "Int",EDict "Int"]
+  where
+  intT = (ConTy "Int" [])
+
+mkDict :: MonoTy -> Exp
+mkDict (VarTy t) = EDict t -- This could be an error.
+mkDict (ArrowTy t1 t2) = appLst (EDict "ArrowTy") [mkDict t1, mkDict t2]
+mkDict (ConTy tn ls) = appLst (EDict tn) (map mkDict ls)
+mkDict (TypeDictTy t) =
+  error$ "mkDict: not allowing dict of dict currently: "++show (TypeDictTy t)
 
 app :: Exp -> Exp -> Exp
 app f x = appLst (EK "App") [f,x]
@@ -450,4 +468,6 @@ expectedFailures :: [String]
 expectedFailures =
  [ -- "Down-convert-feldspar4"
    -- "Down-convert-list2"
+   "Updown-convert-feldspar"++show i
+ | i <- [1..5 :: Int]
  ]
