@@ -3,50 +3,39 @@
 {-# LANGUAGE ParallelListComp #-}
 {-# LANGUAGE NamedFieldPuns #-}
 
--- |
+-- | Test the ghostbuster software.
 
 module Main where
 
-import           Ghostbuster.LowerDicts
+import           Ghostbuster (runWGhostbusted, interpretProg, say)
 import           Ghostbuster.Ambiguity as A
+import qualified Ghostbuster.Core as Core
 import           Ghostbuster.Examples.Feldspar
 import           Ghostbuster.Examples.Tiny
 import           Ghostbuster.Interp as I
 import           Ghostbuster.KindCheck as K
+import           Ghostbuster.LowerDicts
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
-import qualified Ghostbuster.Core as Core
 
 import           Control.DeepSeq
-import           Control.Exception (evaluate, catch, SomeException, throw)
+import           Control.Exception (evaluate, catch, SomeException)
 import           Control.Monad
 import qualified Data.List as L
-import           Ghostbuster.CodeGen.Prog as CG
-import           Language.Haskell.Exts.Pretty
-import           Language.Haskell.Interpreter as Hint
+-- import           Ghostbuster.CodeGen.Prog as CG
+-- import           Language.Haskell.Exts.Pretty
+-- import           Language.Haskell.Interpreter as Hint
 import           System.Environment (withArgs, getArgs)
-import           System.Exit
+-- import           System.Exit
 import           System.IO
 -- import           System.IO.Temp
-import           System.Process
+-- import           System.Process
 import           Test.Tasty
 import           Test.Tasty.HUnit
 import           Test.Tasty.TH
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Text.Printf
-
 import           Prelude hiding ( putStrLn, print ) -- use 'say' instead!!
-
-------------------------------------------------------------
--- Print something to console
-
--- | This deferred version ONLY chats when there's an exception raised.
-say :: String -> IO a ->  IO a
-say msg act =
-  catch act
-    (\e ->
-       do hPutStrLn stderr ("\n"++msg)
-          throw (e::SomeException))
 
 ------------------------------------------------------------
 -- Deal with in-development tests:
@@ -198,53 +187,6 @@ _FeldsparGhostbust =
 ------------------------------------------------------------
 -- Test codegen
 
--- Attempt to load the generated code for a Prog and run it using Hint. Since
--- Hint can't interpret a whole module from a string, and we need to write it to
--- file anyway, we could also just compile the module directly using 'runghc' or
--- similar.
---
-
--- TLM: This is shows how to do it, but won't be usable in our setup. Namely,
---      what should 'a' be? This has to be something defined in an _installed_
---      module imported by both this file and the generated code.
---
--- interpretProg :: (Show a, Typeable a) => Prog -> IO a
-interpretProg :: Maybe String -> Prog -> IO ()
-interpretProg Nothing p = interpretProg (Just "Ghostbuster") p
-interpretProg (Just name) prg =
- do
-   -- Temporarily keeping these while debugging:
-   (file,hdl) <- openTempFile "./" ("temp_"++name++ "_.hs")
-  -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-   say ("\n   Writing file to: "++ file) $ do
-    let contents = (prettyPrint (moduleOfProg prg))
-    hPutStr hdl contents
-    hClose hdl
-    say ("   File written.") $
-     when False $ do
-       x <- fmap (either interpreterError id) $
-         runInterpreter $ do
-           loadModules [ file ]
-           setImportsQ [ ("Ghostbuster", Nothing )
-                       , ("Prelude", Nothing) ]
-           interpret "main" infer
-       say "   Interpreter complete.  Got IO action from loaded program.  Running:" $ do
-        () <- x
-        return ()
-
-    ExitSuccess <- system $ "runghc "++file
-
-    return ()
-
-interpreterError :: InterpreterError -> a
-interpreterError e
-  = error
-  $ case e of
-    UnknownError s      -> s
-    NotAllowed s        -> s
-    GhcException s      -> s
-    WontCompile ss      -> unlines $ map errMsg ss
-
 
 ------------------------------------------------------------
 
@@ -314,6 +256,7 @@ ghostbustAllProgs =
   | ix <- [1::Int ..]
   , let testname = printf "ghostbust%02d" ix
   ]
+
 
 downList :: TestTree
 downList = mkTestCase tname $
