@@ -27,15 +27,15 @@ import           System.Process
 --
 -- As for output, it prints the value of the main expression if its
 -- type supports printing.  Otherwise, it evaluates it to WHNF.
-runWGhostbusted :: String -- ^ Descriptive name for this program.
-                -> [DDef] -- ^ Data definitions, including ones to be ghostbusted.
+runWGhostbusted :: Maybe String    -- ^ Descriptive name for this program.
+                -> [DDef]          -- ^ Data definitions, including ones to be ghostbusted.
                 -> (TyScheme, Exp) -- ^ Main expression to run.
                 -> IO ()
 runWGhostbusted tname ddefs mainE =
   case ambCheck ddefs of
     Left err -> error$ "Failed ambiguity check:\n" ++err
     Right () ->
-      interpretProg (Just tname) $
+      interpretProg tname $
         lowerDicts $ Core.ghostbuster ddefs mainE
 
 

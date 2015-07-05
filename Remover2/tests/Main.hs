@@ -265,8 +265,7 @@ downList = mkTestCase tname $
                  (appLst "downList"
                                   [ EDict "Int"
                                   , appLst (EK "Cons") [EK "Three", EK "Nil"]]))
-    interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster prgDefs mainE
+    runWGhostbusted (Just tname) prgDefs mainE
   where
    tname = "Down-list1"
 
@@ -282,8 +281,7 @@ downList2 = mkTestCase tname $
                  (appLst "downList"
                                   [ EDict "Int"
                                   , appLst (EK "Cons") [EK "Three", EK "Nil"]]))
-    interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster prgDefs mainE
+    runWGhostbusted (Just tname) prgDefs mainE
   where
    tname = "Down-list2"
 
@@ -306,26 +304,25 @@ downupList1 = mkTestCase tname $
 downFeldspar :: [TestTree]
 downFeldspar =
   [ mkTestCase tname $
-     interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster feldspar_gadt $
-         (ForAll [] (ConTy "Exp'" []),
-          appLst "downExp" [EDict "Unit" , dictE, expr])
+     runWGhostbusted (Just tname) feldspar_gadt $
+             (ForAll [] (ConTy "Exp'" []),
+              appLst "downExp" [EDict "Unit" , dictE, expr])
   | (_,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
   , let tname = "Down-feldspar"++show ix]
 
+
 downupFeldspar :: [TestTree]
 downupFeldspar =
   [ mkTestCase tname $
-     interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster feldspar_gadt $
-         (ForAll []
-          -- (ConTy "SealedExp" ["Unit"]),
-          (ConTy "Exp" ["Unit", typ]),
-          openSealedExp typ $
-          appLst "upExp"
-                 [EDict "Unit",
-                  appLst "downExp" [EDict "Unit" , dictE, expr]] )
+     runWGhostbusted (Just tname) feldspar_gadt $
+        (ForAll []
+         -- (ConTy "SealedExp" ["Unit"]),
+         (ConTy "Exp" ["Unit", typ]),
+         openSealedExp typ $
+         appLst "upExp"
+                [EDict "Unit",
+                 appLst "downExp" [EDict "Unit" , dictE, expr]] )
   | (typ,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
   , let tname = "Downup-feldspar"++show ix]
@@ -333,17 +330,16 @@ downupFeldspar =
 downupdownFeldspar :: [TestTree]
 downupdownFeldspar =
   [ mkTestCase tname $
-     interpretProg (Just tname) $
-       lowerDicts $ Core.ghostbuster feldspar_gadt $
-         (ForAll []
-          (ConTy "Exp'" []),
-          appLst "downExp"
-            [ EDict "Unit", dictE
-            , openSealedExp typ $
-               appLst "upExp"
-                      [EDict "Unit",
-                       appLst "downExp" [EDict "Unit" , dictE, expr]] ]
-                     )
+     runWGhostbusted (Just tname) feldspar_gadt $
+       (ForAll []
+        (ConTy "Exp'" []),
+        appLst "downExp"
+          [ EDict "Unit", dictE
+          , openSealedExp typ $
+             appLst "upExp"
+                    [EDict "Unit",
+                     appLst "downExp" [EDict "Unit" , dictE, expr]] ]
+                   )
   | (typ,dictE,expr) <- feldspar_progs
   | ix <- [1::Int ..]
   , let tname = "Downupdown-feldspar"++show ix]
