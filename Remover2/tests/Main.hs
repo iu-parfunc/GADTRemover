@@ -7,7 +7,7 @@
 
 module Main where
 
-import           Ghostbuster (runWGhostbusted, interpretProg, say)
+import           Ghostbuster (runWGhostbusted, runghcProg, say)
 import           Ghostbuster.Ambiguity as A
 import qualified Ghostbuster.Core as Core
 import           Ghostbuster.Examples.Feldspar
@@ -167,13 +167,13 @@ case_InterpLowered_e08 =
 -- | Just make sure the GADTs defs codegen properly.
 case_FeldsparGADTCodeGen :: Assertion
 case_FeldsparGADTCodeGen
-  = interpretProg (Just "FeldsparGADTCodegen")
+  = runghcProg (Just "FeldsparGADTCodegen")
   $ Prog feldspar_gadt []
   $ VDef "feldspar1" (ForAll [] "Int") (EK "One")
 
 case_FeldsparADTCodeGen :: Assertion
 case_FeldsparADTCodeGen
-  = interpretProg (Just "FeldsparADTCodegen")
+  = runghcProg (Just "FeldsparADTCodegen")
   $ Prog feldspar_adt []
   $ VDef "feldspar2" (ForAll [] "Int") (EK "Two")
 
@@ -233,7 +233,7 @@ codegenAllProgs :: [TestTree]
 codegenAllProgs =
   [ mkTestCase (printf "codegenAllProgs%02d" ix) $
     say ("  Original:\n"++ show (doc prg)) $ do
-     interpretProg Nothing $ lowerDicts prg
+     runghcProg Nothing $ lowerDicts prg
   | prg <- allProgs
   | ix <- [1::Int ..]
   ]
@@ -251,7 +251,7 @@ ghostbustAllProgs =
         show (doc p2)++
         "\n  Lowered:\n"++
         show (doc p3))
-     (interpretProg (Just testname) p3)
+     (runghcProg (Just testname) p3)
   | (Prog ddefs _ _) <- allProgs
   | ix <- [1::Int ..]
   , let testname = printf "ghostbust%02d" ix
@@ -295,7 +295,7 @@ downupList1 = mkTestCase tname $
                   , (appLst "downList"
                                      [ EDict "Int"
                                      , appLst (EK "Cons") [EK "Three", EK "Nil"]])]))
-    interpretProg (Just tname) $
+    runghcProg (Just tname) $
        lowerDicts $ Core.ghostbuster prgDefs mainE
   where
    tname = "Downup-list1"

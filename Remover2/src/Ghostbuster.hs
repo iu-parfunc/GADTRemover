@@ -2,14 +2,16 @@
 
 module Ghostbuster
        ( runWGhostbusted
-       , interpretProg
+--       , interpWGhostbusted
+       , runghcProg
        , say
        ) where
 
-import           Ghostbuster.LowerDicts
 import           Ghostbuster.Ambiguity as A
-import           Ghostbuster.Types
 import qualified Ghostbuster.Core as Core
+import           Ghostbuster.Interp
+import           Ghostbuster.LowerDicts
+import           Ghostbuster.Types
 
 import           Control.Exception (catch, SomeException, throw)
 -- import           Control.Monad
@@ -20,6 +22,7 @@ import           System.Exit
 import           System.IO
 -- import           System.IO.Temp
 import           System.Process
+import           Text.PrettyPrint.GenericPretty (Out(doc))
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -35,12 +38,20 @@ runWGhostbusted tname ddefs mainE =
   case ambCheck ddefs of
     Left err -> error$ "Failed ambiguity check:\n" ++err
     Right () ->
-      interpretProg tname $
+      runghcProg tname $
         lowerDicts $ Core.ghostbuster ddefs mainE
 
-
 -- | Just like runWGhostbusted, but run through the interpreter.
--- interpWGhostbusted tname ddefs mainE =
+--
+--   This pretty prints the resulting `Val`.
+interpWGhostbusted :: Maybe String -> [DDef] -> (TyScheme, Exp) -> IO ()
+interpWGhostbusted tname ddefs mainE =
+  case ambCheck ddefs of
+    Left err -> error$ "Failed ambiguity check:\n" ++err
+    Right () ->
+      undefined $
+       lowerDicts $ Core.ghostbuster ddefs mainE
+
 
 --------------------------------------------------------------------------------
 
@@ -59,10 +70,10 @@ runWGhostbusted tname ddefs mainE =
 --      what should 'a' be? This has to be something defined in an _installed_
 --      module imported by both this file and the generated code.
 --
--- interpretProg :: (Show a, Typeable a) => Prog -> IO a
-interpretProg :: Maybe String -> Prog -> IO ()
-interpretProg Nothing p = interpretProg (Just "Ghostbuster") p
-interpretProg (Just tname) prg =
+-- runghcProg :: (Show a, Typeable a) => Prog -> IO a
+runghcProg :: Maybe String -> Prog -> IO ()
+runghcProg Nothing p = runghcProg (Just "Ghostbuster") p
+runghcProg (Just tname) prg =
  do
    -- Temporarily keeping these while debugging:
    (file,hdl) <- openTempFile "./" ("temp_"++tname++ "_.hs")
