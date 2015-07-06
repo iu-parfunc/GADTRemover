@@ -1,5 +1,5 @@
 -- Created:       Fri 03 Jul 2015 11:32:18 AM EDT
--- Last Modified: Sun 05 Jul 2015 09:31:40 PM EDT
+-- Last Modified: Sun 05 Jul 2015 10:34:00 PM EDT
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
@@ -45,14 +45,14 @@ gParseModule str = do
                               str
   let m@(Module srcLoc moduleName _ _ _ _ decls) = fromParseResult parsed
       prog = gParseProg decls
-  putStrLn "INPUT PROGRAM: \n\n"
-  putStrLn $ show m
+  {-putStrLn "INPUT PROGRAM: \n\n"-}
+  {-putStrLn $ show m-}
   putStrLn "\n\nPARSED PROGRAM\n\n"
   print $ doc prog
   putStrLn "\n\n==============================\n\n"
-  putStrLn "\n\nCODEGEN'd PROGRAM\n\n"
-  putStrLn $ prettyPrint $ GCP.moduleOfProg prog
-  putStrLn "\n\n==============================\n\n"
+  {-putStrLn "\n\nCODEGEN'd PROGRAM\n\n"-}
+  {-putStrLn $ prettyPrint $ GCP.moduleOfProg prog-}
+  {-putStrLn "\n\n==============================\n\n"-}
   return prog
 
 -- | Convert a Haskell name into a Ghostbuster name
@@ -187,8 +187,8 @@ convertType (TyEquals typ1 typ2)      = Nothing
 convertType (TySplice splice)         = Nothing
 convertType (TyBang bangtyp typ)      = Nothing
 
-gatherTypes :: Type -> [G.MonoTy]
-gatherTypes (TyApp t1 t2) =
+gatherTypes :: Bool -> Type -> [G.MonoTy]
+gatherTypes b (TyApp t1 t2) =
  let t1' = convertType t1
      t2' = convertType t2
  in case t1' of
@@ -198,15 +198,19 @@ gatherTypes (TyApp t1 t2) =
       Just tt1' -> case t2' of
                     Nothing -> [tt1']
                     Just tt2' -> (tt1' : [tt2'])
-gatherTypes (TyFun t1 t2) = gatherTypes t1 ++ gatherTypes t2
-gatherTypes (TyParen t) = gatherTypes t
-gatherTypes (TyVar name) = [G.VarTy (fromName name)]
-gatherTypes (TyTuple _ typs) = case  mapM convertType typs of
+gatherTypes b (TyFun t1 t2) = if b 
+                              then gatherTypes b t1 ++ gatherTypes b t2
+                              else let Just t1' = convertType t1
+                                       Just t2' = convertType t2
+                                   in [ArrowTy t1' t2']
+gatherTypes b (TyParen t) = gatherTypes False t
+gatherTypes b (TyVar name) = [G.VarTy (fromName name)]
+gatherTypes b (TyTuple _ typs) = case  mapM convertType typs of
                                  Just ts -> [ConTy (mkVar ("Tup" ++ show (length typs))) ts]
                                  Nothing -> []
 -- FIXME: hacky
-gatherTypes (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
-gatherTypes t = error $ "WITH TYPE = " ++ show t
+gatherTypes b (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
+gatherTypes _ t = error $ "WITH TYPE = " ++ show t
 
 -- | Take a bunch of type applications to a type constructor and turn it into
 --   a ConTy applied to a list of those types. We have to do this in order to mimic
@@ -217,7 +221,7 @@ handleTyApps typ = let (monotys, constr) = loop typ
                    in constr monotys
  where
    loop :: Type -> ([MonoTy], [MonoTy] -> MonoTy)
-   loop (TyApp (TyCon (UnQual name)) typs)      = (gatherTypes typs, ConTy (fromName name))
+   loop (TyApp (TyCon (UnQual name)) typs)      = (gatherTypes True typs, ConTy (fromName name))
    loop (TyApp t1 t2) = let (tylist1, realName) = loop t1
                             (tylist2, _bogus)   = loop t2
                         in (tylist1 ++ tylist2, realName)
