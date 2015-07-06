@@ -5,6 +5,8 @@ module Ghostbuster
 --       , interpWGhostbusted
        , runghcProg
        , say
+       , ghostBustToFile
+       , writeProg
        ) where
 
 import           Ghostbuster.Ambiguity as A
@@ -16,10 +18,12 @@ import           Ghostbuster.Types
 import           Control.Exception (catch, SomeException, throw)
 -- import           Control.Monad
 import           Ghostbuster.CodeGen.Prog as CG
+import           Ghostbuster.Parser.Prog as Parse
 import           Language.Haskell.Exts.Pretty
 -- import           Language.Haskell.Interpreter as Hint
 import           System.Exit
 import           System.IO
+import           System.Environment
 -- import           System.IO.Temp
 import           System.Process
 import           Text.PrettyPrint.GenericPretty (Out(doc))
@@ -57,6 +61,25 @@ interpWGhostbusted tname ddefs mainE =
 
 -- TODO: Tim, add an entrypoint here for compiling to disk.  That can
 -- be exposed via an executable in the cabal file.
+
+ghostBustToFile :: String -> String -> IO ()
+ghostBustToFile input output = do
+  (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule input
+  case ambCheck prgDefs of
+    Left err -> error$ "Failed ambiguity check:\n" ++err
+    Right () ->
+      writeProg output $
+       lowerDicts $ Core.ghostbuster prgDefs (tyscheme, expr)
+
+writeProg :: String -> Prog -> IO ()
+writeProg flName prog = do
+  hdl <- openFile flName WriteMode
+  say ("\n Writing to file " ++ flName)$ do
+    let contents = prettyPrint $ moduleOfProg prog
+    hPutStr hdl contents
+    hClose hdl
+    say "\n File written." $
+      return ()
 
 --------------------------------------------------------------------------------
 

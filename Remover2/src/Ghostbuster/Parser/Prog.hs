@@ -1,10 +1,9 @@
 -- Created:       Fri 03 Jul 2015 11:32:18 AM EDT
--- Last Modified: Fri 03 Jul 2015 05:14:27 PM EDT
+-- Last Modified: Sun 05 Jul 2015 09:31:40 PM EDT
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
   - TODO:
-    - Add conversion for Exp
     - Add conversion for VDef
     - Make sure we are handling tuples properly in the DDefs.
       * In general: How do we want to handle multiple-arity type
@@ -76,23 +75,19 @@ kindTyVar (UnkindedVar name)    = (fromName name, G.Star)
 -- DDef:
 --  --> DataDecl
 --  --> GDataDecl
--- VDef:
---  --> TypeSig
--- Exp:
---  -->
 gParseProg :: [Decl] -> G.Prog
 gParseProg decls = G.Prog ddefs vdefs exp
   where
    anns  = foldr ((++) . gatherAnnotation) [] decls
    ddefs = foldr ((++) . (gatherDataDecls anns)) [] decls
-   vdefs = [] --foldr ((++) . gatherVDecls) [] decls
+   vdefs = []
    exp   = gatherExp decls
 
 gatherByTyVar :: G.Var -> GhostBustDecls -> [(TyVar, G.Kind)] -> ([(TyVar, G.Kind)],[(TyVar, G.Kind)],[(TyVar, G.Kind)])
 gatherByTyVar name anns ktys =
   case lookup name anns of
     -- not annotated
-    Nothing -> (ktys, [], [])
+    Nothing -> ([], [], [])
     -- Annotated
     Just (GhostBustDecl _ k c s) -> (filter (\x -> elem (fst x) k) ktys, filter (\x -> elem (fst x) c) ktys, filter (\x -> elem (fst x) s) ktys)
 
@@ -114,10 +109,6 @@ gatherDataDecls anns (GDataDecl _ DataType _ name tyvars kinds contrs _) =
           kept = ktys \\ (kept' ++ checked ++ synthesized)
       in [DDef tName kept checked synthesized (map convertGadtDecl contrs)]
 gatherDataDecls _ _ = []
-
--- | FIXME: Implement
-gatherVDecls :: Decl -> [VDef]
-gatherVDecls x = [VDef "bar" (ForAll [] (VarTy "a")) (G.EVar "a")]
 
 -- | FIXME: Implement
 gatherExp :: [Decl] -> G.VDef
@@ -213,6 +204,8 @@ gatherTypes (TyVar name) = [G.VarTy (fromName name)]
 gatherTypes (TyTuple _ typs) = case  mapM convertType typs of
                                  Just ts -> [ConTy (mkVar ("Tup" ++ show (length typs))) ts]
                                  Nothing -> []
+-- FIXME: hacky
+gatherTypes (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
 gatherTypes t = error $ "WITH TYPE = " ++ show t
 
 -- | Take a bunch of type applications to a type constructor and turn it into
