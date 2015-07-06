@@ -72,17 +72,17 @@ Test-suite test-ghostbuster
 
   default-language:  Haskell2010
 
-Executable ghostbust
-  main-is: Main.hs
-  hs-source-dirs: src/
-  build-depends: Ghostbuster
-  build-depends:       GenericPretty >= 1.2
-                     , base >=4.8 && <4.9
-                     , bytestring >= 0.10
-                     , pretty >= 1.1.1.1
-                     , containers >= 0.5.5
-                     , atomic-primops >= 0.6
-                     , mtl
-                     , haskell-src-exts >= 1.16
-                     , process
-
+--Executable ghostbust
+--  main-is: Main.hs
+--  hs-source-dirs: src/
+--  build-depends: Ghostbuster
+--  build-depends:       GenericPretty >= 1.2
+--                     , base >=4.8 && <4.9
+--                     , bytestring >= 0.10
+--                     , pretty >= 1.1.1.1
+--                     , containers >= 0.5.5
+--                     , atomic-primops >= 0.6
+--                     , mtl
+--                     , haskell-src-exts >= 1.16
+--                     , process
+--
