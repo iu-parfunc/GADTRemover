@@ -630,8 +630,7 @@ bindDictVars subst existentials varsToBind body =
     -- trace ("  bindDictVars:loop, creating binding for "++show fv)$
     case M.lookup fv subst' of
       Nothing ->
-         ELet (fv_dict, ForAll [] "_", findPath fv)
-              (loop rst)
+         maybeLet fv_dict (findPath fv) (loop rst)
       Just ty ->
        -- fv is equal to ty, thus we use it to build the dict
        let dicttype =
@@ -642,6 +641,11 @@ bindDictVars subst existentials varsToBind body =
        ELet (fv_dict, ForAll [] dicttype, buildDict ty)
             (loop rst) -- (wrap (loop rst))
        -- trace ("FINISHME: buildDictVar "++show (fv) ++" -> " ++show subst) $
+
+  -- Avoid creating infinite loops.  FIXME: there should be a more
+  -- general / better way to avoid this.
+  maybeLet vr (EVar v2) bod | v2 == vr = bod
+  maybeLet vr rhs bod = ELet (vr, ForAll [] "_", rhs) bod
 
   -- Compute the dictionary for `fv` by digging into other dictionaries.
   findPath fv
