@@ -1,0 +1,7 @@
+flags: {}
+packages:
+- CastChallenge/
+- GADTRemover/
+- Remover2/
+extra-deps: []
+resolver: lts-3.8

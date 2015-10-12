@@ -25,6 +25,13 @@ library
 executable bench-feldspar
   default-language:     Haskell2010
   main-is:              Feldspar/Benchmark.hs
+  other-modules:        Feldspar.ADT2
+                        Feldspar.Example
+                        Feldspar.GADT
+                        Feldspar.Hint
+                        Feldspar.InterpGADT
+                        TypeCase
+                        TypeableMagic
   ghc-options:          -Wall -O2 -main-is Feldspar.Benchmark.main
 
   build-depends:
