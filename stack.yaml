@@ -3,5 +3,7 @@ packages:
 - CastChallenge/
 - GADTRemover/
 - Remover2/
-extra-deps: []
-resolver: lts-3.8
+extra-deps:
+  - wl-pprint-1.2
+  - atomic-primops-0.8
+resolver: lts-2.22
