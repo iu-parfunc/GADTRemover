@@ -8,5 +8,5 @@ if [ "$STACK" == ""  ]; then STACK=stack; fi
 which -a $STACK
 $STACK --version
 
-$STACK setup
-$STACK test
+time $STACK setup
+time $STACK test
