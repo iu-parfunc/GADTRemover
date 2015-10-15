@@ -46,6 +46,7 @@ library
                      , mtl
                      , haskell-src-exts >= 1.16
                      , process
+                     , directory
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -74,7 +75,7 @@ Test-suite test-ghostbuster
 
 Executable ghostbust
  main-is: Main.hs
- hs-source-dirs: ./
+ hs-source-dirs: ./tool/
  build-depends: Ghostbuster
  build-depends:       GenericPretty >= 1.2
                     , base >=4.8 && <4.9

@@ -24,6 +24,7 @@ import           Language.Haskell.Exts.Pretty
 import           System.Exit
 import           System.IO
 import           System.Environment
+import           System.Directory
 -- import           System.IO.Temp
 import           System.Process
 import           Text.PrettyPrint.GenericPretty (Out(doc))
@@ -88,18 +89,21 @@ writeProg flName prog = do
 -- file anyway, we could also just compile the module directly using 'runghc' or
 -- similar.
 --
-
 -- TLM: This is shows how to do it, but won't be usable in our setup. Namely,
 --      what should 'a' be? This has to be something defined in an _installed_
 --      module imported by both this file and the generated code.
 --
 -- runghcProg :: (Show a, Typeable a) => Prog -> IO a
+-- The alternative here is to just execute programs for effect.
+
+-- | WRite a program to a file
 runghcProg :: Maybe String -> Prog -> IO ()
 runghcProg Nothing p = runghcProg (Just "Ghostbuster") p
 runghcProg (Just tname) prg =
  do
    -- Temporarily keeping these while debugging:
-   (file,hdl) <- openTempFile "./" ("temp_"++tname++ "_.hs")
+   createDirectoryIfMissing True ghostbustTempDir
+   (file,hdl) <- openTempFile ghostbustTempDir ("temp_"++tname++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
    say ("\n   Writing file to: "++ file) $ do
     let contents = (prettyPrint (moduleOfProg prg))
@@ -121,6 +125,9 @@ runghcProg (Just tname) prg =
   -}
      ExitSuccess <- system $ "runghc "++file
      return ()
+
+ghostbustTempDir :: FilePath
+ghostbustTempDir = "./ghostbuster_generated/"
 
 ------------------------------------------------------------
 -- Helper functions
