@@ -1,9 +1,1 @@
-flags: {}
-packages:
-- CastChallenge/
-- GADTRemover/
-- Remover2/
-extra-deps:
-  - wl-pprint-1.2
-  - atomic-primops-0.8
-resolver: lts-2.22
+stack-lts-3.yaml
