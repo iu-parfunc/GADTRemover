@@ -78,7 +78,7 @@ Executable ghostbust
  hs-source-dirs: ./tool/
  build-depends: Ghostbuster
  build-depends:       GenericPretty >= 1.2
-                    , base >=4.8 && <4.9
+                    , base >=4.7 && <4.9
                     , bytestring >= 0.10
                     , pretty >= 1.1.1.1
                     , containers >= 0.5.5
