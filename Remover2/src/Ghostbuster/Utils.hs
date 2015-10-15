@@ -221,7 +221,7 @@ letBindNonTriv e f =
     (EDict _)    -> f e
     -----------------------------------------
     -- TODO: the remaining cases really need let bindings;
-    _ -> f e  -- TEMP/FIXME
+    -- _ -> f e  -- TEMP/FIXME
     _ -> ELet (tmp, recoverType e, e) (f (EVar tmp))
   where
   tmp = freshenVar "tmp"

@@ -12,15 +12,15 @@
 
 module Ghostbuster.Parser.Prog where
 
-import qualified Ghostbuster.CodeGen.Prog as GCP
-import           Ghostbuster.Types        as G
-import           Language.Haskell.Exts    as H
+-- import qualified Ghostbuster.CodeGen.Prog as GCP
+import           Ghostbuster.Types        as G hiding (outputs)
+import           Language.Haskell.Exts    as H hiding (name)
 import           Text.PrettyPrint.GenericPretty (Out(doc))
-import           Control.Monad
-import           Control.Applicative
-import           Data.Maybe
+-- import           Control.Monad
+-- import           Control.Applicative
+-- import           Data.Maybe
 import           Data.List
-import           Debug.Trace
+-- import           Debug.Trace
 
 -- | User facing, they use this datatype in their annotations (see test.hs for an example of this)
 data Ghostbust k c s = G k c s
@@ -43,7 +43,7 @@ gParseModule str = do
                                         , fixities              = Just preludeFixities
                                         }
                               str
-  let m@(Module srcLoc moduleName _ _ _ _ decls) = fromParseResult parsed
+  let (Module _srcLoc _moduleName _ _ _ _ decls) = fromParseResult parsed
       prog = gParseProg decls
   {-putStrLn "INPUT PROGRAM: \n\n"-}
   {-putStrLn $ show m-}
@@ -67,8 +67,8 @@ mkKind KindBang       = G.Star -- Unboxed types are of kind * right?
 mkKind (KindFn k1 k2) = G.ArrowKind (mkKind k1) (mkKind k2)
 
 kindTyVar:: TyVarBind -> (G.TyVar, G.Kind)
-kindTyVar (KindedVar name kind) = (fromName name, mkKind kind)
-kindTyVar (UnkindedVar name)    = (fromName name, G.Star)
+kindTyVar (KindedVar nm kind) = (fromName nm, mkKind kind)
+kindTyVar (UnkindedVar nm)    = (fromName nm, G.Star)
 
 -- | Take a list of Decls (i.e., a Haskell module) and return the
 --   corresponding Ghostbuster representation. The general mapping is:
@@ -76,16 +76,16 @@ kindTyVar (UnkindedVar name)    = (fromName name, G.Star)
 --  --> DataDecl
 --  --> GDataDecl
 gParseProg :: [Decl] -> G.Prog
-gParseProg decls = G.Prog ddefs vdefs exp
+gParseProg decls = G.Prog ddefs vdefs ex
   where
    anns  = foldr ((++) . gatherAnnotation) [] decls
    ddefs = foldr ((++) . (gatherDataDecls anns)) [] decls
    vdefs = []
-   exp   = gatherExp decls
+   ex    = gatherExp decls
 
 gatherByTyVar :: G.Var -> GhostBustDecls -> [(TyVar, G.Kind)] -> ([(TyVar, G.Kind)],[(TyVar, G.Kind)],[(TyVar, G.Kind)])
-gatherByTyVar name anns ktys =
-  case lookup name anns of
+gatherByTyVar nm anns ktys =
+  case lookup nm anns of
     -- not annotated
     Nothing -> ([], [], [])
     -- Annotated
@@ -96,15 +96,15 @@ gatherByTyVar name anns ktys =
 --   NOTE: this will be done via a pragma/comment
 -- TODO: Need to clean this up and get rid of duplicaton
 gatherDataDecls :: GhostBustDecls -> Decl -> [DDef]
-gatherDataDecls anns (DataDecl _ DataType _ name tyvars contrs _) =
+gatherDataDecls anns (DataDecl _ DataType _ nm tyvars contrs _) =
       let ktys = map kindTyVar tyvars
-          tName = fromName name
+          tName = fromName nm
           (kept', checked, synthesized) = gatherByTyVar tName anns ktys
           kept = ktys \\ (kept' ++ checked ++ synthesized)
       in [DDef  tName kept checked synthesized  (map (convertQualConDecl (map (G.VarTy . fst) ktys)) contrs)]
-gatherDataDecls anns (GDataDecl _ DataType _ name tyvars kinds contrs _) =
+gatherDataDecls anns (GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
       let ktys = map kindTyVar tyvars
-          tName = fromName name
+          tName = fromName nm
           (kept', checked, synthesized) = gatherByTyVar tName anns ktys
           kept = ktys \\ (kept' ++ checked ++ synthesized)
       in [DDef tName kept checked synthesized (map convertGadtDecl contrs)]
@@ -112,14 +112,14 @@ gatherDataDecls _ _ = []
 
 -- | FIXME: Implement
 gatherExp :: [Decl] -> G.VDef
-gatherExp x = VDef "a" (ForAll [] (ConTy "Int" []))  (G.EVar "Three")
+gatherExp _ = VDef "a" (ForAll [] (ConTy "Int" []))  (G.EVar "Three")
 
 -- | Gather the annotations for data declarations
 gatherAnnotation :: Decl -> [(TName, GhostBustDecl [TyVar] [TyVar] [TyVar])]
-gatherAnnotation (AnnPragma _ (Ann name (Paren (App (App (App (Con _) (List ks)) (List cs)) (List ss))))) =
-  [((fromName name), GhostBustDecl (fromName name) (map tyVarize ks) (map tyVarize cs) (map tyVarize ss))]
+gatherAnnotation (AnnPragma _ (Ann nm (Paren (App (App (App (Con _) (List ks)) (List cs)) (List ss))))) =
+  [((fromName nm), GhostBustDecl (fromName nm) (map tyVarize ks) (map tyVarize cs) (map tyVarize ss))]
     where
-     tyVarize (H.Var (UnQual name)) = fromName name
+     tyVarize (H.Var (UnQual nm)) = fromName nm
 gatherAnnotation _ = []
 
 -- | For a "regular" data def, the output types are always going to be the
@@ -134,15 +134,16 @@ convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx (ConDecl name typs)
           Nothing -> acc
           Just t -> t : acc
 
-      gatherOutputs :: Type -> [MonoTy] -> [MonoTy]
-      gatherOutputs acc t =  []
+      -- TODO?
+      -- gatherOutputs :: Type -> [MonoTy] -> [MonoTy]
+      -- gatherOutputs acc t =  []
 
 -- | For a GADT data definition, convert it into a corresponding DDef in our internal language
 convertGadtDecl :: GadtDecl -> KCons
-convertGadtDecl g@(GadtDecl _ name (constr : constrs) typ) =
+convertGadtDecl (GadtDecl _ name (_constr : _constrs) typ) =
   let Just (inputs, outputs) = toGadtType typ
   in KCons (fromName name) inputs outputs
-convertGadtDecl g@(GadtDecl _ name [] typ) =
+convertGadtDecl (GadtDecl _ name [] typ) =
   let Just (inputs, outputs) = toGadtType typ
   in KCons (fromName name) inputs outputs
 
@@ -169,7 +170,7 @@ convertType (TyFun t1 t2)             = do
   t1' <- convertType t1
   t2' <- convertType t2
   return $ ArrowTy t1' t2'
-convertType t@(TyApp t1 t2)           = return $ handleTyApps t
+convertType t@(TyApp _t1 _t2)           = return $ handleTyApps t
 convertType (TyVar name)              = return $ G.VarTy $ fromName name
 convertType (TyCon (UnQual name))     = return $ ConTy (fromName name) []
 convertType (TyParen typ)             = convertType typ
@@ -177,18 +178,18 @@ convertType (TyParen typ)             = convertType typ
 convertType (TyTuple _ typs)          = ConTy (mkVar ("Tup" ++ show (length typs))) <$> mapM convertType typs
 
 -- We don't handle these types (at least inside data constructors)
-convertType (TyList typ)              = Nothing
-convertType (TyParArray typ)          = Nothing
+convertType (TyList _typ)              = Nothing
+convertType (TyParArray _typ)          = Nothing
 convertType TyForall{}                = Nothing
-convertType (TyInfix typ1 qName typ2) = Nothing
-convertType (TyKind typ kind)         = Nothing
-convertType (TyPromoted promoted)     = Nothing
-convertType (TyEquals typ1 typ2)      = Nothing
-convertType (TySplice splice)         = Nothing
-convertType (TyBang bangtyp typ)      = Nothing
+convertType (TyInfix _typ1 _qName _typ2) = Nothing
+convertType (TyKind _typ _kind)         = Nothing
+convertType (TyPromoted _promoted)     = Nothing
+convertType (TyEquals _typ1 _typ2)      = Nothing
+convertType (TySplice _splice)         = Nothing
+convertType (TyBang _bangtyp _typ)      = Nothing
 
 gatherTypes :: Bool -> Type -> [G.MonoTy]
-gatherTypes b (TyApp t1 t2) =
+gatherTypes _b (TyApp t1 t2) =
  let t1' = convertType t1
      t2' = convertType t2
  in case t1' of
@@ -198,18 +199,18 @@ gatherTypes b (TyApp t1 t2) =
       Just tt1' -> case t2' of
                     Nothing -> [tt1']
                     Just tt2' -> (tt1' : [tt2'])
-gatherTypes b (TyFun t1 t2) = if b 
+gatherTypes b (TyFun t1 t2) = if b
                               then gatherTypes b t1 ++ gatherTypes b t2
                               else let Just t1' = convertType t1
                                        Just t2' = convertType t2
                                    in [ArrowTy t1' t2']
-gatherTypes b (TyParen t) = gatherTypes False t
-gatherTypes b (TyVar name) = [G.VarTy (fromName name)]
-gatherTypes b (TyTuple _ typs) = case  mapM convertType typs of
-                                 Just ts -> [ConTy (mkVar ("Tup" ++ show (length typs))) ts]
-                                 Nothing -> []
+gatherTypes _b (TyParen t) = gatherTypes False t
+gatherTypes _b (TyVar name) = [G.VarTy (fromName name)]
+gatherTypes _b (TyTuple _ typs) = case  mapM convertType typs of
+                                  Just ts -> [ConTy (mkVar ("Tup" ++ show (length typs))) ts]
+                                  Nothing -> []
 -- FIXME: hacky
-gatherTypes b (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
+gatherTypes _b (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
 gatherTypes _ t = error $ "WITH TYPE = " ++ show t
 
 -- | Take a bunch of type applications to a type constructor and turn it into
@@ -227,4 +228,4 @@ handleTyApps typ = let (monotys, constr) = loop typ
                         in (tylist1 ++ tylist2, realName)
    loop t = case convertType t of
               Nothing -> ([], ConTy "bogusParseName")
-              Just t  -> ([t], ConTy "bogusParseName")
+              Just tt -> ([tt], ConTy "bogusParseName")

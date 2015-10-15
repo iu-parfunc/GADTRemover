@@ -11,7 +11,7 @@ module Ghostbuster
 
 import           Ghostbuster.Ambiguity as A
 import qualified Ghostbuster.Core as Core
-import           Ghostbuster.Interp
+import           Ghostbuster.Interp ()
 import           Ghostbuster.LowerDicts
 import           Ghostbuster.Types
 
