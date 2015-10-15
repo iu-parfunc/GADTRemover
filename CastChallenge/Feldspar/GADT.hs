@@ -3,6 +3,7 @@
 {-# LANGUAGE KindSignatures    #-}
 {-# LANGUAGE RoleAnnotations   #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 -- | Mini feldspar GADT, copied from:
 --     https://github.com/shayan-najd/MiniFeldspar/
@@ -26,7 +27,12 @@ type role Var nominal nominal
 data Var e a where
   Zro :: Var (e,a) a  -- This requires role nominal for the environment param.
   Suc :: Var e a -> Var (e,b) a -- So does this
- deriving Typeable
+ deriving (Typeable)
+
+-- Note: this works:
+deriving instance Show (Var e a)
+-- But this throws an error inside the implicitly GENERATED code.
+-- deriving instance Read (Var e a)
 
 type role Exp nominal nominal
 data Exp (e :: *) (a :: *) where
