@@ -24,3 +24,8 @@ data Exp env arg where
 data Typ arg where
   Int :: Typ Int
   Arr :: Typ a -> Typ b -> Typ (a -> b)
+
+
+-- Random extra code to test what the framework does with it.
+foo :: a -> a
+foo x = x

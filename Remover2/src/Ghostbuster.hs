@@ -63,7 +63,7 @@ interpWGhostbusted tname ddefs mainE =
 -- TODO: Tim, add an entrypoint here for compiling to disk.  That can
 -- be exposed via an executable in the cabal file.
 
-ghostBustToFile :: String -> String -> IO ()
+ghostBustToFile :: FilePath -> FilePath -> IO ()
 ghostBustToFile input output = do
   (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule input
   case ambCheck prgDefs of
