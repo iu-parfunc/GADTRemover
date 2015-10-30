@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad
 import Ghostbuster
 import System.Exit
 import System.Environment
@@ -20,7 +21,10 @@ fuzztest args = do
   putStrLn$ "Begin fuzz testing: "++ show (inp,outp)
   allOuts <- fuzzTest inp outp
   -- ExitSuccess <- system $ "ghc "++outp
-  putStrLn $ "Got output files: "++show allOuts
+  putStrLn $ "Now try to compile each output file..."
+  forM_ allOuts $ \ outfile -> do
+    putStrLn $ "  "++outfile++" "
+    system $ "ghc "++outfile
   return ()
 
 
