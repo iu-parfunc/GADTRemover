@@ -70,6 +70,7 @@ Test-suite test-ghostbuster
                , GenericPretty >= 1.2
                , temporary >= 1.2
                , process
+               , filepath
 
   default-language:  Haskell2010
 
@@ -86,3 +87,4 @@ Executable ghostbust
                     , mtl
                     , haskell-src-exts >= 1.16
                     , process
+                    , filepath

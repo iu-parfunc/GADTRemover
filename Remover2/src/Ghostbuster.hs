@@ -7,6 +7,7 @@ module Ghostbuster
        , say
        , ghostBustToFile
        , writeProg
+       , fuzzTest
        ) where
 
 import           Ghostbuster.Ambiguity as A
@@ -81,6 +82,13 @@ writeProg flName prog = do
     hClose hdl
     say "\n File written." $
       return ()
+
+-- | Try different weakenings of the ghostbuster configuration in the input file, and write the outputs to output filepaths given a root.
+fuzzTest :: FilePath -> FilePath -> IO [FilePath]
+fuzzTest inpath outroot = do
+-- FINISHME
+  return []
+
 
 --------------------------------------------------------------------------------
 
