@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
 module Ghostbuster
@@ -16,8 +18,9 @@ import           Ghostbuster.Interp ()
 import           Ghostbuster.LowerDicts
 import           Ghostbuster.Types
 
+import           Data.List (transpose)
 import           Control.Exception (catch, SomeException, throw)
--- import           Control.Monad
+import           Control.Monad (forM_, forM)
 import           Ghostbuster.CodeGen.Prog as CG
 import           Ghostbuster.Parser.Prog as Parse
 import           Language.Haskell.Exts.Pretty
@@ -27,6 +30,7 @@ import           System.IO
 import           System.Environment
 import           System.Directory
 -- import           System.IO.Temp
+import           System.FilePath
 import           System.Process
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 
@@ -86,9 +90,41 @@ writeProg flName prog = do
 -- | Try different weakenings of the ghostbuster configuration in the input file, and write the outputs to output filepaths given a root.
 fuzzTest :: FilePath -> FilePath -> IO [FilePath]
 fuzzTest inpath outroot = do
--- FINISHME
-  return []
+  (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule inpath
+  let possibilities = sequence $ map varyBusting prgDefs
+  putStr $ "GOT POSSIBILITIES: "++ show (length possibilities) ++"\n"
+  forM_ possibilities $ \ defs -> do
+    forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+      putStr $ "  " ++ show ( map (unVar . fst) kVars
+                            , map (unVar . fst) cVars
+                            , map (unVar . fst) sVars)
+    putStr "\n"
 
+  forM (zip [0..] possibilities) $ \ (index,defs) -> do
+    let (file,ext) = splitExtension outroot
+        newName    = file ++ show index <.> ext
+    case ambCheck defs of
+      Left err -> putStrLn $ "Possibility "++show index++" failed ambiguity check!"
+      Right () ->
+       writeProg newName $
+         lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
+    return newName
+
+ where
+  varyBusting dd@(DDef{kVars,cVars,sVars}) =
+   let total = length cVars + length sVars
+       erased = (cVars++sVars)
+   in
+    [ -- (steal1A+steal1B, steal2)
+     dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
+        , cVars = drop steal1A cVars ++ take steal2 sVars
+        , sVars = drop (steal1B + steal2) sVars }
+    | steal1A <- [0..length cVars]
+    , steal1B <- [0.. if steal1A == length cVars
+                      then length sVars
+                      else 0]
+    , steal2  <- [0.. length sVars - steal1B]
+    ]
 
 --------------------------------------------------------------------------------
 
