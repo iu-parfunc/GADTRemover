@@ -2,11 +2,12 @@ module Main where
 
 import Control.Monad
 import Ghostbuster
-import System.Exit
 import System.Environment
+import System.Exit
 import System.FilePath
 import System.Process
-import System.Exit
+import Test.Tasty
+import Test.Tasty.Program
 
 main :: IO ()
 main = do
@@ -21,11 +22,10 @@ fuzztest args = do
   putStrLn$ "Begin fuzz testing: "++ show (inp,outp)
   allOuts <- fuzzTest inp outp
   -- ExitSuccess <- system $ "ghc "++outp
-  putStrLn $ "Now try to compile each output file..."
-  forM_ allOuts $ \ outfile -> do
-    putStrLn $ "  "++outfile++" "
-    system $ "ghc "++outfile
-  return ()
+  withArgs []
+    $ defaultMain
+    $ testGroup "Now try to compile each output file..."
+    $ [ testProgram outfile "ghc" [ "-fforce-recomp", outfile ] Nothing | outfile <- allOuts ]
 
 
 check :: [String] -> IO ()

@@ -89,3 +89,5 @@ Executable ghostbust
                     , haskell-src-exts >= 1.16
                     , process
                     , filepath
+                    , tasty
+                    , tasty-program

@@ -9,4 +9,5 @@ packages:
 extra-deps:
   - wl-pprint-1.2
   - atomic-primops-0.8
+  - tasty-program-1.0.3
 resolver: lts-2.22
