@@ -28,12 +28,12 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
                   , LanguagePragma noLoc [ Ident "BangPatterns" ]
                   , OptionsPragma noLoc (Just GHC) " -Wall "
-                  , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
+                  -- , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-binds "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-matches "
                   , OptionsPragma noLoc (Just GHC) " -fno-warn-name-shadowing "
---                  , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
---                  , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
+                  -- , OptionsPragma noLoc (Just GHC) " -fno-warn-dodgy-imports "
+                  -- , OptionsPragma noLoc (Just GHC) " -fno-warn-unused-imports "
                   ]
 
     mkImport n  = ImportDecl noLoc (ModuleName n) False False False Nothing Nothing
@@ -41,12 +41,13 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                                                      , IThingAll (Ident "Maybe")
                                                      , IThingAll (Ident "Bool")
                                                      ])
---                  , mkImport "Data.Typeable" Nothing
+                  -- , mkImport "Data.Typeable" Nothing
                   ]
 
     ddefs'      = ddefs ++ primitiveTypes       -- Add the "Prelude" types
-    showable    = showableDefs ddefs'
-    canshow tn  = S.member tn showable
+    canshow _   = False
+    -- showable    = showableDefs ddefs'
+    -- canshow tn  = S.member tn showable
 
     topShowable = case valTy vtop of
                     ForAll [] (ConTy tn _) -> canshow tn
