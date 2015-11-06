@@ -41,5 +41,5 @@ parse [input] = (input, takeDirectory input </> "Busted_" ++ takeFileName input)
 parse [input, output] = (input, output)
 
 exit = exitSuccess
-usage = putStrLn "Usage: Ghostbust [-vh] <input file name> [<output file name>]"
+usage = putStrLn "Usage: Ghostbust [-vh] [--fuzz] <input file name> [<output file name>]"
 version = putStrLn "Ghostbuster Version 0.1"
