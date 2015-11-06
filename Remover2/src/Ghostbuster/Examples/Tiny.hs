@@ -132,7 +132,8 @@ allExprs :: [Exp]
 allExprs = [e02, e03, e04, e05, e06, e07, e08, e09, e10, e11, e12, e13]
 
 allMain :: [VDef]
-allMain = [v02, v03, v04, v05, v06, v07, v08, v09, v10, v11, v12, v13]
+allMain = [v02, v03, v04, v05, v07, v09, v10, v11, v12, v13]
+-- TEMP, DISABLED: v06, v08 -- inaccessible code isn't a warning yet
 
 -- | The subset of expressions whose `lowerDicts` output value should
 -- be exactly the same as the original output value.
@@ -140,7 +141,8 @@ allExprsSameLowered :: [Exp]
 allExprsSameLowered = [e02, e05, e06, e07, e08, e09, e10, e11, e12, e13]
 
 allMainSameLowered :: [VDef]
-allMainSameLowered = [v02, v05, v06, v07, v08, v09, v10, v11, v12, v13]
+allMainSameLowered = [v02, v05, v07, v09, v10, v11, v12, v13]
+-- TEMP, DISABLED: v06, v08 -- inaccessible code isn't a warning yet
 
 
 --------------------------------------------------------------------------------
