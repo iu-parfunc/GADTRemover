@@ -12,27 +12,28 @@ module Ghostbuster
        , fuzzTest
        ) where
 
-import           Ghostbuster.Ambiguity as A
-import qualified Ghostbuster.Core as Core
-import           Ghostbuster.Interp ()
+import           Ghostbuster.Ambiguity                  as A
+import           Ghostbuster.CodeGen.Prog               as CG
+import qualified Ghostbuster.Core                       as Core
+import           Ghostbuster.Interp                     ()
 import           Ghostbuster.LowerDicts
+import           Ghostbuster.Parser.Prog                as Parse
 import           Ghostbuster.Types
 
-import           Data.List (transpose)
-import           Control.Exception (catch, SomeException, throw)
-import           Control.Monad (forM_, forM)
-import           Ghostbuster.CodeGen.Prog as CG
-import           Ghostbuster.Parser.Prog as Parse
-import           Language.Haskell.Exts.Pretty
--- import           Language.Haskell.Interpreter as Hint
-import           System.Exit
-import           System.IO
-import           System.Environment
-import           System.Directory
--- import           System.IO.Temp
-import           System.FilePath
-import           System.Process
-import           Text.PrettyPrint.GenericPretty (Out(doc))
+import Control.Exception              (catch, SomeException, throw)
+import Control.Monad                  (forM_, forM, liftM)
+import Data.List                      (transpose)
+import Data.Maybe                     (catMaybes)
+import Language.Haskell.Exts.Pretty
+import System.Directory
+import System.Environment
+import System.Exit
+import System.FilePath
+import System.IO
+import System.Process
+import Text.PrettyPrint.GenericPretty (Out(doc))
+import Text.Printf
+
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -87,7 +88,10 @@ writeProg flName prog = do
     say "\n File written." $
       return ()
 
--- | Try different weakenings of the ghostbuster configuration in the input file, and write the outputs to output filepaths given a root.
+-- | Try different weakenings of the ghostbuster configuration in the input
+-- file, and write the outputs to filepaths at the given root. Returns
+-- a list of the files written.
+--
 fuzzTest :: FilePath -> FilePath -> IO [FilePath]
 fuzzTest inpath outroot = do
   (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule inpath
@@ -100,16 +104,19 @@ fuzzTest inpath outroot = do
                             , map (unVar . fst) sVars)
     putStr "\n"
 
-  forM (zip [0..] possibilities) $ \ (index,defs) -> do
-    let (file,ext) = splitExtension outroot
-        newName    = file ++ show index <.> ext
+  fmap catMaybes $ forM (zip [(0::Int) ..] possibilities) $ \ (index,defs) ->
+    let
+        (file,ext) = splitExtension outroot
+        newName    = file ++ printf "%03d" index <.> ext
+    in
     case ambCheck defs of
-      Left err -> putStrLn $ "Possibility "++show index++" failed ambiguity check!"
-      Right () ->
-       writeProg newName $
-         lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
-    return newName
+      Left err -> do
+        printf "Possibility %d failed ambiguity check!\n" index
+        return Nothing
 
+      Right () -> do
+        writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
+        return (Just newName)
  where
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
    let total = length cVars + length sVars
