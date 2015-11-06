@@ -335,7 +335,7 @@ genUp2 alldefs which =
      ECase "lower" $
      [ (Pat (gadtDownName conName) (kdictargs ++ kvalargs),
        uptrace ("\n  Case: ("++ show conName ++") with denv: "++show denv) $
-       openConstraints denv (zip dictArgs cOutputs)
+       openConstraints denv (zip dictArgs (kOutputs++cOutputs))
         (\denv'' () ->
            doRecursions alldefs denv'' kc unseal
             (\denv''' ls ->
@@ -345,7 +345,7 @@ genUp2 alldefs which =
      | kc@KCons {conName,fields,outputs} <- cases
      , let kdictargs = map dictArgify (getKConsDicts alldefs conName)
            kvalargs  = take (length fields) patVars
-           (_kOutputs,cOutputs,sOutputs) = splitTyArgs (getArgStatus alldefs which) outputs
+           (kOutputs,cOutputs,sOutputs) = splitTyArgs (getArgStatus alldefs which) outputs
            denv = initDictMap `M.union`
                   M.fromList [ (VarTy v, dictArgify v) | v <- getKConsDicts alldefs conName ]
            -- The other equalities from the RHS we will need for later.
@@ -356,19 +356,23 @@ genUp2 alldefs which =
            existentials = trace "FINISHME: genUp2 existentials " S.empty
      ]
  where
-  params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs cVars ]
+  params        = [ (d, TypeDictTy t) | (d,(t,_)) <- zip dictArgs witnessedVars ]
                ++ [("lower",startTy)]
 
   -- Dictionaries seeded from the inputs to the up function:
   initDictMap :: DictEnv
-  initDictMap   = M.fromList $ zip (map (VarTy . fst) cVars) (map (fst) params)
+  initDictMap   = M.fromList $ zip (map (VarTy . fst) witnessedVars)
+                                   (map (fst) params)
 
   -- The sig of the up function takes dictionaries for checked args.
   upFunSig = (ForAll (kVars ++ cVars)
                      (mkFunTy (dictTys ++ [startTy]) endTy))
 
-  dictTys       = map (TypeDictTy . fst) cVars
-  dictArgs      = map (dictArgify . fst) cVars
+  dictTys       = map (TypeDictTy . fst) witnessedVars
+  dictArgs      = map (dictArgify . fst) witnessedVars
+
+  -- Type variables that need runtime witnesses (conservative overapproximation!!)
+  witnessedVars = kVars ++ cVars
 
   startTy       = ConTy tyName' (map (VarTy . fst) kVars)
   tyName'       = gadtDownName tyName
@@ -486,7 +490,8 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     | hasErased alldefs tn =
        let sTys = [ t | (Synth,t) <- zip (getArgStatus alldefs tn) tyargs ]
            cTys = [ t | (Check,t) <- zip (getArgStatus alldefs tn) tyargs ]
-       in dispatchRecursion denv (tn,cTys) (EVar var)
+           kTys = [ t | (Keep,t)  <- zip (getArgStatus alldefs tn) tyargs ]
+       in dispatchRecursion denv (tn,kTys++cTys) (EVar var)
           (\denv' eapp ->
             unseal (tn,var) denv' eapp
               (\denv'' (svs, thisFieldE) ->
@@ -503,10 +508,10 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     | otherwise = k denv (EVar var)
 
 
-  dispatchRecursion denv (tn,checkedTys) expr k =
+  dispatchRecursion denv (tn,witnessedTys) expr k =
     k denv $
     appLst (EVar$ upconvName tn)
-           (map (buildDict' denv) checkedTys ++[expr])
+           (map (buildDict' denv) witnessedTys ++[expr])
 
 
 buildDict' :: DictEnv -> MonoTy -> Exp
@@ -562,13 +567,16 @@ generateDown alldefs which =
                       (Right s,_) -> s
      ]
  where
-  params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs erased ]
+  params        = [ (d, TypeDictTy t) | (d,t) <- zip dictArgs allNeeded ]
                ++ [("orig",startTy)]
 
-  dictArgs      = map dictArgify erased
-
+  dictArgs      = map dictArgify allNeeded
+  dictTys       = map TypeDictTy allNeeded
+  allNeeded     = keptButWitnessed ++ erased
   erased        = map fst $ cVars ++ sVars
-  dictTys       = map TypeDictTy erased
+  -- Some kept type variables actually need witnesses.  These are for
+  -- recursively calling other downT functions.
+  keptButWitnessed =  map fst kVars -- TEMP FIXME
 
   startTy       = ConTy tyName  (map (VarTy . fst) allVars)
   endTy         = ConTy tyName' (map (VarTy . fst) kVars)
@@ -581,6 +589,7 @@ generateDown alldefs which =
   dispatch substs existentials vr (ConTy name tyargs)
     | hasErased alldefs name
     = appLst (EVar (gendownName name))
+             -- FIXME: This passes dicts for ALL arguments.  It must have a consistent policy with allNeeded above.
              (map (\ty -> bindDictVars substs existentials (S.toList$ ftv ty) (buildDict ty))
                    tyargs ++ [EVar vr])
     | otherwise = EVar vr
