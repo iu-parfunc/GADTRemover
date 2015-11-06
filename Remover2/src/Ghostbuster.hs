@@ -124,13 +124,13 @@ fuzzTest inpath outroot = do
    in
     [ -- (steal1A+steal1B, steal2)
      dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
-        , cVars = drop steal1A cVars ++ take steal2 sVars
-        , sVars = drop (steal1B + steal2) sVars }
+        , cVars = drop steal1A cVars -- ++ take steal2 sVars
+        , sVars = drop (steal1B) sVars }
     | steal1A <- [0..length cVars]
     , steal1B <- [0.. if steal1A == length cVars
                       then length sVars
                       else 0]
-    , steal2  <- [0.. length sVars - steal1B]
+    -- , steal2  <- [0.. length sVars - steal1B]
     ]
 
 --------------------------------------------------------------------------------
