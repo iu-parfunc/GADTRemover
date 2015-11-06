@@ -272,7 +272,9 @@ downList = mkTestCase tname $
  -- | Test with the SAME name used in T and K:
 downList2 :: TestTree
 downList2 = mkTestCase tname $
- do let prgDefs = [DDef "List" [] [("a", Star)] []
+ -- FIXME: replacing "elt" with "a" will currently cause an error, but we
+ -- need to fix the toolchain so that is not the case.
+ do let prgDefs = [DDef "List" [] [("elt", Star)] []
                       [ KCons "Nil" [] ["a"]
                       , KCons "Cons" ["a", ConTy "List" ["a"]] ["a"]
                       ]
