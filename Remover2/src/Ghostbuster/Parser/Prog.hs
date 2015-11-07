@@ -18,9 +18,9 @@ import           Language.Haskell.Exts    as H hiding (name)
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 -- import           Control.Monad
 -- import           Control.Applicative
--- import           Data.Maybe
+import qualified Data.Set as S
 import           Data.List
--- import           Debug.Trace
+import           Debug.Trace
 
 -- | User facing, they use this datatype in their annotations (see test.hs for an example of this)
 data Ghostbust k c s = G k c s
@@ -47,6 +47,7 @@ gParseModule str = do
       prog = gParseProg decls
   {-putStrLn "INPUT PROGRAM: \n\n"-}
   {-putStrLn $ show m-}
+  putStrLn "\nDECLS\n\n";  print $ decls
   putStrLn "\n\nPARSED PROGRAM\n\n"
   print $ doc prog
   putStrLn "\n\n==============================\n\n"
@@ -76,20 +77,30 @@ kindTyVar (UnkindedVar nm)    = (fromName nm, G.Star)
 --  --> DataDecl
 --  --> GDataDecl
 gParseProg :: [Decl] -> G.Prog
-gParseProg decls = G.Prog ddefs vdefs ex
+gParseProg decls =
+   trace ("All annotiations found: "++show anns)$
+   G.Prog ddefs vdefs ex
   where
    anns  = foldr ((++) . gatherAnnotation) [] decls
    ddefs = foldr ((++) . (gatherDataDecls anns)) [] decls
    vdefs = []
    ex    = gatherExp decls
 
-gatherByTyVar :: G.Var -> GhostBustDecls -> [(TyVar, G.Kind)] -> ([(TyVar, G.Kind)],[(TyVar, G.Kind)],[(TyVar, G.Kind)])
+gatherByTyVar :: G.Var -> GhostBustDecls -> [(TyVar, G.Kind)]
+              -> ([(TyVar, G.Kind)],[(TyVar, G.Kind)],[(TyVar, G.Kind)])
 gatherByTyVar nm anns ktys =
+  let annMentioned = S.fromList (map fst ktys) in
   case lookup nm anns of
     -- not annotated
     Nothing -> ([], [], [])
     -- Annotated
-    Just (GhostBustDecl _ k c s) -> (filter (\x -> elem (fst x) k) ktys, filter (\x -> elem (fst x) c) ktys, filter (\x -> elem (fst x) s) ktys)
+    Just (GhostBustDecl _ k c s) ->
+      if S.fromList (k++c++s) == annMentioned then
+       (filter (\x -> elem (fst x) k) ktys,
+        filter (\x -> elem (fst x) c) ktys,
+        filter (\x -> elem (fst x) s) ktys)
+      else error$  "Error.\nGhostbuster annotation mentioned variables: "++show annMentioned ++
+                   "\nBut datatype is actually indexed by variables: "++show (k++c++s)
 
 -- | This reads in a data declaration. Kept, Checked, and Synthesized are marked via an annotation pragma as such:
 --   {-# ANN <datatype name> (Ghostbust [<kept>] [<checked>] [<synthesized>])}
@@ -120,6 +131,9 @@ gatherAnnotation (AnnPragma _ (Ann nm (Paren (App (App (App (Con _) (List ks)) (
   [((fromName nm), GhostBustDecl (fromName nm) (map tyVarize ks) (map tyVarize cs) (map tyVarize ss))]
     where
      tyVarize (H.Var (UnQual nm)) = fromName nm
+gatherAnnotation ann@AnnPragma{} =
+  trace ("WARNING: ignoring annotation: "++show ann)
+  []
 gatherAnnotation _ = []
 
 -- | For a "regular" data def, the output types are always going to be the
@@ -177,16 +191,20 @@ convertType (TyParen typ)             = convertType typ
 -- FIXME: How do we (really) want to handle these?
 convertType (TyTuple _ typs)          = ConTy (mkVar ("Tup" ++ show (length typs))) <$> mapM convertType typs
 
+convertType (TyBang _bangtyp typ)     = convertType typ
+
 -- We don't handle these types (at least inside data constructors)
-convertType (TyList _typ)              = Nothing
-convertType (TyParArray _typ)          = Nothing
-convertType TyForall{}                = Nothing
-convertType (TyInfix _typ1 _qName _typ2) = Nothing
-convertType (TyKind _typ _kind)         = Nothing
-convertType (TyPromoted _promoted)     = Nothing
-convertType (TyEquals _typ1 _typ2)      = Nothing
-convertType (TySplice _splice)         = Nothing
-convertType (TyBang _bangtyp _typ)      = Nothing
+convertType other = error $ "Unhandled type argument to constructor: "++show other
+
+-- convertType (TyList _typ)              = unhandledType
+-- convertType (TyParArray _typ)          = unhandledType
+-- convertType TyForall{}                = unhandledType
+-- convertType (TyInfix _typ1 _qName _typ2) = unhandledType
+-- convertType (TyKind _typ _kind)         = unhandledType
+-- convertType (TyPromoted _promoted)     = unhandledType
+-- convertType (TyEquals _typ1 _typ2)      = unhandledType
+-- convertType (TySplice _splice)         = unhandledType
+
 
 gatherTypes :: Bool -> Type -> [G.MonoTy]
 gatherTypes _b (TyApp t1 t2) =
