@@ -71,7 +71,7 @@ interpWGhostbusted tname ddefs mainE =
 
 ghostBustToFile :: FilePath -> FilePath -> IO ()
 ghostBustToFile input output = do
-  (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule input
+  Prog prgDefs prgVals (VDef name tyscheme expr) <- Parse.gParseModule input
   case ambCheck prgDefs of
     Left err -> error$ "Failed ambiguity check:\n" ++err
     Right () ->
@@ -79,9 +79,10 @@ ghostBustToFile input output = do
        lowerDicts $ Core.ghostbuster prgDefs (tyscheme, expr)
 
 writeProg :: String -> Prog -> IO ()
-writeProg flName prog = do
-  hdl <- openFile flName WriteMode
-  say ("\n Writing to file " ++ flName)$ do
+writeProg filename prog = do
+  createDirectoryIfMissing True (takeDirectory filename)
+  hdl <- openFile filename WriteMode
+  say ("\n Writing to file " ++ filename)$ do
     let contents = prettyPrint $ moduleOfProg prog
     hPutStr hdl contents
     hClose hdl
@@ -97,7 +98,7 @@ writeProg flName prog = do
 --
 fuzzTest :: FilePath -> FilePath -> IO [IO (Maybe FilePath)]
 fuzzTest inpath outroot = do
-  (Prog prgDefs _prgVals (VDef _name tyscheme expr)) <- Parse.gParseModule inpath
+  Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule inpath
   let possibilities = sequence $ map varyBusting prgDefs
   putStr $ "GOT POSSIBILITIES: "++ show (length possibilities) ++"\n"
   forM_ (zip [0..] possibilities) $ \ (ind,defs) -> do

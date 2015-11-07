@@ -1,14 +1,13 @@
 module Main where
 
--- import Control.Monad
 import Ghostbuster
+import System.Directory
 import System.Environment
 import System.Exit
 import System.FilePath
 import System.Process
 import Test.Tasty
-import Test.Tasty.HUnit (testCase, assertEqual)
--- import Test.Tasty.Program (testProgram)
+import Test.Tasty.HUnit   (testCase, assertEqual)
 
 main :: IO ()
 main = do
@@ -20,7 +19,7 @@ main = do
 fuzztest :: [String] -> IO ()
 fuzztest args = do
   let (inp:restargs) = args
-      (_,outp) = parse [inp]
+      (_,outp)       = parse [inp]
   putStrLn$ "Begin fuzz testing: "++ show (inp) ++ " passing args to tasty: "++show restargs
   allOuts <- fuzzTest inp outp :: IO [IO (Maybe FilePath)]
   -- ExitSuccess <- system $ "ghc "++outp
@@ -44,7 +43,7 @@ check ls@(a:b:c:d)= die $ "Invalid args " ++ show ls
 check ls = return ()
 
 parse :: [String] -> (String, String)
-parse [input] = (input, takeDirectory input </> "Busted_" ++ takeFileName input)
+parse [input]         = (input, takeDirectory input </> "output" </> "Busted_" ++ takeFileName input)
 parse [input, output] = (input, output)
 
 exit = exitSuccess
