@@ -30,4 +30,8 @@ $GHC Remover2/examples/MiniFeldspar_busted.hs
 
 # Second, run in fuzz test mode:
 
-$RUN --fuzz Remover2/examples/MiniFeldspar.hs
+rm -f Remover2/examples/*_busted.hs
+rm -f Remover2/examples/Busted*.hs
+for file in `ls Remover2/examples/*.hs`; do
+    $RUN --fuzz $file
+done
