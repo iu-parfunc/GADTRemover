@@ -398,7 +398,8 @@ genUp2 alldefs which =
                             | tv <- sVs ]
                 -- TODO: There may be an issue with needing FRESH type variable names here.
                 -- To actually generate the correct code we may need to use scoped type variables.
-            in ECase x
+            in trace ("Generating unseal ECase, vars: "++show(kVars,cVars,sVars))$
+               ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
                  k denv (newDictVs, (EVar vr')))]
   ---------------------------------------------------------

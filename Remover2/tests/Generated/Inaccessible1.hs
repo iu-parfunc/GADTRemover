@@ -7,6 +7,7 @@
 
 module Generated.Inaccessbile1 where
 import Prelude hiding (Int, Maybe(..), Bool(..))
+import qualified Prelude as P
 
 data TypeDict a where
         ArrowTyDict :: TypeDict a -> TypeDict b -> TypeDict (ArrowTy a b)

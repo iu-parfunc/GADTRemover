@@ -6,11 +6,11 @@ module Ghostbuster.CodeGen.Prog
 import Ghostbuster.Types                                as G
 import Ghostbuster.CodeGen.DDef
 import Ghostbuster.CodeGen.VDef
-import Ghostbuster.Showable
+-- import Ghostbuster.Showable
 
 import Language.Haskell.Exts                            as H
 import Language.Haskell.Exts.SrcLoc                     ( noLoc )
-import qualified Data.Set                               as S
+-- import qualified Data.Set                               as S
 
 
 moduleOfProg :: Prog -> Module
@@ -68,4 +68,3 @@ mkMain doprint vtop =
                       else EApp (EApp "seq" (G.EVar (valName vtop)))
                                 (EApp "return" (EK "()"))
        }
-

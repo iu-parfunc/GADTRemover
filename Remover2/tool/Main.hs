@@ -1,13 +1,14 @@
 module Main where
 
-import Control.Monad
+-- import Control.Monad
 import Ghostbuster
 import System.Environment
 import System.Exit
 import System.FilePath
 import System.Process
 import Test.Tasty
-import Test.Tasty.Program
+import Test.Tasty.HUnit (testCase, assertEqual)
+-- import Test.Tasty.Program (testProgram)
 
 main :: IO ()
 main = do
@@ -18,14 +19,20 @@ main = do
 
 fuzztest :: [String] -> IO ()
 fuzztest args = do
-  let (inp,outp) = parse args
-  putStrLn$ "Begin fuzz testing: "++ show (inp,outp)
-  allOuts <- fuzzTest inp outp
+  let (inp:restargs) = args
+      (_,outp) = parse [inp]
+  putStrLn$ "Begin fuzz testing: "++ show (inp) ++ " passing args to tasty: "++show restargs
+  allOuts <- fuzzTest inp outp :: IO [IO (Maybe FilePath)]
   -- ExitSuccess <- system $ "ghc "++outp
-  withArgs []
+  withArgs restargs
     $ defaultMain
-    $ testGroup "Now try to compile each output file..."
-    $ [ testProgram outfile "ghc" [ "-fforce-recomp", outfile ] Nothing | outfile <- allOuts ]
+    $ testGroup ""
+    $ [ testCase ("FuzzTest"++show ind) $
+         do Just outfile <- onetest
+            -- testProgram outfile "ghc" [ "-fforce-recomp", outfile ] Nothing
+            code <- system (unwords [ "ghc", "-fforce-recomp", outfile ])
+            assertEqual "process return code" ExitSuccess code
+      | (ind,onetest) <- zip [0..] allOuts ]
 
 
 check :: [String] -> IO ()
@@ -41,5 +48,6 @@ parse [input] = (input, takeDirectory input </> "Busted_" ++ takeFileName input)
 parse [input, output] = (input, output)
 
 exit = exitSuccess
-usage = putStrLn "Usage: Ghostbust [-vh] [--fuzz] <input file name> [<output file name>]"
+usage = putStrLn $ "Usage: ghostbust [-vh] <input file name> [<output file name>]\n"++
+                   "OR: ghostbust --fuzz <inputFile> <tastyArgs> ..."
 version = putStrLn "Ghostbuster Version 0.1"

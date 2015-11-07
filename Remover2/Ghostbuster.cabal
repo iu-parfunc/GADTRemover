@@ -90,4 +90,5 @@ Executable ghostbust
                     , process
                     , filepath
                     , tasty
-                    , tasty-program
+                    , tasty-hunit
+--                    , tasty-program

@@ -22,16 +22,16 @@ import           Ghostbuster.Types
 
 import Control.Exception              (catch, SomeException, throw)
 import Control.Monad                  (forM_, forM, liftM)
-import Data.List                      (transpose)
-import Data.Maybe                     (catMaybes)
+-- import Data.List                      (transpose)
+-- import Data.Maybe                     (catMaybes)
 import Language.Haskell.Exts.Pretty
 import System.Directory
-import System.Environment
+-- import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
-import Text.PrettyPrint.GenericPretty (Out(doc))
+-- import Text.PrettyPrint.GenericPretty (Out(doc))
 import Text.Printf
 
 
@@ -89,22 +89,27 @@ writeProg flName prog = do
       return ()
 
 -- | Try different weakenings of the ghostbuster configuration in the input
--- file, and write the outputs to filepaths at the given root. Returns
--- a list of the files written.
+-- file, and write the outputs to filepaths at the given root.
 --
-fuzzTest :: FilePath -> FilePath -> IO [FilePath]
+-- This function immediately parses the input file and returns a list
+-- of possible test actions corresponding to different weakenings.
+-- Each test action returns an output filepath if it succeeds.
+--
+fuzzTest :: FilePath -> FilePath -> IO [IO (Maybe FilePath)]
 fuzzTest inpath outroot = do
-  (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule inpath
+  (Prog prgDefs _prgVals (VDef _name tyscheme expr)) <- Parse.gParseModule inpath
   let possibilities = sequence $ map varyBusting prgDefs
   putStr $ "GOT POSSIBILITIES: "++ show (length possibilities) ++"\n"
-  forM_ possibilities $ \ defs -> do
+  forM_ (zip [0..] possibilities) $ \ (ind,defs) -> do
+    putStr $ show ind ++ ": "
     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-      putStr $ "  " ++ show ( map (unVar . fst) kVars
-                            , map (unVar . fst) cVars
-                            , map (unVar . fst) sVars)
+      putStr $ "  " ++
+               show ( map (unVar . fst) kVars
+                    , map (unVar . fst) cVars
+                    , map (unVar . fst) sVars)
     putStr "\n"
 
-  fmap catMaybes $ forM (zip [(0::Int) ..] possibilities) $ \ (index,defs) ->
+  return [
     let
         (file,ext) = splitExtension outroot
         newName    = file ++ printf "%03d" index <.> ext
@@ -117,6 +122,9 @@ fuzzTest inpath outroot = do
       Right () -> do
         writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
         return (Just newName)
+   | (index,defs) <- (zip [(0::Int) ..] possibilities)
+   ]
+
  where
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
    let total = length cVars + length sVars
@@ -124,13 +132,17 @@ fuzzTest inpath outroot = do
    in
     [ -- (steal1A+steal1B, steal2)
      dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
-        , cVars = drop steal1A cVars -- ++ take steal2 sVars
-        , sVars = drop (steal1B) sVars }
+        , cVars = drop steal1A cVars ++ take steal2 sVars
+        , sVars = drop (steal1B + steal2) sVars }
     | steal1A <- [0..length cVars]
     , steal1B <- [0.. if steal1A == length cVars
                       then length sVars
                       else 0]
+    -- This attempts the stronger form of gradualizaiton, where synth
+    -- vars can be demoted to checked.  I think this form doesn't actually
+    -- hold, but we need to pinpoint exactly why.
     -- , steal2  <- [0.. length sVars - steal1B]
+    , let steal2 = 0 -- Alternatively, this uses only the simpler gradualization.
     ]
 
 --------------------------------------------------------------------------------
