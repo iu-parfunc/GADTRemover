@@ -14,8 +14,14 @@ time $STACK test
 # Then we run some standalone tests:
 RUN="stack exec ghostbust --"
 
+if [ `uname` == "Darwin" ]; then
+    OS=osx
+else
+    OS=linux
+fi
+
 # Hack, for now assume Stack has installed GHC:
-GHC=~/.stack/programs/x86_64-linux/ghc-7.10.2/bin/ghc
+GHC=~/.stack/programs/x86_64-${OS}/ghc-7.10.2/bin/ghc
 
 # First, run one example by hand.
 
