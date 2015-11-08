@@ -139,14 +139,26 @@ gatherAnnotation _ = []
 -- | For a "regular" data def, the output types are always going to be the
 --   input type for that type constructor
 convertQualConDecl :: [MonoTy] -> QualConDecl -> KCons
-convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx (ConDecl name typs)) =
-  KCons (fromName name) (foldr gatherFields [] typs) outputs
-    where
-      gatherFields :: Type -> [MonoTy] -> [MonoTy]
-      gatherFields t acc =
-        case convertType t of
-          Nothing -> acc
-          Just t -> t : acc
+convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx decl) =
+  KCons (fromName (nameOf decl))
+        (foldr gatherFields [] (typesOf decl))
+        outputs
+  where
+    gatherFields :: Type -> [MonoTy] -> [MonoTy]
+    gatherFields t acc =
+      case convertType t of
+        Nothing -> acc
+        Just t  -> t : acc
+
+    nameOf :: ConDecl -> Name
+    nameOf (ConDecl n _)        = n
+    nameOf (InfixConDecl _ n _) = n
+    nameOf (RecDecl n _)        = n
+
+    typesOf :: ConDecl -> [Type]
+    typesOf (ConDecl _ t)        = t
+    typesOf (InfixConDecl l _ r) = [l,r]
+    typesOf (RecDecl _ ts)       = map snd ts
 
       -- TODO?
       -- gatherOutputs :: Type -> [MonoTy] -> [MonoTy]
