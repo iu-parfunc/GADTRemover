@@ -1,5 +1,3 @@
--- Created:       Fri 03 Jul 2015 11:32:18 AM EDT
--- Last Modified: Sun 05 Jul 2015 10:34:00 PM EDT
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
@@ -12,15 +10,12 @@
 
 module Ghostbuster.Parser.Prog where
 
--- import qualified Ghostbuster.CodeGen.Prog as GCP
-import           Ghostbuster.Types        as G hiding (outputs)
-import           Language.Haskell.Exts    as H hiding (name)
-import           Text.PrettyPrint.GenericPretty (Out(doc))
--- import           Control.Monad
--- import           Control.Applicative
-import qualified Data.Set as S
 import           Data.List
+import qualified Data.Set                       as S
 import           Debug.Trace
+import           Ghostbuster.Types              as G hiding (outputs)
+import           Language.Haskell.Exts          as H hiding (name)
+import           Text.PrettyPrint.GenericPretty (Out(doc))
 
 -- | User facing, they use this datatype in their annotations (see test.hs for an example of this)
 data Ghostbust k c s = G k c s
@@ -219,29 +214,33 @@ convertType other = error $ "Unhandled type argument to constructor: "++show oth
 
 
 gatherTypes :: Bool -> Type -> [G.MonoTy]
-gatherTypes _b (TyApp t1 t2) =
- let t1' = convertType t1
-     t2' = convertType t2
- in case t1' of
-      Nothing -> case t2' of
-                   Nothing -> []
-                   Just t  -> [t]
-      Just tt1' -> case t2' of
-                    Nothing -> [tt1']
-                    Just tt2' -> (tt1' : [tt2'])
-gatherTypes b (TyFun t1 t2) = if b
-                              then gatherTypes b t1 ++ gatherTypes b t2
-                              else let Just t1' = convertType t1
-                                       Just t2' = convertType t2
-                                   in [ArrowTy t1' t2']
-gatherTypes _b (TyParen t) = gatherTypes False t
-gatherTypes _b (TyVar name) = [G.VarTy (fromName name)]
-gatherTypes _b (TyTuple _ typs) = case  mapM convertType typs of
-                                  Just ts -> [ConTy (mkVar ("Tup" ++ show (length typs))) ts]
-                                  Nothing -> []
--- FIXME: hacky
-gatherTypes _b (TyCon (UnQual name)) = [ ConTy (fromName name) [] ]
-gatherTypes _ t = error $ "WITH TYPE = " ++ show t
+gatherTypes combine = go
+  where
+    go :: Type -> [G.MonoTy]
+    go (TyApp t1 t2)      = let t1' = convertType t1
+                                t2' = convertType t2
+                            in case t1' of
+                              Nothing   -> case t2' of
+                                             Nothing -> []
+                                             Just t  -> [t]
+                              Just tt1' -> case t2' of
+                                             Nothing   -> [tt1']
+                                             Just tt2' -> (tt1' : [tt2'])
+    go (TyFun t1 t2)
+      | combine           = go t1 ++ go t2
+      | otherwise         = let Just t1' = convertType t1
+                                Just t2' = convertType t2
+                            in [ArrowTy t1' t2']
+    go (TyParen t)        = gatherTypes False t
+    go (TyVar name)       = [G.VarTy (fromName name)]
+    go (TyTuple _ tup)    = case mapM convertType tup of
+                              Just ts -> [ConTy (mkVar ("Tup" ++ show (length tup))) ts]
+                              Nothing -> []
+    go (TyBang _ t)       = go t
+
+    -- FIXME: hacky
+    go (TyCon (UnQual n)) = [ ConTy (fromName n) [] ]
+    go t                  = error $ "Ghostbuster.Parser.Prog.gatherTypes (unhandled case):" ++ show t
 
 -- | Take a bunch of type applications to a type constructor and turn it into
 --   a ConTy applied to a list of those types. We have to do this in order to mimic
