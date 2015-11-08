@@ -2,15 +2,16 @@
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
-module Ghostbuster
-       ( runWGhostbusted
---       , interpWGhostbusted
-       , runghcProg
-       , say
-       , ghostBustToFile
-       , writeProg
-       , fuzzTest
-       ) where
+module Ghostbuster (
+      Ghostbust
+    , runWGhostbusted
+    -- , interpWGhostbusted
+    , runghcProg
+    , say
+    , ghostBustToFile
+    , writeProg
+    , fuzzTest
+) where
 
 import           Ghostbuster.Ambiguity                  as A
 import           Ghostbuster.CodeGen.Prog               as CG
