@@ -92,7 +92,7 @@ writeProg filename prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
-fuzzTest :: FilePath -> FilePath -> IO [IO (Maybe FilePath)]
+fuzzTest :: FilePath -> FilePath -> IO [Maybe (Int, FilePath)]
 fuzzTest inpath outroot = do
   Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule inpath
   let possibilities = sequence $ map varyBusting prgDefs
@@ -106,7 +106,7 @@ fuzzTest inpath outroot = do
                     , map (unVar . fst) sVars)
     putStr "\n"
 
-  return [
+  sequence [
     let
         (file,ext) = splitExtension outroot
         newName    = file ++ printf "%03d" index <.> ext
@@ -118,7 +118,7 @@ fuzzTest inpath outroot = do
 
       Right () -> do
         writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
-        return (Just newName)
+        return (Just (index,newName))
    | (index,defs) <- (zip [(0::Int) ..] possibilities)
    ]
 
