@@ -28,6 +28,7 @@ library
                        Ghostbuster.Showable
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.Examples.Tiny
+                       Ghostbuster.CodeGen
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
                        Ghostbuster.CodeGen.Exp
