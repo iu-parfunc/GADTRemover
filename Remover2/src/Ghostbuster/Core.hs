@@ -12,14 +12,16 @@ module Ghostbuster.Core
     -- )
   where
 
-import           Control.Exception ( assert )
-import           Data.List (isSuffixOf)
-import qualified Data.Map as M
-import qualified Data.Set as S
+import           Control.Exception      ( assert )
+import           Data.List              (isSuffixOf)
+import qualified Data.List              as L
+import qualified Data.Map               as M
+import qualified Data.Set               as S
 import           Debug.Trace
 import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
 import           Ghostbuster.Types
 import           Ghostbuster.Utils
+import           Text.Printf
 
 type Equations  = (M.Map TyVar [TyVar])
 type Patterns   = (M.Map TyVar MonoTy)
@@ -38,32 +40,58 @@ downtrace _ x = x
 --   generate a full program that executes that expression in the
 --   context of the ghostbuster-generated definitions.
 ghostbuster :: [DDef] -> (TyScheme,Exp) -> Prog
-ghostbuster ddefs (topTy,topExp) = Prog (ddefs ++ ddefsNew) vdefsNew vtop
+ghostbuster ddefs (topTy,topExp) = Prog (ddefsIn ++ ddefsNew) vdefsNew vtop
   where
   vtop = VDef "ghostbuster" topTy topExp
 
-  allddefs      = ddefs ++ primitiveTypes
-  bustedDefs    = [ dd | dd@DDef {cVars,sVars} <- allddefs
-                       , not (null cVars) || not (null sVars)
-                  ]
+  (yes,no)      = L.partition bust ddefs
+  bust DDef{..} = not (null cVars) || not (null sVars)
+  yes'          = map renameTopVars yes
 
-  result        = map ghostbusterDDef bustedDefs
+  ddefsIn       = yes' ++ no
+  result        = map ghostbusterDDef yes'
   ddefsNew      = concat (map fst result)
   vdefsNew      = concat (map snd result)
 
   ghostbusterDDef :: DDef -> ([DDef], [VDef])
   ghostbusterDDef ddef = (returnDDefs, returnVDefs)
     where
-    ddefStripped                = gadtToStripped allddefs ddef
+    inputs                      = ddefsIn ++ primitiveTypes
+    ddefStripped                = gadtToStripped inputs ddef
     (ddefNoEquals, equalities)  = equalityRemoval ddef
     (ddefNormilized, patterns)  = pmRemoval ddefNoEquals
     sealed                      = generateSealed ddef
 
     returnDDefs = [ ddefStripped, sealed ]   -- at the moment, these two.
-    returnVDefs = [ generateDown   allddefs (tyName ddef)
-                  -- , generateUp allddefs patterns equalities ddefNormilized
-                  , genUp2 allddefs (tyName ddef)
+    returnVDefs = [ generateDown   inputs (tyName ddef)
+                  -- , generateUp inputs patterns equalities ddefNormilized
+                  , genUp2 inputs (tyName ddef)
                   ]
+
+  -- Perform dodgy renaming of the type variables at the head of the GADT
+  -- declaration. These should really be fresh names that we know don't
+  -- appear in any of the constructors, otherwise the code generator will
+  -- create type representation terms that will lead to name capture.
+  --
+  -- Basically, we don't want something like this:
+  --
+  -- > data Map k a where       -- must rename this 'k' and 'a'
+  -- >    Tip :: Map k a
+  --
+  -- See #12
+  --
+  renameTopVars :: DDef -> DDef
+  renameTopVars DDef{..} =
+    let
+        go :: String -> Int -> (TyVar,Kind) -> (TyVar,Kind)
+        go p i (v,k)  = (mkVar (printf "%s%s%d" (unMkVar v) p i), k)
+        --
+        kVars'        = zipWith (go "_k") [0..] kVars
+        cVars'        = zipWith (go "_c") [0..] cVars
+        sVars'        = zipWith (go "_s") [0..] sVars
+    in
+    DDef tyName kVars' cVars' sVars' cases
+
 
 --------------------------------------------------------------------------------
 -- Converting the data types

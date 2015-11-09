@@ -1,13 +1,14 @@
 
 import Ghostbuster.Parser.Prog
 
-{-# ANN Map (Ghostbust [] [key,val] []) #-}
-data Map key val where
-  Bin :: Size -> k -> a -> (Map k a) -> (Map k a) -> Map k a
-  Tip :: Map k a
+-- {-# ANN Map (Ghostbust [] [k,v] []) #-}
+-- data Map k v where
+--   Bin :: Size -> k -> a -> (Map k a) -> (Map k a) -> Map k a
+--   Tip :: Map k a
 
--- data Map k a  = Bin {-# UNPACK #-} !Size !k a !(Map k a) !(Map k a)
---               | Tip
+{-# ANN Map (Ghostbust [] [k,a] []) #-}
+data Map k a  = Bin {-# UNPACK #-} !Size !k a !(Map k a) !(Map k a)
+              | Tip
 
 -- type Size     = Int
 
