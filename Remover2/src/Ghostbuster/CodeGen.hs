@@ -5,9 +5,10 @@ module Ghostbuster.CodeGen where
 import Ghostbuster.Types
 import Ghostbuster.CodeGen.Prog
 
+import Data.List
 import Data.Maybe
-import Text.Printf
 import Language.Haskell.Exts
+import Text.Printf
 
 
 -- Pretty print a Ghostbuster Prog into Haskell source code. Additionally,
@@ -17,9 +18,9 @@ prettyProg :: Prog -> String
 prettyProg prog =
     let
         mdl     = prettyPrint (moduleOfProg prog)
-        header  = unlines $ mapMaybe erasureInfo (prgDefs prog)
+        header  = intercalate "--\n" $ mapMaybe erasureInfo (prgDefs prog)
     in
-    unlines [ header, mdl ]
+    intercalate "--\n" [ header, mdl ]
 
 
 erasureInfo :: DDef -> Maybe String
@@ -36,7 +37,6 @@ erasureInfo DDef{..}
               , printf "--    kept        : %s" k
               , printf "--    checked     : %s" c
               , printf "--    synthesised : %s" s
-              , "--"
               ]
 
 erasureInfo _ = Nothing
