@@ -192,25 +192,20 @@ convertType = go
     go :: Type -> G.MonoTy
     go (TyFun a b)              = G.ArrowTy (go a) (go b)
     go (TyVar v)                = G.VarTy (fromName v)
-
-    go (TyTuple _ ts)           = G.ConTy (mkVar (printf "Tup%d" (length ts'))) ts'
-                                  where ts' = map go ts
-
+    go (TyCon c)                = G.ConTy (varOfQName c) []
     go (TyParen t)              = go t  -- careful here
     go (TyBang s t)             = bang s (go t)
-    go (TyCon c)                = G.ConTy (varOfQName c) []
+    go (TyTuple _ ts)           = let ts' = map go ts
+                                  in  G.ConTy (mkVar (printf "Tup%d" (length ts'))) ts'
     go t@TyApp{}                = let app (TyApp (TyCon c) t) = (c, [go t])
                                       app (TyApp a b)         = let (c,r) = app a in (c, r ++ [go b])
                                       app _                   = error "convertType: unhandled type application"
-
+                                      --
                                       (c,ts)                  = app t
-                                  in
-                                  G.ConTy (varOfQName c) ts
-
+                                  in  G.ConTy (varOfQName c) ts
     go other                    = error $ printf "convertType: unhandled case: %s" (show other)
 
     bang _ t                    = t
-
     -- bang BangedTy t             = G.ConTy (mkVar "!")              [t]
     -- bang UnpackedTy t           = G.ConTy (mkVar "{-# UNPACK #-}") [t]
 
