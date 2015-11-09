@@ -211,6 +211,7 @@ convertType = go
 
 
 -- | Convert a QName into a Ghostbuster name
+--
 varOfQName :: QName -> G.Var
 varOfQName qname =
   let
