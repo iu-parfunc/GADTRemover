@@ -45,6 +45,7 @@ library
                      , atomic-primops >= 0.6
                      , mtl
                      , haskell-src-exts >= 1.16
+                     , cpphs >= 1.19
                      , process
                      , directory
                      , filepath
@@ -68,6 +69,7 @@ Test-suite test-ghostbuster
                , hint >= 0.4
                , deepseq
                , haskell-src-exts >= 1.16
+               , cpphs >= 1.19
                , GenericPretty >= 1.2
                , temporary >= 1.2
                , process
@@ -87,6 +89,7 @@ Executable ghostbust
                     , directory
                     , filepath
                     , haskell-src-exts >= 1.16
+                    , cpphs >= 1.19
                     , mtl
                     , pretty >= 1.1.1.1
                     , process

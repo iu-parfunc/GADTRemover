@@ -16,6 +16,7 @@ import           Debug.Trace
 import           Ghostbuster.Types              as G hiding (outputs)
 import           Language.Haskell.Exts          as H hiding (name)
 import           Text.PrettyPrint.GenericPretty (Out(doc))
+import qualified Language.Preprocessor.Cpphs as CP
 
 -- | User facing, they use this datatype in their annotations (see test.hs for an example of this)
 data Ghostbust k c s = G k c s
@@ -30,14 +31,15 @@ type GhostBustDecls = [(TName,GhostBustDecl [TyVar] [TyVar] [TyVar])]
 -- | Take a module name (as a file name to read in) and parse it into our AST
 gParseModule :: String -> IO G.Prog
 gParseModule str = do
-  parsed <- parseFileWithMode ParseMode { parseFilename         = str
-                                        , baseLanguage          = Haskell2010
-                                        , extensions            = glasgowExts
-                                        , ignoreLanguagePragmas = False
-                                        , ignoreLinePragmas     = True
-                                        , fixities              = Just preludeFixities
-                                        }
-                              str
+  parsed <- parseFileContentsWithMode
+    (ParseMode { parseFilename         = str
+               , baseLanguage          = Haskell2010
+               , extensions            = glasgowExts
+               , ignoreLanguagePragmas = False
+               , ignoreLinePragmas     = True
+               , fixities              = Just preludeFixities
+               })
+    <$> ((CP.runCpphs CP.defaultCpphsOptions "") =<< (readFile str))
   let (Module _srcLoc _moduleName _ _ _ _ decls) = fromParseResult parsed
       prog = gParseProg decls
   {-putStrLn "INPUT PROGRAM: \n\n"-}
@@ -47,7 +49,7 @@ gParseModule str = do
   print $ doc prog
   putStrLn "\n\n==============================\n\n"
   {-putStrLn "\n\nCODEGEN'd PROGRAM\n\n"-}
-  {-putStrLn $ prettyPrint $ GCP.moduleOfProg prog-}
+  {-putStrLn $ prettyPrint $ GCP.moduleOfProg prog -- TZ-}
   {-putStrLn "\n\n==============================\n\n"-}
   return prog
 
