@@ -25,9 +25,13 @@ GHC=~/.stack/programs/x86_64-${OS}/ghc-7.10.2/bin/ghc
 
 # First, run one example by hand.
 
-$RUN Remover2/examples/MiniFeldspar.hs Remover2/examples/MiniFeldspar_busted.hs
-$GHC Remover2/examples/MiniFeldspar_busted.hs
+$RUN Remover2/examples/MiniFeldspar.hs Remover2/examples/output/MiniFeldspar_Busted.hs
+$GHC Remover2/examples/output/MiniFeldspar_Busted.hs
 
 # Second, run in fuzz test mode:
 
-$RUN --fuzz Remover2/examples/MiniFeldspar.hs
+rm -rf Remover2/examples/output/
+for file in `ls Remover2/examples/*.hs`; do
+    $RUN --fuzz $file
+done
+

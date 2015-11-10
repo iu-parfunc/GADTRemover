@@ -28,6 +28,7 @@ library
                        Ghostbuster.Showable
                        Ghostbuster.Examples.Feldspar
                        Ghostbuster.Examples.Tiny
+                       Ghostbuster.CodeGen
                        Ghostbuster.CodeGen.Base
                        Ghostbuster.CodeGen.DDef
                        Ghostbuster.CodeGen.Exp
@@ -45,6 +46,7 @@ library
                      , atomic-primops >= 0.6
                      , mtl
                      , haskell-src-exts >= 1.16
+                     , cpphs >= 1.19
                      , process
                      , directory
                      , filepath
@@ -68,6 +70,7 @@ Test-suite test-ghostbuster
                , hint >= 0.4
                , deepseq
                , haskell-src-exts >= 1.16
+               , cpphs >= 1.19
                , GenericPretty >= 1.2
                , temporary >= 1.2
                , process
@@ -80,15 +83,17 @@ Executable ghostbust
  hs-source-dirs: ./tool/
  build-depends: Ghostbuster
  build-depends:       GenericPretty >= 1.2
+                    , atomic-primops >= 0.6
                     , base >=4.7 && <4.9
                     , bytestring >= 0.10
-                    , pretty >= 1.1.1.1
                     , containers >= 0.5.5
-                    , atomic-primops >= 0.6
-                    , mtl
-                    , haskell-src-exts >= 1.16
-                    , process
+                    , directory
                     , filepath
+                    , haskell-src-exts >= 1.16
+                    , cpphs >= 1.19
+                    , mtl
+                    , pretty >= 1.1.1.1
+                    , process
                     , tasty
                     , tasty-hunit
---                    , tasty-program
+

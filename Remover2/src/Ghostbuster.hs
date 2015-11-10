@@ -2,36 +2,32 @@
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
-module Ghostbuster
-       ( runWGhostbusted
---       , interpWGhostbusted
-       , runghcProg
-       , say
-       , ghostBustToFile
-       , writeProg
-       , fuzzTest
-       ) where
+module Ghostbuster (
+      Ghostbust
+    , runWGhostbusted
+    -- , interpWGhostbusted
+    , runghcProg
+    , say
+    , ghostBustToFile
+    , writeProg
+    , fuzzTest
+) where
 
-import           Ghostbuster.Ambiguity                  as A
-import           Ghostbuster.CodeGen.Prog               as CG
-import qualified Ghostbuster.Core                       as Core
-import           Ghostbuster.Interp                     ()
-import           Ghostbuster.LowerDicts
-import           Ghostbuster.Parser.Prog                as Parse
-import           Ghostbuster.Types
+import Ghostbuster.Ambiguity   as A
+import Ghostbuster.CodeGen
+import Ghostbuster.Core        as Core
+import Ghostbuster.Interp      ()
+import Ghostbuster.LowerDicts
+import Ghostbuster.Parser.Prog as Parse
+import Ghostbuster.Types
 
-import Control.Exception              (catch, SomeException, throw)
-import Control.Monad                  (forM_, forM, liftM)
--- import Data.List                      (transpose)
--- import Data.Maybe                     (catMaybes)
-import Language.Haskell.Exts.Pretty
+import Control.Exception       (catch, SomeException, throw)
+import Control.Monad           (forM_)
 import System.Directory
--- import System.Environment
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
--- import Text.PrettyPrint.GenericPretty (Out(doc))
 import Text.Printf
 
 
@@ -55,13 +51,13 @@ runWGhostbusted tname ddefs mainE =
 -- | Just like runWGhostbusted, but run through the interpreter.
 --
 --   This pretty prints the resulting `Val`.
-interpWGhostbusted :: Maybe String -> [DDef] -> (TyScheme, Exp) -> IO ()
-interpWGhostbusted tname ddefs mainE =
-  case ambCheck ddefs of
-    Left err -> error$ "Failed ambiguity check:\n" ++err
-    Right () ->
-      undefined $
-       lowerDicts $ Core.ghostbuster ddefs mainE
+-- interpWGhostbusted :: Maybe String -> [DDef] -> (TyScheme, Exp) -> IO ()
+-- interpWGhostbusted tname ddefs mainE =
+--   case ambCheck ddefs of
+--     Left err -> error$ "Failed ambiguity check:\n" ++err
+--     Right () ->
+--       undefined $
+--        lowerDicts $ Core.ghostbuster ddefs mainE
 
 
 --------------------------------------------------------------------------------
@@ -71,7 +67,7 @@ interpWGhostbusted tname ddefs mainE =
 
 ghostBustToFile :: FilePath -> FilePath -> IO ()
 ghostBustToFile input output = do
-  (Prog prgDefs prgVals (VDef name tyscheme expr)) <- Parse.gParseModule input
+  Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule input
   case ambCheck prgDefs of
     Left err -> error$ "Failed ambiguity check:\n" ++err
     Right () ->
@@ -79,10 +75,11 @@ ghostBustToFile input output = do
        lowerDicts $ Core.ghostbuster prgDefs (tyscheme, expr)
 
 writeProg :: String -> Prog -> IO ()
-writeProg flName prog = do
-  hdl <- openFile flName WriteMode
-  say ("\n Writing to file " ++ flName)$ do
-    let contents = prettyPrint $ moduleOfProg prog
+writeProg filename prog = do
+  createDirectoryIfMissing True (takeDirectory filename)
+  hdl <- openFile filename WriteMode
+  say ("\n Writing to file " ++ filename)$ do
+    let contents = prettyProg prog
     hPutStr hdl contents
     hClose hdl
     say "\n File written." $
@@ -95,12 +92,12 @@ writeProg flName prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
-fuzzTest :: FilePath -> FilePath -> IO [IO (Maybe FilePath)]
+fuzzTest :: FilePath -> FilePath -> IO [Maybe (Int, FilePath)]
 fuzzTest inpath outroot = do
-  (Prog prgDefs _prgVals (VDef _name tyscheme expr)) <- Parse.gParseModule inpath
+  Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule inpath
   let possibilities = sequence $ map varyBusting prgDefs
   putStr $ "GOT POSSIBILITIES: "++ show (length possibilities) ++"\n"
-  forM_ (zip [0..] possibilities) $ \ (ind,defs) -> do
+  forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
     putStr $ show ind ++ ": "
     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
       putStr $ "  " ++
@@ -109,26 +106,27 @@ fuzzTest inpath outroot = do
                     , map (unVar . fst) sVars)
     putStr "\n"
 
-  return [
+  sequence [
     let
         (file,ext) = splitExtension outroot
         newName    = file ++ printf "%03d" index <.> ext
     in
     case ambCheck defs of
       Left err -> do
-        printf "Possibility %d failed ambiguity check!\n" index
+        printf "Possibility %d failed ambiguity check!\nReturned error: %s" index err
         return Nothing
 
       Right () -> do
         writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
-        return (Just newName)
+        return (Just (index,newName))
    | (index,defs) <- (zip [(0::Int) ..] possibilities)
    ]
 
  where
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
-   let total = length cVars + length sVars
-       erased = (cVars++sVars)
+   let
+       -- total = length cVars + length sVars
+       -- erased = (cVars++sVars)
    in
     [ -- (steal1A+steal1B, steal2)
      dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
@@ -169,7 +167,7 @@ runghcProg (Just tname) prg =
    (file,hdl) <- openTempFile ghostbustTempDir ("temp_"++tname++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
    say ("\n   Writing file to: "++ file) $ do
-    let contents = (prettyPrint (moduleOfProg prg))
+    let contents = prettyProg prg
     hPutStr hdl contents
     hClose hdl
     say ("   File written.") $ do
