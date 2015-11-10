@@ -5,7 +5,7 @@ import Ghostbuster
 import Data.Word
 import qualified GHC.Exts
 
--- {-# ANN HashMap (Ghostbust [k,v] [] []) #-}
+{-# ANN HashMap (Ghostbust [k,v] [] []) #-}
 -- | A map from keys to values.  A map cannot contain duplicate keys;
 -- each key can map to at most one value.
 data HashMap k v
@@ -15,10 +15,10 @@ data HashMap k v
     | Full !(Array (HashMap k v))
     | Collision !Hash !(Array (Leaf k v))
 
--- {-# ANN Leaf (Ghostbust [] [] [k,v]) #-}
+{-# ANN Leaf (Ghostbust [] [] [k,v]) #-}
 data Leaf k v = L !k v
 
--- {-# ANN Array (Ghostbust [] [] [a]) #-}
+{-# ANN Array (Ghostbust [] [] [a]) #-}
 data Array a = Array
     { unArray :: !(Array# a)
     , length  :: !Int

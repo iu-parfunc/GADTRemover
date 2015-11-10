@@ -127,7 +127,7 @@ convertDataDecl
     -> [TyVarBind]
     -> [KCons]
     -> DDef
-convertDataDecl ann nm tvs = DDef name (tyvars \\ (k++c++s)) c s
+convertDataDecl ann nm tvs = DDef name k c s
   where
     name        = fromName nm
     tyvars      = map kindTyVar tvs
