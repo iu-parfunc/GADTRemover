@@ -25,10 +25,16 @@ data Ghostbust k c s = G k c s
 {-data Ghostbust k c s = G {keep :: k , check :: c, synth :: s}-}
 
 -- | Internal representation of a Ghostbust annotation/declaration
-data GhostBustDecl k c s = GhostBustDecl TName k c s
+--
+data GhostbustAnn = GhostbustAnn
+  { gbName      :: TName
+  , gbKeep      :: [TyVar]
+  , gbCheck     :: [TyVar]
+  , gbSynth     :: [TyVar]
+  }
   deriving Show
 
-type GhostBustDecls = [(TName,GhostBustDecl [TyVar] [TyVar] [TyVar])]
+-- type GhostBustDecls = [(TName,GhostBustDecl [TyVar] [TyVar] [TyVar])]
 
 -- | Take a module name (as a file name to read in) and parse it into our AST
 gParseModule :: String -> IO G.Prog
@@ -91,7 +97,7 @@ gParseProg decls
 
 gatherByTyVar
     :: G.Var
-    -> GhostBustDecls
+    -> [GhostbustAnn]
     -> [(TyVar, G.Kind)]
     -> ( [(TyVar, G.Kind)]
        , [(TyVar, G.Kind)]
@@ -99,11 +105,9 @@ gatherByTyVar
        )
 gatherByTyVar nm anns ktys =
   let annMentioned = S.fromList (map fst ktys) in
-  case lookup nm anns of
-    -- not annotated
-    Nothing -> ([], [], [])
-    -- Annotated
-    Just (GhostBustDecl _ k c s) ->
+  case find (\a -> nm == gbName a) anns of
+    Nothing                     -> ([], [], []) -- No Ghostbuster annotation for this datatype
+    Just (GhostbustAnn _ k c s) ->              -- Things to ghostbust!
       if S.fromList (k++c++s) == annMentioned
         then ( filter (\x -> elem (fst x) k) ktys
              , filter (\x -> elem (fst x) c) ktys
@@ -118,7 +122,7 @@ gatherByTyVar nm anns ktys =
 -- data declaration.
 --
 convertDataDecl
-    :: GhostBustDecls
+    :: [GhostbustAnn]
     -> Name
     -> [TyVarBind]
     -> [KCons]
@@ -136,11 +140,9 @@ convertDataDecl ann nm tvs = DDef name (tyvars \\ (k++c++s)) c s
 --
 convertAnnotation
     :: Annotation
-    -> (TName, GhostBustDecl [TyVar] [TyVar] [TyVar])
+    -> GhostbustAnn
 convertAnnotation (Ann nm (Paren (App (App (App (Con _) (List ks)) (List cs)) (List ss)))) =
-  ( name
-  , GhostBustDecl name kept checked synth
-  )
+  GhostbustAnn name kept checked synth
   where
     name    = fromName nm
     kept    = [ varOfQName v | H.Var v <- ks ]
