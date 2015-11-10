@@ -69,22 +69,34 @@ kindTyVar (KindedVar nm kind) = (fromName nm, mkKind kind)
 kindTyVar (UnkindedVar nm)    = (fromName nm, G.Star)
 
 -- | Take a list of Decls (i.e., a Haskell module) and return the
---   corresponding Ghostbuster representation. The general mapping is:
+-- corresponding Ghostbuster representation. The general mapping is:
+--
 -- DDef:
 --  --> DataDecl
 --  --> GDataDecl
+--
 gParseProg :: [Decl] -> G.Prog
-gParseProg decls =
-   trace ("All annotiations found: "++show anns)$
-   G.Prog ddefs vdefs ex
+gParseProg decls
+  = trace (printf "All annotiations found: \n%s\n" (unlines $ map (printf "  %s" . show) anns))
+  $ G.Prog ddefs vdefs expr
   where
-   anns  = foldr ((++) . gatherAnnotation)     [] decls
-   ddefs = foldr ((++) . gatherDataDecls anns) [] decls
-   vdefs = []
-   ex    = gatherExp decls
+    anns  = [ convertAnnotation a | AnnPragma _ a <- decls ]
+    ddefs = [ convertTypeDecl name tvs t         | TypeDecl _ name tvs t                  <- decls ]
+         ++ [ convertDataDecl anns name tvs cons | GDataDecl _ DataType _ name tvs _ ks _ <- decls , let cons = map kconsOfGadtDecl ks ]
+         ++ [ convertDataDecl anns name tvs cons | DataDecl  _ DataType _ name tvs   ks _ <- decls , let cons = map (kconsOfQualConDecl tvs) ks ]
+    vdefs = []
 
-gatherByTyVar :: G.Var -> GhostBustDecls -> [(TyVar, G.Kind)]
-              -> ([(TyVar, G.Kind)],[(TyVar, G.Kind)],[(TyVar, G.Kind)])
+    -- TODO: generate real ghostbuster test program
+    expr  = VDef "ghostbuster" (ForAll [] (ConTy "()" [])) (EK "()")
+
+gatherByTyVar
+    :: G.Var
+    -> GhostBustDecls
+    -> [(TyVar, G.Kind)]
+    -> ( [(TyVar, G.Kind)]
+       , [(TyVar, G.Kind)]
+       , [(TyVar, G.Kind)]
+       )
 gatherByTyVar nm anns ktys =
   let annMentioned = S.fromList (map fst ktys) in
   case lookup nm anns of
@@ -92,74 +104,77 @@ gatherByTyVar nm anns ktys =
     Nothing -> ([], [], [])
     -- Annotated
     Just (GhostBustDecl _ k c s) ->
-      if S.fromList (k++c++s) == annMentioned then
-       (filter (\x -> elem (fst x) k) ktys,
-        filter (\x -> elem (fst x) c) ktys,
-        filter (\x -> elem (fst x) s) ktys)
-      else error$  "Error.\nGhostbuster annotation mentioned variables: "++show annMentioned ++
-                   "\nBut datatype is actually indexed by variables: "++show (k++c++s)
+      if S.fromList (k++c++s) == annMentioned
+        then ( filter (\x -> elem (fst x) k) ktys
+             , filter (\x -> elem (fst x) c) ktys
+             , filter (\x -> elem (fst x) s) ktys
+             )
+        else error $ "Error: gatherByTyVar.\n"
+                  ++ "Ghostbuster annotation mentioned variables: " ++ show annMentioned ++ "\n"
+                  ++ "But datatype is actually indexed by variables: "++ show (k++c++s)
 
--- | This reads in a data declaration. Kept, Checked, and Synthesized are marked via an annotation pragma as such:
---   {-# ANN <datatype name> (Ghostbust [<kept>] [<checked>] [<synthesized>])}
---   NOTE: this will be done via a pragma/comment
--- TODO: Need to clean this up and get rid of duplicaton
-gatherDataDecls :: GhostBustDecls -> Decl -> [DDef]
-gatherDataDecls anns (DataDecl _ DataType _ nm tyvars contrs _) =
-      let ktys = map kindTyVar tyvars
-          tName = fromName nm
-          (kept', checked, synthesized) = gatherByTyVar tName anns ktys
-          kept = ktys \\ (kept' ++ checked ++ synthesized)
-      in [DDef  tName kept checked synthesized  (map (convertQualConDecl (map (G.VarTy . fst) ktys)) contrs)]
-gatherDataDecls anns (GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
-      let ktys = map kindTyVar tyvars
-          tName = fromName nm
-          (kept', checked, synthesized) = gatherByTyVar tName anns ktys
-          kept = ktys \\ (kept' ++ checked ++ synthesized)
-      in [DDef tName kept checked synthesized (map kconsOfGadtDecl contrs)]
-gatherDataDecls _ _ = []
 
--- | FIXME: Implement
-gatherExp :: [Decl] -> G.VDef
-gatherExp _ = VDef "a" (ForAll [] (ConTy "Int" []))  (G.EVar "Three")
-
--- | Gather the annotations for data declarations
-gatherAnnotation :: Decl -> [(TName, GhostBustDecl [TyVar] [TyVar] [TyVar])]
-gatherAnnotation (AnnPragma _ (Ann nm (Paren (App (App (App (Con _) (List ks)) (List cs)) (List ss))))) =
-  [((fromName nm), GhostBustDecl (fromName nm) (map tyVarize ks) (map tyVarize cs) (map tyVarize ss))]
-    where
-     tyVarize (H.Var v) = varOfQName v
-gatherAnnotation ann@AnnPragma{} =
-  trace ("WARNING: ignoring annotation: "++show ann)
-  []
-gatherAnnotation _ = []
-
--- | For a "regular" data def, the output types are always going to be the
---   input type for that type constructor
-convertQualConDecl :: [MonoTy] -> QualConDecl -> KCons
-convertQualConDecl outputs (QualConDecl _srcLoc _tyvars _ctx decl) =
-  KCons (fromName (nameOf decl))
-        (foldr gatherFields [] (typesOf decl))
-        outputs
+-- | Convert a Haskell data definition (ADT or GADT) into a Ghostbuster
+-- data declaration.
+--
+convertDataDecl
+    :: GhostBustDecls
+    -> Name
+    -> [TyVarBind]
+    -> [KCons]
+    -> DDef
+convertDataDecl ann nm tvs = DDef name (tyvars \\ (k++c++s)) c s
   where
-    gatherFields :: Type -> [MonoTy] -> [MonoTy]
-    gatherFields t acc = convertType t : acc
-      -- case convertType t of
-      --   Nothing -> acc
-      --   Just t  -> t : acc
+    name        = fromName nm
+    tyvars      = map kindTyVar tvs
+    (k,c,s)     = gatherByTyVar name ann tyvars
 
-    nameOf :: ConDecl -> Name
-    nameOf (ConDecl n _)        = n
-    nameOf (InfixConDecl _ n _) = n
-    nameOf (RecDecl n _)        = n
 
-    typesOf :: ConDecl -> [Type]
-    typesOf (ConDecl _ t)        = t
-    typesOf (InfixConDecl l _ r) = [l,r]
-    typesOf (RecDecl _ ts)       = map snd ts
+-- | Convert Ghostbuster annotations on data declarations.
+--
+-- TODO: We should really pre-filter non-Ghostbuster annotations.
+--
+convertAnnotation
+    :: Annotation
+    -> (TName, GhostBustDecl [TyVar] [TyVar] [TyVar])
+convertAnnotation (Ann nm (Paren (App (App (App (Con _) (List ks)) (List cs)) (List ss)))) =
+  ( name
+  , GhostBustDecl name kept checked synth
+  )
+  where
+    name    = fromName nm
+    kept    = [ varOfQName v | H.Var v <- ks ]
+    checked = [ varOfQName v | H.Var v <- cs ]
+    synth   = [ varOfQName v | H.Var v <- ss ]
+convertAnnotation a =
+  error $ printf "convertAnnotation: parse error in Ghostbuster annotation '%s'\n" (show a)
 
-      -- TODO?
-      -- gatherOutputs :: Type -> [MonoTy] -> [MonoTy]
-      -- gatherOutputs acc t =  []
+
+convertTypeDecl
+    :: Name             -- name of the type declaration
+    -> [TyVarBind]      -- type variables
+    -> Type             -- the RHS of the type decl; ignored for now
+    -> DDef
+convertTypeDecl name tvs _ =
+  DDef (fromName name) (map kindTyVar tvs) [] [] []
+
+-- | For an ADT-style data declaration, the output types are always going
+-- to be the input type for that type constructor
+--
+kconsOfQualConDecl
+    :: [TyVarBind]
+    -> QualConDecl
+    -> KCons
+kconsOfQualConDecl tvs (QualConDecl _ _ _ decl) = KCons name args res
+  where
+    (n,t)       = case decl of
+                    ConDecl n t        -> (n,t)
+                    InfixConDecl l n r -> (n,[l,r])
+                    RecDecl n ts       -> (n,map snd ts)
+    --
+    name        = fromName n
+    args        = map convertType t
+    res         = map (VarTy . fst . kindTyVar) tvs
 
 
 -- | For a GADT data definition, convert it into a corresponding DDef in

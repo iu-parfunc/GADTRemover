@@ -2,6 +2,8 @@
 {-# LANGUAGE MagicHash #-}
 
 import Ghostbuster
+import Data.Word
+import qualified GHC.Exts
 
 -- {-# ANN HashMap (Ghostbust [k,v] [] []) #-}
 -- | A map from keys to values.  A map cannot contain duplicate keys;
@@ -22,11 +24,12 @@ data Array a = Array
     , length  :: !Int
     }
 
--- type Hash   = Word
--- type Bitmap = Word
-data Hash
-data Bitmap
+type Hash   = Word
+type Bitmap = Word
+-- data Hash
+-- data Bitmap
 
 -- GHC.Exts
-data Array# a
+-- data Array# a
+type Array# a = GHC.Exts.Array# a
 
