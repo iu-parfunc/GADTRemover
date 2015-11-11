@@ -10,7 +10,9 @@ step1:
 step2:
 	./UntarFiles.hs
 
+## All that you should need to do is feed it the location of the files here:
 step3:
+	# ./ConnectedComponents.hs <location of untarred files>
 # Gather DDefs from each discovered haskell file.
 # Organize output in per-package directories.
 

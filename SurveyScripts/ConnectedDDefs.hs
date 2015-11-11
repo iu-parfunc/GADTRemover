@@ -1,4 +1,5 @@
 #!/usr/bin/env stack
+-- stack --verbosity silent --resolver lts-3.8 --install-ghc runghc --package filemanip --package split
 -- | This is a shell script that yanks out all of the connected component
 -- data declarations (i.e., all the declarations that refer to each other
 -- in the same file) and puts them in separate files -- each file is a
@@ -7,6 +8,7 @@
 module ConnectedDDefs where
 
 import           System.Directory
+import qualified System.FilePath.Find as SFF
 import           System.Environment
 import           System.Exit
 import           System.FilePath
@@ -93,7 +95,8 @@ gatherCalled (TyParen t)              = gatherCalled t
 gatherCalled (TyBang s t)             = gatherCalled t
 gatherCalled (TyTuple _ ts)           = concatMap gatherCalled ts
 gatherCalled (TyApp t1 t2)            = gatherCalled t1 ++ gatherCalled t2
-gatherCalled other                    = error $ "convertType: unhandled case: " ++ show other
+gatherCalled (TyPromoted _)           = []
+gatherCalled other                    = [] -- error $ "convertType: unhandled case: " ++ show other
 
 nameOfQName :: QName -> Name
 nameOfQName qname =
@@ -105,15 +108,37 @@ nameOfQName qname =
   case qname of
     UnQual n              -> n
     Qual (ModuleName m) n -> Ident (m ++ '.':strOfName n)
-    Special _             -> error "varOfQName: unhandled case: Special"
+    Special x             -> error  ("varOfQName: unhandled case: Special " ++ show x) 
 
+---------------------------------------------------------------------------
+-- Different way of doing things...
+---------------------------------------------------------------------------
+
+main :: IO ()
+main = do
+  args <- getArgs
+  let (curDir, outputDir) = parseInput args
+  putStrLn curDir
+  putStrLn outputDir
+  fls <- SFF.find SFF.always
+        (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
+        curDir
+  mapM_ putStrLn fls
+  zipWithM_ outputCCs fls (map ((outputDir </>) . dropExtension) fls)
+
+parseInput :: [String] -> (String, String)
+parseInput [input]         = (input, takeDirectory input </> "output")
+parseInput [input, output] = (input, output)
+parseInput _               = error "parse failed"
+
+-- OBSOLETE
 ---------------------------------------------------------------------------
 -- Make the tool runable from the command line.
 ---------------------------------------------------------------------------
 -- | Most of this is pulled from the Main.hs file, however most of it is
 -- *slightly* different so I couldn't just pull that stuff in.
-main :: IO ()
-main = do
+fmain :: IO ()
+fmain = do
   args  <- getArgs
   check args
   let (inputFilename, baseOutputFilename) = parse args
@@ -145,7 +170,7 @@ check ls@(_:_:_:_)    = error (printf "Invalid args: %s\n" (show ls))
 check _               = return ()
 
 parse :: [String] -> (String, String)
-parse [input]         = (input, takeDirectory input </> "output" </> "CC_" ++ takeFileName input)
+parse [input]         = (input, takeDirectory input </> "output")
 parse [input, output] = (input, output)
 parse _               = error "parse failed"
 
