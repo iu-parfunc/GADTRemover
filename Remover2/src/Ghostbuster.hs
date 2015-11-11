@@ -92,11 +92,14 @@ writeProg filename prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
-fuzzTest :: FilePath -> FilePath -> IO [Maybe (Int, FilePath)]
-fuzzTest inpath outroot = do
+fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hypothesis?
+         -> FilePath -- ^ Input haskell file
+         -> FilePath -- ^ Seed to build output file path
+         -> IO [Maybe (Int, FilePath)]
+fuzzTest doStrong inpath outroot = do
   Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule inpath
   let possibilities = sequence $ map varyBusting prgDefs
-  putStr $ "GOT POSSIBILITIES: "++ show (length possibilities) ++"\n"
+  putStr $ "All weakening possibilities below current Ghostbuster erasure point: "++ show (length possibilities) ++"\n"
   forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
     putStr $ show ind ++ ": "
     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
@@ -139,8 +142,9 @@ fuzzTest inpath outroot = do
     -- This attempts the stronger form of gradualizaiton, where synth
     -- vars can be demoted to checked.  I think this form doesn't actually
     -- hold, but we need to pinpoint exactly why.
-    -- , steal2  <- [0.. length sVars - steal1B]
-    , let steal2 = 0 -- Alternatively, this uses only the simpler gradualization.
+    , steal2  <- if doStrong
+                 then [0 .. length sVars - steal1B]
+                 else [0] -- Alternatively, this uses only the simpler gradualization.
     ]
 
 --------------------------------------------------------------------------------
