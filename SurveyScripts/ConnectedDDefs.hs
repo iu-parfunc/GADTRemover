@@ -118,12 +118,9 @@ main :: IO ()
 main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
-  putStrLn curDir
-  putStrLn outputDir
   fls <- SFF.find SFF.always
         (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
         curDir
-  mapM_ putStrLn fls
   zipWithM_ outputCCs fls (map ((outputDir </>) . dropExtension) fls)
 
 parseInput :: [String] -> (String, String)
