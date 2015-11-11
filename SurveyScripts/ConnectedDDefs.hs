@@ -25,7 +25,7 @@ import           Control.Monad
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
-gParseModule :: String -> IO [[Decl]]
+gParseModule :: String -> IO [Module]
 gParseModule str = do
   parsed <- parseFileContentsWithMode
     ParseMode { parseFilename         = str
@@ -36,14 +36,17 @@ gParseModule str = do
               , fixities              = Just preludeFixities
               }
     <$> (CP.runCpphs CP.defaultCpphsOptions "" =<< (readFile str))
-  let Module _ _ _ _ _ _ decls = fromParseResult parsed
+  let Module a b c d e f decls = fromParseResult parsed
       ddefs                    = concatMap gatherDataDecls decls
       (graph, lookupF, memberF)= graphFromEdges $ makeGraph ddefs
       connComps                = components graph
       -- list of list of names of CCs
       connNames = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
       -- list of list of CC ddefs
-  return $ map (lookupDDef ddefs) connNames
+      cDefs = map (lookupDDef ddefs) connNames
+      -- Make this into a module of CC data defs
+      modules = map (Module a b c d e f) cDefs
+  return $ modules
 
 -- | Gather all of the data declarations for this module
 gatherDataDecls :: Decl -> [Decl]
@@ -144,18 +147,20 @@ fmain = do
 -- | Parse the module and return the list of CCs
 outputCCs :: String -> String -> IO ()
 outputCCs input outputBase = do
-  ccs <- gParseModule input
+  mods <- gParseModule input
   -- Each connected component gets a new name
-  zipWithM_ (\cc num -> writeProg (outputBase ++ "_" ++ show num ++ ".hs") cc) ccs [1..]
+  zipWithM_ (\mod num -> writeProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [1..]
 
 -- | Write the decls out to a file
-writeProg :: String -> [Decl] -> IO ()
-writeProg filename decls = do
+writeProg :: String -> Module -> IO ()
+writeProg filename (Module a nm c d e f decls) = do
   createDirectoryIfMissing True (takeDirectory filename)
   hdl <- openFile filename WriteMode
-  mapM_ ((hPutStr hdl) . (++ "\n") . prettyPrint) decls
+  hPutStr hdl (prettyPrint (Module a nm' c d e f decls))
   hClose hdl
   return ()
+    where
+      nm' = ModuleName (takeBaseName filename)
 
 ---- BOILERPLATE
 
