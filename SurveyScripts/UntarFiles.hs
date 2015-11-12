@@ -11,6 +11,7 @@ import Turtle as T
 import Filesystem.Path.CurrentOS as S
 import qualified Data.Text as Text
 
+outPath :: S.FilePath
 outPath = "data/2_untarred"
 
 main :: IO ()
@@ -21,5 +22,6 @@ main = sh $
      file <- ls "../1_only_newest_versions/"
      liftIO $ putStrLn $ "Unpacking: "++ S.encodeString file
      let (Right file_t) = S.toText file
-     shell (Text.append "tar xf " file_t) T.empty
+     _ <- shell (Text.append "tar xf " file_t) T.empty
      return ()
+

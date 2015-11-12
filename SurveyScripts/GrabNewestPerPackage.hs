@@ -25,13 +25,13 @@ import           Control.Exception (catch, SomeException, IOException)
 --------------------------------------------------------------------------------
 
 dataDir :: T.FilePath
-dataDir = "./data"
+dataDir = "." </> "data"
 
 inputDir :: T.FilePath
 inputDir = dataDir </> "0_hackage_all_tarballs"
 
 outputDir :: T.FilePath
-outputDir = "1_only_newest_versions"
+outputDir = dataDir </> "1_only_newest_versions"
 
 
 chatter :: String -> IO ()
@@ -58,15 +58,17 @@ main =
      chatter$ "Found "++show (M.size mp)++" distinct packages, among "++show (length ls)++" tarballs."
 
      chatter$ "Ensuring output dir exists..."
-     T.mktree $ "./data" </> outputDir
+     T.mktree outputDir
 
      chatter "Symlinking newest versions of each tarball..."
      forM_ (M.toList mp) $ \(_root,path) ->
        do
-          let ["./","data/",olddir,file] = S.splitDirectories path
-              newPath    = S.concat ["./","data/",outputDir,file]
-              newPath_s  = S.encodeString newPath
-              linkTarget = S.encodeString $ "../" </> olddir </> file
+          let
+              [_,_,olddir,file] = S.splitDirectories path
+              newPath           = outputDir </> file
+              newPath_s         = S.encodeString newPath
+              linkTarget        = S.encodeString $ "../" </> olddir </> file
+          --
           clearOutputFile newPath_s
           chatter $ "Creating link: " ++ newPath_s
           createSymbolicLink linkTarget newPath_s
