@@ -12,13 +12,24 @@ module Ghostbuster.Parser.Prog where
 
 import           Data.List
 import qualified Data.Set                       as S
-import           Debug.Trace
+import qualified Debug.Trace                    as Debug
 import           Ghostbuster.CodeGen
 import           Ghostbuster.Types              as G hiding (outputs)
 import           Language.Haskell.Exts          as H hiding (name)
 import qualified Language.Preprocessor.Cpphs    as CP
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Text.Printf
+
+{-# INLINE trace #-}
+trace :: String -> a -> a
+trace _ = id
+-- trace   = Debug.trace
+
+{-# INLINE traceIO #-}
+traceIO :: String -> IO ()
+traceIO _ = return ()
+-- traceIO = Debug.traceIO
+
 
 -- | User facing, they use this datatype in their annotations (see test.hs for an example of this)
 data Ghostbust k c s = G k c s
@@ -52,16 +63,17 @@ gParseModule str = do
       Module _ _ _ _ _ _ decls = fromParseResult parsed
       prog                     = gParseProg decls
 
-  putStrLn "INPUT PROGRAM: \n\n"
-  putStrLn $ show parsed
+  traceIO "INPUT PROGRAM: \n\n"
+  traceIO $ show parsed
 
-  putStrLn "\nDECLS\n\n";  print $ decls
-  putStrLn "\n\nPARSED PROGRAM\n\n"
-  print $ doc prog
-  putStrLn "\n\n==============================\n\n"
-  putStrLn "\n\nCODEGEN'd PROGRAM\n\n"
-  putStrLn $ prettyProg prog
-  putStrLn "\n\n==============================\n\n"
+  traceIO "\nDECLS\n\n"
+  traceIO $ show decls
+  traceIO "\n\nPARSED PROGRAM\n\n"
+  traceIO $ show (doc prog)
+  traceIO "\n\n==============================\n\n"
+  traceIO "\n\nCODEGEN'd PROGRAM\n\n"
+  traceIO $ prettyProg prog
+  traceIO "\n\n==============================\n\n"
   return prog
 
 -- | Convert a Haskell kind into a Ghostbuster kind
