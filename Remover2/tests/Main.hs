@@ -405,21 +405,23 @@ intTyp = EK "Int"
 ----------------------------------------
 
 main :: IO ()
-main =
-  do args <- getArgs
-     withArgs (["-t","2"] ++ args) $
-      defaultMain $
-        testGroup "" $
-        [ testsAbove ] ++
-        runAllProgs ++
-        runAllLoweredProgs ++
-        runAndCompareLowered ++
-        ghostbustAllProgs ++
-        codegenAllProgs ++
-        downFeldspar ++ downupFeldspar ++ downupdownFeldspar ++
-        [ downList, downList2
-        , downupList1
-        ]
+main = do
+  args <- getArgs
+  withArgs (["-t","2"] ++ args)
+    $ defaultMain
+    $ testGroup ""
+    $ testsAbove :
+      runAllProgs ++
+      runAllLoweredProgs ++
+      runAndCompareLowered ++
+      ghostbustAllProgs ++
+      codegenAllProgs ++
+      downFeldspar ++
+      downupFeldspar ++
+      downupdownFeldspar ++
+      [ downList, downList2
+      , downupList1
+      ]
 
 -- | Some tests are expected to fail as we develop new functionality.
 --   This documents that fact.  Update as we fix things.

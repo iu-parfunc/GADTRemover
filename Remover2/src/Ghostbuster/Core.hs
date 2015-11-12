@@ -27,8 +27,8 @@ type Equations  = (M.Map TyVar [TyVar])
 type Patterns   = (M.Map TyVar MonoTy)
 
 -- Toggle these to turn on debugging prints:
--- uptrace = trace
 uptrace :: String -> t1 -> t1
+-- uptrace = trace
 uptrace _ x = x
 
 downtrace :: String  -> t1 -> t1
@@ -417,16 +417,22 @@ genUp2 alldefs which =
                                      ([ buildDict (VarTy sv)
                                       | (sv,_) <- sVars ] ++ [x])
   unseal :: UnsealFn
-  unseal (tn,vr) denv x k
-         | null sVars = k denv ([],x)
-         | otherwise  =
-            let vr' = vr +++ "'"
-                sVs = getSVars alldefs tn
-                newDictVs = [ dictArgify (tv +++ "_" +++ vr')
-                            | tv <- sVs ]
+  unseal (tn,vr) denv x k =
+    let
+        -- Be sure to check which type variables are in c/k/s position for
+        -- the term that we are unsealing, not the term that we are
+        -- generating the up conversion function for. See #13.
+        DDef{..} = lookupDDef alldefs tn
+    in
+    if null sVars
+      then k denv ([],x)
+      else
+            let vr'       = gadtDownName vr
+                sVs       = getSVars alldefs tn
+                newDictVs = [ dictArgify (tv +++ "_" +++ vr') | tv <- sVs ]
                 -- TODO: There may be an issue with needing FRESH type variable names here.
                 -- To actually generate the correct code we may need to use scoped type variables.
-            in trace ("Generating unseal ECase, vars: "++show(kVars,cVars,sVars))$
+            in uptrace ("Generating unseal ECase, vars: "++show(kVars,cVars,sVars))$
                ECase x
                [ ( Pat (toSealedName tn) (newDictVs ++ [vr']),
                  k denv (newDictVs, (EVar vr')))]
@@ -442,11 +448,11 @@ getCVars :: [DDef] -> TName -> [TyVar]
 getCVars defs = map fst . cVars . lookupDDef defs
 
 type UnsealFn
-   = ((TName,TermVar) -- ^
+   =  (TName, TermVar)          -- ^
    -> DictEnv
    -> Exp
-   -> (Cont ([TermVar],Exp)) -- ^ The continuation receives new dictionaries
-   -> Exp)
+   -> Cont ([TermVar], Exp)     -- ^ The continuation receives new dictionaries
+   -> Exp
 
 type Cont a = (DictEnv -> a -> Exp)
 
@@ -517,10 +523,13 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   doField :: DictEnv -> TermVar -> MonoTy -> (Cont Exp) -> Exp
   doField denv var (ConTy tn tyargs) k
     | hasErased alldefs tn =
-       let sTys = [ t | (Synth,t) <- zip (getArgStatus alldefs tn) tyargs ]
-           cTys = [ t | (Check,t) <- zip (getArgStatus alldefs tn) tyargs ]
-           kTys = [ t | (Keep,t)  <- zip (getArgStatus alldefs tn) tyargs ]
-       in dispatchRecursion denv (tn,kTys++cTys) (EVar var)
+       let
+           status = zip (getArgStatus alldefs tn) tyargs
+           sTys   = [ t | (Synth,t) <- status ]
+           cTys   = [ t | (Check,t) <- status ]
+           kTys   = [ t | (Keep,t)  <- status ]
+       in
+       dispatchRecursion denv (tn,kTys++cTys) (EVar var)
           (\denv' eapp ->
             unseal (tn,var) denv' eapp
               (\denv'' (svs, thisFieldE) ->
@@ -532,9 +541,11 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
   doField denv var field k
     -- NOTE: one of our current rules is that there are not
     -- `hasErased` types under here:
-    | containErased alldefs field =
-      error $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
-    | otherwise = k denv (EVar var)
+    | containErased alldefs field
+    = error $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
+    --
+    | otherwise
+    = k denv (EVar var)
 
 
   dispatchRecursion denv (tn,witnessedTys) expr k =
