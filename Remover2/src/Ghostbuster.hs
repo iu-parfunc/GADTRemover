@@ -11,6 +11,7 @@ module Ghostbuster (
     , ghostBustToFile
     , writeProg
     , fuzzTest
+    , fuzzTestDDef
 ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -92,12 +93,8 @@ writeProg filename prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
-fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hypothesis?
-         -> FilePath -- ^ Input haskell file
-         -> FilePath -- ^ Seed to build output file path
-         -> IO [Maybe (Int, FilePath)]
-fuzzTest doStrong inpath outroot = do
-  Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule inpath
+fuzzTestDDef :: Bool -> Prog -> FilePath -> IO [Maybe (Int, FilePath)]
+fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
   let possibilities = sequence $ map varyBusting prgDefs
   putStr $ "All weakening possibilities below current Ghostbuster erasure point: "++ show (length possibilities) ++"\n"
   forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
@@ -146,6 +143,15 @@ fuzzTest doStrong inpath outroot = do
                  then [0 .. length sVars - steal1B]
                  else [0] -- Alternatively, this uses only the simpler gradualization.
     ]
+
+
+fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hypothesis?
+         -> FilePath -- ^ Input haskell file
+         -> FilePath -- ^ Seed to build output file path
+         -> IO [Maybe (Int, FilePath)]
+fuzzTest doStrong inpath outroot = do
+  p@(Prog prgDefs _prgVals (VDef _name tyscheme expr)) <- Parse.gParseModule inpath
+  fuzzTestDDef doStrong p outroot
 
 --------------------------------------------------------------------------------
 

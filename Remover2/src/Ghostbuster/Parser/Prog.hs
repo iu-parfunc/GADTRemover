@@ -19,6 +19,7 @@ import           Language.Haskell.Exts          as H hiding (name)
 import qualified Language.Preprocessor.Cpphs    as CP
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Text.Printf
+import Data.Functor
 
 {-# INLINE trace #-}
 trace :: String -> a -> a
