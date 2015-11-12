@@ -28,7 +28,7 @@ dataDir :: T.FilePath
 dataDir = "." </> "data"
 
 inputDir :: T.FilePath
-inputDir = dataDir </> "0_hackage_all_tarballs"
+inputDir = dataDir </> "0_hackage_all_tarballs/"
 
 outputDir :: T.FilePath
 outputDir = dataDir </> "1_only_newest_versions"

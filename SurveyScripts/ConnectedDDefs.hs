@@ -56,6 +56,16 @@
    - DONE Run Ghostbuster and output to a file inside a directory
    - Make more robust to exceptions
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
+
+   - fix directory structure?  Nah can handle it.
+   - Stream output lines to file
+   - Report final answer for gradual-erasure hypothesis.
+   - Report how many fail after ambiguity-check (goal: 0)
+
+   - Handle HUGE search spaces, look before you leap.
+
+   - Driver: build parallel driver.
+   - Driver: set up directories so intermediate files are not in NFS
 -}
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
@@ -142,7 +152,7 @@ gParseModule str = do
           -- Make this into a module of CC data defs
           modules = map (Module a b c d e f) cDefs
       in return $ Left (modules, countGADTs, ghostbusterDDefs)
-    ParseFailed _ _ -> return $ Right "ParseFailed"
+    ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
 
 -- | We have to replicate some of the functionality from the parser here,
 -- but we _can't_ use the gParseProg from the parser since that expects
@@ -150,10 +160,10 @@ gParseModule str = do
 sParseProg :: [Decl] -> GT.Prog
 sParseProg decls = GT.Prog ddefs vdefs expr
  where
-  ddefs = [GT.DDef (GPP.fromName name) (map GPP.kindTyVar tvs) [] [] cons
+  ddefs = [GT.DDef (GPP.fromName name) [] (map GPP.kindTyVar tvs) [] cons
             | DataDecl  _ DataType _ name tvs   ks _ <- decls
             , let cons = map (GPP.kconsOfQualConDecl tvs) ks ]
-    ++    [GT.DDef (GPP.fromName name) (map GPP.kindTyVar tvs) [] [] cons
+    ++    [GT.DDef (GPP.fromName name) [] (map GPP.kindTyVar tvs) [] cons
             | GDataDecl _ DataType _ name tvs _ ks _ <- decls
             , let cons = map GPP.kconsOfGadtDecl ks]
   vdefs = []
