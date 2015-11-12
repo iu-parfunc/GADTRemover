@@ -12,9 +12,10 @@ step2:
 
 ## All that you should need to do is feed it the location of the files here:
 step3:
-	# ./ConnectedComponents.hs <location of untarred files>
+	./ConnectedDDefs.hs data/2_untarred/ data/3_ddef_clusters/
 # Gather DDefs from each discovered haskell file.
 # Organize output in per-package directories.
 
 
 # ------------------------------------------------------------------
+

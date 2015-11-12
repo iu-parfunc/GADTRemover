@@ -54,6 +54,8 @@
    - DONE Collect Stats
    - DONE Output stats to file
    - DONE Run Ghostbuster and output to a file inside a directory
+   - Make more robust to exceptions
+   - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
 -}
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
@@ -223,7 +225,7 @@ nameOfQName qname =
   case qname of
     UnQual n              -> n
     Qual (ModuleName m) n -> Ident (m ++ '.':strOfName n)
-    Special x             -> error  ("varOfQName: unhandled case: Special " ++ show x)
+    Special x             -> Ident "foo" -- error  ("varOfQName: unhandled case: Special " ++ show x)
 
 ---------------------------------------------------------------------------
 -- Make the tool runable from the command line.
@@ -259,9 +261,16 @@ parseInput _               = error "argument parse failed: expected one or two a
 -- | Parse the module and return the list of CCs
 outputCCs :: String -> String -> IO Stats
 outputCCs input outputBase =
-  gParseModule input >>= \res ->
+   catch go (\e -> 
+              do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
+                 print (e :: SomeException)
+                 return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1})
+ where 
+  go = 
+   gParseModule input >>= \res ->
     case res of
       Left (mods, count, gdecls) -> do
+        putStrLn $ "--------- Reading File " ++ input ++ " --------------"
         -- Output the file that we're looking at
         zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [1..]
         -- Barfing all over the place here... Please don't judge me based on
@@ -269,7 +278,7 @@ outputCCs input outputBase =
         maybeFiles <- zipWithM (\prog num ->
                                  catch (G.fuzzTestDDef True prog
                                         (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
-                                (\ e -> putStrLn (show (e :: SomeException)) >>=
+                                (\e -> putStrLn (show (e :: SomeException)) >>=
                                    (\_ -> return ([Nothing] :: [Maybe (Int, FilePath)]))))
                               gdecls [1..]
         mapM_ (putStrLn . show) maybeFiles 
@@ -289,7 +298,9 @@ outputCCs input outputBase =
                        , successfulErasures = somethings
                        , fileName           = input
                        }
-      Right str ->
+      Right str -> do
+        putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
+        putStrLn str
         return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1}
 
 -- | Write the decls out to a file
