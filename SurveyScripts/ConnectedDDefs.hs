@@ -89,6 +89,7 @@ data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this fi
                    , numCCs             :: Integer  -- Number of connected components
                    , failedErasures     :: Integer  -- Number of failed erasure settings
                    , successfulErasures :: Integer  -- Number of successful erasure settings
+                   , fileName           :: String   -- File name
                    }
  deriving (Show, Eq, Ord, Generic)
 
@@ -103,7 +104,8 @@ emptyStats = Stats { numADTs            = 0
                    , parseFailed        = 0
                    , numCCs             = 0
                    , failedErasures     = 0
-                   , successfulErasures = 0 }
+                   , successfulErasures = 0 
+                   , fileName = ""   }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -250,7 +252,7 @@ main = do
 
 parseInput :: [String] -> (String, String)
 -- We place our output in the same directory that we started in but in "output"
-parseInput [input]         = (input, takeDirectory input </> "output")
+parseInput [input]         = (input, (takeDirectory . takeDirectory) input </>  "output" </> input)
 parseInput [input, output] = (input, output)
 parseInput _               = error "argument parse failed: expected one or two args"
 
@@ -264,7 +266,7 @@ outputCCs input outputBase =
         zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [1..]
         -- Barfing all over the place here... Please don't judge me based on
         -- this code...
-        maybeFiles <- zipWithM (\prog num -> 
+        maybeFiles <- zipWithM (\prog num ->
                                  catch (G.fuzzTestDDef True prog
                                         (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
                                 (\ e -> putStrLn (show (e :: SomeException)) >>=
@@ -285,6 +287,7 @@ outputCCs input outputBase =
                        , numCCs             = toInteger $ length mods
                        , failedErasures     = nothings
                        , successfulErasures = somethings
+                       , fileName           = input
                        }
       Right str ->
         return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1}
