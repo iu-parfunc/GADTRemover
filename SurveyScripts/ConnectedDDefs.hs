@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --verbosity silent --resolver lts-3.8 --install-ghc runghc --package filemanip --package split
+-- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package filemanip --package split
 -- | This is a shell script that yanks out all of the connected component
 -- data declarations (i.e., all the declarations that refer to each other
 -- in the same file) and puts them in separate files -- each file is a
@@ -55,7 +55,7 @@ gatherDataDecls v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) = [v]
 gatherDataDecls _ = []
 
 -- | We don't particularly care about this, but this is the way we get it
--- out of the graph so... 
+-- out of the graph so...
 smash :: (a,b,[b]) -> [b]
 smash (_, x, y) = x : y
 
@@ -111,7 +111,7 @@ nameOfQName qname =
   case qname of
     UnQual n              -> n
     Qual (ModuleName m) n -> Ident (m ++ '.':strOfName n)
-    Special x             -> error  ("varOfQName: unhandled case: Special " ++ show x) 
+    Special x             -> error  ("varOfQName: unhandled case: Special " ++ show x)
 
 ---------------------------------------------------------------------------
 -- Different way of doing things...
@@ -129,7 +129,7 @@ main = do
 parseInput :: [String] -> (String, String)
 parseInput [input]         = (input, takeDirectory input </> "output")
 parseInput [input, output] = (input, output)
-parseInput _               = error "parse failed"
+parseInput _               = error "argument parse failed: expected one or two args"
 
 -- OBSOLETE
 ---------------------------------------------------------------------------

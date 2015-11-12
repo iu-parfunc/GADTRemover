@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --verbosity silent --resolver lts-3.8 --install-ghc runghc  --package turtle --package filemanip --package split
+-- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc  --package turtle --package filemanip --package split
 
 --   --package optparse-applicative
 
