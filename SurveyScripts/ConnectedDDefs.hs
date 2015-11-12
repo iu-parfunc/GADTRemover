@@ -147,7 +147,7 @@ gParseModule str = do
 -- annotations (and adding annotations is actually harder than doing this)
 sParseProg :: [Decl] -> GT.Prog
 sParseProg decls = GT.Prog ddefs vdefs expr
- where 
+ where
   ddefs = [GT.DDef (GPP.fromName name) (map GPP.kindTyVar tvs) [] [] cons
             | DataDecl  _ DataType _ name tvs   ks _ <- decls
             , let cons = map (GPP.kconsOfQualConDecl tvs) ks ]
