@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package filemanip --package split
+-- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc  --package Ghostbuster
 -- | This is a shell script that yanks out all of the connected component
 -- data declarations (i.e., all the declarations that refer to each other
 -- in the same file) and puts them in separate files -- each file is a
