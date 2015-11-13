@@ -60,6 +60,7 @@
    - DONE -- Added in ghostbuster.hs: Handle HUGE search spaces, look before you leap.
    - DONE Report how many fail after ambiguity-check (goal: 0)
      - Changed fields around to support this
+   - DONE Cauterize DDefs so that we don't have missing constructors
 
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
    - Report final answer for gradual-erasure hypothesis. (??)
@@ -84,6 +85,7 @@ import           Text.Printf
 import qualified Data.Vector                    as V
 import           Data.List
 import           Data.Graph
+import           Data.Tuple.Utils
 import           Data.Tree
 import           Language.Haskell.Exts          as H hiding (name, parse)
 import qualified Language.Preprocessor.Cpphs    as CP
@@ -142,7 +144,8 @@ gParseModule str = do
   case parsed of
     ParseOk (Module a b c d e f decls) ->
       let ddefs                    = concatMap gatherDataDecls decls
-          (graph, lookupF, memberF)= graphFromEdges $ makeGraph ddefs
+          g                        = makeGraph ddefs
+          (graph, lookupF, memberF)= graphFromEdges $ map cleanGraph g
           connComps                = components graph
           -- list of list of names of CCs
           connNames = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
@@ -155,12 +158,33 @@ gParseModule str = do
                                   else (fst acc, 1 + snd acc))
                        (0,0)) cDefs
           -- Take the various data definitions and output them to a file
-          ghostbusterDDefs = map sParseProg cDefs
+          cauterizedCDefs = map (cauterize (concatMap thd3 g)) cDefs
+          ghostbusterDDefs = map sParseProg cauterizedCDefs
           -- Make this into a module of CC data defs
-          modules = map (Module a b c d e f) cDefs
-      in return $ Left (modules, countGADTs, ghostbusterDDefs)
+          modules = map (Module a b c d e f) cauterizedCDefs
+       in return $ Left (modules, countGADTs, ghostbusterDDefs)
     ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
 
+cleanGraph :: (a,b,[(c,d)]) -> (a,b,[c])
+cleanGraph (a,b,c) = (a,b, map fst c)
+
+cauterize :: [(Name, Int)] -- List of kinding info for all found TyCons
+          -> [Decl] -- List of DDefs for thic CC
+          -> [Decl]
+cauterize nameKinds decls = newDecls
+  where
+    -- Get the names we know
+    knownNames = [ name | DataDecl  _ DataType _ name tvs   ks _ <- decls ]
+              ++ [ name | GDataDecl _ DataType _ name tvs _ ks _ <- decls ]
+    leftOverNames = (map fst nameKinds) \\ knownNames
+    createStubs = filter (\x -> (elem (fst x) leftOverNames)) nameKinds
+    stubDecls = [ DataDecl (SrcLoc "foo" 0 0) DataType [] name vars [] []
+                | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
+    createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [0..]
+    newDecls = stubDecls ++ decls
+
+{-[DataDecl (SrcLoc "Test.hs" 1 1) DataType [] (Ident "Foo") [UnkindedVar (Ident "a-}
+{-1"),UnkindedVar (Ident "a2"),UnkindedVar (Ident "a3")] [] []]-}
 -- | We have to replicate some of the functionality from the parser here,
 -- but we _can't_ use the gParseProg from the parser since that expects
 -- annotations (and adding annotations is actually harder than doing this)
@@ -194,24 +218,25 @@ smash (_, x, y) = x : y
 -- | Given a list of decls, and a list of names in this connected
 -- component, return all of the decls in this CC
 lookupDDef :: [Decl] -> [Name] -> [Decl]
-lookupDDef decls names = filter getName decls
-  where
-    getName (DataDecl _ DataType _ nm tyvars contrs _) = elem nm names
-    getName v@(GDataDecl _ _ _ nm _ _ _ _) = elem nm names
+lookupDDef decls names = filter (getName names) decls
+
+getName :: [Name] -> Decl -> Bool
+getName names (DataDecl _ DataType _ nm tyvars contrs _) = elem nm names
+getName names v@(GDataDecl _ _ _ nm _ _ _ _) = elem nm names
 
 -- [decl, name, [<list of data exprs used>]]
-makeGraph :: [Decl] -> [(Decl, Name, [Name])]
+makeGraph :: [Decl] -> [(Decl, Name, [(Name, Int)])]
 makeGraph = map calledConstrs
 
 -- | Return all the constructors (or type constructors) that are used in
 -- this data declaration
-calledConstrs :: Decl -> (Decl, Name, [Name])
+calledConstrs :: Decl -> (Decl, Name, [(Name, Int)])
 calledConstrs v@(DataDecl _ DataType _ nm tyvars contrs _) =
   let tys = concatMap fromConDecl contrs
-  in (v, nm, nub (filter (/= nm) $ concatMap gatherCalled tys))
+  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
 calledConstrs v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
   let tys = map (\x -> case x of GadtDecl _ _ _ typ -> typ) contrs
-  in (v, nm, nub (filter (/= nm) $ concatMap gatherCalled tys))
+  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
 
 -- | Rip out the types from the ConDecl for non-GADTs
 fromConDecl :: QualConDecl -> [Type]
@@ -222,16 +247,20 @@ fromConDecl (QualConDecl _ _ _ decl) = destruct decl
     destruct (RecDecl _ ntys) = map snd ntys
 
 -- | Gather the called constructors from the type
-gatherCalled :: Type -> [Name]
-gatherCalled (TyFun a b)              = gatherCalled a ++ gatherCalled b
-gatherCalled (TyVar v)                = []
-gatherCalled (TyCon c)                = [nameOfQName c]
-gatherCalled (TyParen t)              = gatherCalled t
-gatherCalled (TyBang s t)             = gatherCalled t
-gatherCalled (TyTuple _ ts)           = concatMap gatherCalled ts
-gatherCalled (TyApp t1 t2)            = gatherCalled t1 ++ gatherCalled t2
-gatherCalled (TyPromoted _)           = []
-gatherCalled other                    = [] -- error $ "convertType: unhandled case: " ++ show other
+gatherCalled :: Type -> [(Name, Int)]
+gatherCalled (TyFun a b)    = gatherCalled a ++ gatherCalled b
+gatherCalled (TyVar v)      = []
+gatherCalled (TyCon c)      = [(nameOfQName c, 0)]
+gatherCalled (TyParen t)    = gatherCalled t
+gatherCalled (TyBang s t)   = gatherCalled t
+gatherCalled (TyTuple _ ts) = concatMap gatherCalled ts
+-- Tricky
+gatherCalled (TyApp t1 t2)  = case gatherCalled t1 of
+                                [] -> gatherCalled t2
+                                ((nm,kind):rest) -> ((nm, kind + 1) : rest) ++ gatherCalled t2
+gatherCalled (TyPromoted _) = []
+gatherCalled other          = [] -- error $ "convertType: unhandled case: " ++ show other
+
 
 strOfName :: Name -> String
 strOfName (Ident s)  = s
