@@ -74,31 +74,28 @@
 module ConnectedDDefs where
 
 import           Control.Exception
+import           Control.Monad
+import qualified Data.ByteString             as DB
+import qualified Data.ByteString.Char8       as DBB
+import qualified Data.ByteString.Lazy.Char8  as DBLC
+import qualified Data.Csv                    as CSV
+import           Data.Tuple.Utils
+import           Data.Graph
+import           Data.List
+import           Data.Tree
+import qualified Data.Vector                 as V
+import           GHC.Generics
+import qualified Ghostbuster                 as G
+import qualified Ghostbuster.Parser.Prog     as GPP
+import qualified Ghostbuster.Types           as GT
+import           Language.Haskell.Exts       as H hiding (name, parse)
+import qualified Language.Preprocessor.Cpphs as CP
 import           System.Directory
-import qualified System.FilePath.Find as SFF
 import           System.Environment
 import           System.Exit
 import           System.FilePath
-import           System.Process
+import qualified System.FilePath.Find        as SFF
 import           System.IO
-import           Text.Printf
-import qualified Data.Vector                    as V
-import           Data.List
-import           Data.Graph
-import           Data.Tuple.Utils
-import           Data.Tree
-import           Language.Haskell.Exts          as H hiding (name, parse)
-import qualified Language.Preprocessor.Cpphs    as CP
-import           Data.Functor
-import           Control.Monad
-import qualified Ghostbuster                    as G
-import qualified Ghostbuster.Parser.Prog        as GPP
-import qualified Ghostbuster.Types              as GT
-import qualified Data.Csv                       as CSV
-import           GHC.Generics
-import qualified Data.ByteString.Lazy.Char8     as DBLC
-import qualified Data.ByteString as DB
-import qualified Data.ByteString.Char8 as DBB
 
 data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this file
                    , numGADTs           :: Integer  -- Number of GADTs in this file
@@ -106,7 +103,7 @@ data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this fi
                    , parseFailed        :: Integer  -- These are integers to make it easier to combine
                    , numCCs             :: Integer  -- Number of connected components
                    , failedAmb          :: Integer  -- Number of failed erasure settings
-                   , failedGBust     :: Integer  -- Number of failed erasure settings
+                   , failedGBust        :: Integer  -- Number of failed erasure settings
                    , successfulErasures :: Integer  -- Number of successful erasure settings
                    , fileName           :: String   -- File name
                    }
@@ -126,7 +123,8 @@ emptyStats = Stats { numADTs            = 0
                    , failedAmb          = 0
                    , failedGBust        = 0
                    , successfulErasures = 0
-                   , fileName = ""   }
+                   , fileName           = ""
+                   }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -294,11 +292,11 @@ main = do
         curDir
   -- Get the stats for each file in this package
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
-  hdl <- openFile (outputDir </> "ghostbust_data.hdata") WriteMode
-  DBB.hPutStrLn hdl header
-  stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
-  hClose hdl
-  {-mapM_ (putStrLn . show) stats-}
+  withFile (outputDir </> "ghostbust_data.hdata") WriteMode $ \hdl -> do
+    DBB.hPutStrLn hdl header
+    _stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
+    {-mapM_ (putStrLn . show) stats-}
+    return ()
 
 parseInput :: [String] -> (String, String)
 -- We place our output in the same directory that we started in but in "output"
@@ -320,7 +318,7 @@ outputCCs hdl input outputBase =
       Left (mods, count, gdecls) -> do
         putStrLn $ "--------- Reading File " ++ input ++ " --------------"
         -- Output the file that we're looking at
-        zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [1..]
+        zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
         -- Barfing all over the place here... Please don't judge me based on
         -- this code...
         maybeFiles <- zipWithM (\prog num ->
@@ -331,7 +329,7 @@ outputCCs hdl input outputBase =
                                         (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
                                 (\e -> putStrLn (show (e :: SomeException)) >>=
                                    (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
-                              gdecls [1..]
+                              gdecls [(1::Int)..]
         {-mapM_ (putStrLn . show) maybeFiles -}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
         -- This should be able to be done like the above but for some
@@ -341,7 +339,7 @@ outputCCs hdl input outputBase =
             somethings = deepSumFilter (\x -> (x /= Nothing))
             failedAmb = deepSumFilter (== Nothing)
             failedGBust = toInteger  $ sum $ map length $ filter (== []) maybeFiles
-            stats = Stats { numADTs            = foldr (+) 0 (map fst count)
+            stats = Stats { numADTs         = foldr (+) 0 (map fst count)
                        , numGADTs           = foldr (+) 0 (map snd count)
                        , parseSucc          = 1
                        , parseFailed        = 0
@@ -362,12 +360,9 @@ outputCCs hdl input outputBase =
 sWriteProg :: String -> Module -> IO ()
 sWriteProg filename (Module a nm c d e f decls) = do
   createDirectoryIfMissing True (takeDirectory filename)
-  hdl <- openFile filename WriteMode
-  hPutStr hdl (prettyPrint (Module a nm' c d e f decls))
-  hClose hdl
-  return ()
-    where
-      nm' = ModuleName (takeBaseName filename)
+  writeFile filename (prettyPrint (Module a nm' c d e f decls))
+  where
+    nm' = ModuleName (takeBaseName filename)
 
 parse :: [String] -> (String, String)
 parse [input]         = (input, takeDirectory input </> "output")
