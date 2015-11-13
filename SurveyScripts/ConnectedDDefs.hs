@@ -54,15 +54,16 @@
    - DONE Collect Stats
    - DONE Output stats to file
    - DONE Run Ghostbuster and output to a file inside a directory
-   - Make more robust to exceptions
+   - DONE Fix directory structure?  Nah can handle it.
+
+   - DONE Stream output lines to file
+   - Handle HUGE search spaces, look before you leap.
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
 
-   - fix directory structure?  Nah can handle it.
-   - Stream output lines to file
-   - Report final answer for gradual-erasure hypothesis.
+   - Report final answer for gradual-erasure hypothesis. (??)
    - Report how many fail after ambiguity-check (goal: 0)
+   - Make more robust to exceptions
 
-   - Handle HUGE search spaces, look before you leap.
 
    - Driver: build parallel driver.
    - Driver: set up directories so intermediate files are not in NFS
@@ -80,6 +81,7 @@ import           System.FilePath
 import           System.Process
 import           System.IO
 import           Text.Printf
+import qualified Data.Vector                    as V
 import           Data.List
 import           Data.Graph
 import           Data.Tree
@@ -93,6 +95,7 @@ import qualified Ghostbuster.Types              as GT
 import qualified Data.Csv                       as CSV
 import           GHC.Generics
 import qualified Data.ByteString.Lazy.Char8     as DBLC
+import qualified Data.ByteString as DB
 
 data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this file
                    , numGADTs           :: Integer  -- Number of GADTs in this file
@@ -107,6 +110,7 @@ data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this fi
 
 instance CSV.FromNamedRecord Stats
 instance CSV.ToNamedRecord Stats
+instance CSV.ToRecord Stats
 instance CSV.DefaultOrdered Stats
 
 emptyStats :: Stats
@@ -250,15 +254,17 @@ main :: IO ()
 main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
+      -- ick
+      header = (DB.intercalate ",") (V.toList (CSV.headerOrder (undefined :: Stats)))
+  (putStrLn . show) header
   fls <- SFF.find SFF.always
         (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
         curDir
   -- Get the stats for each file in this package
-  stats <- zipWithM outputCCs fls (map ((outputDir </>) . dropExtension) fls)
-  let csvDat = CSV.encodeDefaultOrderedByName stats
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
   hdl <- openFile (outputDir </> "ghostbust_data.hdata") WriteMode
-  hPutStr hdl (DBLC.unpack csvDat) -- HACKY
+  DB.hPutStrLn hdl header
+  stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
   hClose hdl
   {-mapM_ (putStrLn . show) stats-}
 
@@ -269,8 +275,8 @@ parseInput [input, output] = (input, output)
 parseInput _               = error "argument parse failed: expected one or two args"
 
 -- | Parse the module and return the list of CCs
-outputCCs :: String -> String -> IO Stats
-outputCCs input outputBase =
+outputCCs :: Handle -> String -> String -> IO Stats
+outputCCs hdl input outputBase =
    catch go (\e -> 
               do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
                  print (e :: SomeException)
@@ -291,7 +297,7 @@ outputCCs input outputBase =
                                 (\e -> putStrLn (show (e :: SomeException)) >>=
                                    (\_ -> return ([Nothing] :: [Maybe (Int, FilePath)]))))
                               gdecls [1..]
-        mapM_ (putStrLn . show) maybeFiles 
+        {-mapM_ (putStrLn . show) maybeFiles -}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
         -- This should be able to be done like the above but for some
         -- reason it's giving faulty results so I'm just going to go with
@@ -299,7 +305,7 @@ outputCCs input outputBase =
         let deepSumFilter = \x -> sum (map (toInteger . length . (filter x)) maybeFiles)
             somethings = deepSumFilter (/= Nothing)
             nothings = deepSumFilter (== Nothing)
-        return $ Stats { numADTs            = foldr (+) 0 (map fst count)
+            stats = Stats { numADTs            = foldr (+) 0 (map fst count)
                        , numGADTs           = foldr (+) 0 (map snd count)
                        , parseSucc          = 1
                        , parseFailed        = 0
@@ -308,6 +314,8 @@ outputCCs input outputBase =
                        , successfulErasures = somethings
                        , fileName           = input
                        }
+        DBLC.hPutStr hdl $ CSV.encode [stats]
+        return stats
       Right str -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
         putStrLn str
