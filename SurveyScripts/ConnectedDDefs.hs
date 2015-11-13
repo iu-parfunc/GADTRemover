@@ -57,7 +57,7 @@
    - DONE Fix directory structure?  Nah can handle it.
 
    - DONE Stream output lines to file
-   - Handle HUGE search spaces, look before you leap.
+   - DONE -- Added in ghostbuster.hs: Handle HUGE search spaces, look before you leap.
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
 
    - Report final answer for gradual-erasure hypothesis. (??)
