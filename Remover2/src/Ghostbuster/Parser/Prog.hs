@@ -248,7 +248,19 @@ varOfQName qname =
   mkVar $ case qname of
             UnQual n              -> strOfName n
             Qual (ModuleName m) n -> m ++ '.':strOfName n
-            Special _             -> error "varOfQName: unhandled case: Special"
+            Special x             -> nameOfSpecialCon x
+
+nameOfSpecialCon :: SpecialCon -> String
+nameOfSpecialCon x =
+  case x of
+    UnitCon            -> "()"
+    ListCon            -> "[]"
+    FunCon             -> "->"
+    Cons               -> ":"
+    TupleCon Boxed n   -> "("  ++ replicate (n-1) ',' ++  ")"
+    TupleCon Unboxed n -> "(#" ++ replicate (n-1) ',' ++ "#)"
+    UnboxedSingleCon   -> "(# #)"
+
 
 -- | Convert a Haskell name into a Ghostbuster name
 --
