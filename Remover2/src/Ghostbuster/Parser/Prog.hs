@@ -10,6 +10,7 @@
 
 module Ghostbuster.Parser.Prog where
 
+import           Data.Char
 import           Data.List
 import qualified Data.Set                       as S
 import qualified Debug.Trace                    as Debug
@@ -17,9 +18,9 @@ import           Ghostbuster.CodeGen
 import           Ghostbuster.Types              as G hiding (outputs)
 import           Language.Haskell.Exts          as H hiding (name)
 import qualified Language.Preprocessor.Cpphs    as CP
+import           Numeric
 import           Text.PrettyPrint.GenericPretty (Out(doc))
 import           Text.Printf
-import Data.Functor
 
 {-# INLINE trace #-}
 trace :: String -> a -> a
@@ -244,11 +245,6 @@ convertType = go
 --
 varOfQName :: QName -> G.Var
 varOfQName qname =
-  let
-      strOfName :: Name -> String
-      strOfName (Ident s)  = s
-      strOfName (Symbol s) = s
-  in
   mkVar $ case qname of
             UnQual n              -> strOfName n
             Qual (ModuleName m) n -> m ++ '.':strOfName n
@@ -257,6 +253,64 @@ varOfQName qname =
 -- | Convert a Haskell name into a Ghostbuster name
 --
 fromName :: Name -> G.Var
-fromName (Ident str)  = mkVar str
-fromName (Symbol str) = mkVar str
+fromName name = mkVar (zEncodeString (strOfName name))
+
+strOfName :: Name -> String
+strOfName (Ident s)  = s
+strOfName (Symbol s) = s
+
+type EncodedString = String
+
+zEncodeString :: String -> EncodedString
+zEncodeString []       = []
+zEncodeString (h:rest) = encode_digit h ++ go rest
+  where
+    go []     = []
+    go (c:cs) = encode_ch c ++ go cs
+
+unencodedChar :: Char -> Bool
+unencodedChar 'z' = False
+unencodedChar 'Z' = False
+unencodedChar c   = isAlphaNum c
+
+encode_digit :: Char -> EncodedString
+encode_digit c | isDigit c = encode_as_unicode_char c
+               | otherwise = encode_ch c
+
+encode_ch :: Char -> EncodedString
+encode_ch c | unencodedChar c = [c]     -- Common case first
+encode_ch '('  = "ZL"
+encode_ch ')'  = "ZR"
+encode_ch '['  = "ZM"
+encode_ch ']'  = "ZN"
+encode_ch ':'  = "ZC"
+encode_ch 'Z'  = "ZZ"
+encode_ch 'z'  = "zz"
+encode_ch '&'  = "za"
+encode_ch '|'  = "zb"
+encode_ch '^'  = "zc"
+encode_ch '$'  = "zd"
+encode_ch '='  = "ze"
+encode_ch '>'  = "zg"
+encode_ch '#'  = "zh"
+encode_ch '.'  = "zi"
+encode_ch '<'  = "zl"
+encode_ch '-'  = "zm"
+encode_ch '!'  = "zn"
+encode_ch '+'  = "zp"
+encode_ch '\'' = "zq"
+encode_ch '\\' = "zr"
+encode_ch '/'  = "zs"
+encode_ch '*'  = "zt"
+encode_ch '_'  = "zu"
+encode_ch '%'  = "zv"
+encode_ch c    = encode_as_unicode_char c
+
+encode_as_unicode_char :: Char -> EncodedString
+encode_as_unicode_char c
+  = 'z'
+  : if isDigit (head hex_str) then hex_str
+                              else '0':hex_str
+  where
+    hex_str = showHex (ord c) "U"
 
