@@ -17,7 +17,7 @@
 -- │   └── MiniFeldspar.hs
 -- └── Foo.hs
 --
--- Then we can run: 
+-- Then we can run:
 --    ./ConnectedDDefs.hs testDir/
 -- which tells the tool to gather all haskell files contained in testDir,
 -- find the connected components and then output one of these per file and
@@ -58,12 +58,12 @@
 
    - DONE Stream output lines to file
    - DONE -- Added in ghostbuster.hs: Handle HUGE search spaces, look before you leap.
+   - DONE Report how many fail after ambiguity-check (goal: 0)
+     - Changed fields around to support this
+
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
-
    - Report final answer for gradual-erasure hypothesis. (??)
-   - Report how many fail after ambiguity-check (goal: 0)
    - Make more robust to exceptions
-
 
    - Driver: build parallel driver.
    - Driver: set up directories so intermediate files are not in NFS
@@ -72,7 +72,7 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module ConnectedDDefs where
 
-import           Control.Exception      
+import           Control.Exception
 import           System.Directory
 import qualified System.FilePath.Find as SFF
 import           System.Environment
@@ -96,13 +96,15 @@ import qualified Data.Csv                       as CSV
 import           GHC.Generics
 import qualified Data.ByteString.Lazy.Char8     as DBLC
 import qualified Data.ByteString as DB
+import qualified Data.ByteString.Char8 as DBB
 
 data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this file
                    , numGADTs           :: Integer  -- Number of GADTs in this file
                    , parseSucc          :: Integer
                    , parseFailed        :: Integer  -- These are integers to make it easier to combine
                    , numCCs             :: Integer  -- Number of connected components
-                   , failedErasures     :: Integer  -- Number of failed erasure settings
+                   , failedAmb          :: Integer  -- Number of failed erasure settings
+                   , failedGBust     :: Integer  -- Number of failed erasure settings
                    , successfulErasures :: Integer  -- Number of successful erasure settings
                    , fileName           :: String   -- File name
                    }
@@ -119,8 +121,9 @@ emptyStats = Stats { numADTs            = 0
                    , parseSucc          = 0
                    , parseFailed        = 0
                    , numCCs             = 0
-                   , failedErasures     = 0
-                   , successfulErasures = 0 
+                   , failedAmb          = 0
+                   , failedGBust        = 0
+                   , successfulErasures = 0
                    , fileName = ""   }
 
 -- | Read in a module and then gather it into a forest of connected components
@@ -263,7 +266,7 @@ main = do
   -- Get the stats for each file in this package
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
   hdl <- openFile (outputDir </> "ghostbust_data.hdata") WriteMode
-  DB.hPutStrLn hdl header
+  DBB.hPutStrLn hdl header
   stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
   hClose hdl
   {-mapM_ (putStrLn . show) stats-}
@@ -277,12 +280,12 @@ parseInput _               = error "argument parse failed: expected one or two a
 -- | Parse the module and return the list of CCs
 outputCCs :: Handle -> String -> String -> IO Stats
 outputCCs hdl input outputBase =
-   catch go (\e -> 
+   catch go (\e ->
               do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
                  print (e :: SomeException)
                  return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1})
- where 
-  go = 
+ where
+  go =
    gParseModule input >>= \res ->
     case res of
       Left (mods, count, gdecls) -> do
@@ -292,10 +295,13 @@ outputCCs hdl input outputBase =
         -- Barfing all over the place here... Please don't judge me based on
         -- this code...
         maybeFiles <- zipWithM (\prog num ->
+          -- If we catch an error, that means that we have passed the
+          -- ambiguity check but have failed in one of the other passes.
+          -- Don't care for now about which pass, just that it happened
                                  catch (G.fuzzTestDDef True prog
                                         (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
                                 (\e -> putStrLn (show (e :: SomeException)) >>=
-                                   (\_ -> return ([Nothing] :: [Maybe (Int, FilePath)]))))
+                                   (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
                               gdecls [1..]
         {-mapM_ (putStrLn . show) maybeFiles -}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
@@ -303,14 +309,16 @@ outputCCs hdl input outputBase =
         -- reason it's giving faulty results so I'm just going to go with
         -- the in-elegant solution that works...
         let deepSumFilter = \x -> sum (map (toInteger . length . (filter x)) maybeFiles)
-            somethings = deepSumFilter (/= Nothing)
-            nothings = deepSumFilter (== Nothing)
+            somethings = deepSumFilter (\x -> (x /= Nothing))
+            failedAmb = deepSumFilter (== Nothing)
+            failedGBust = toInteger  $ sum $ map length $ filter (== []) maybeFiles
             stats = Stats { numADTs            = foldr (+) 0 (map fst count)
                        , numGADTs           = foldr (+) 0 (map snd count)
                        , parseSucc          = 1
                        , parseFailed        = 0
                        , numCCs             = toInteger $ length mods
-                       , failedErasures     = nothings
+                       , failedAmb          = failedAmb
+                       , failedGBust        = failedGBust
                        , successfulErasures = somethings
                        , fileName           = input
                        }
