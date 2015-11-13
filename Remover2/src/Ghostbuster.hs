@@ -95,7 +95,12 @@ writeProg filename prog = do
 --
 fuzzTestDDef :: Bool -> Prog -> FilePath -> IO [Maybe (Int, FilePath)]
 fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
-  let possibilities = sequence $ map varyBusting prgDefs
+  let thinout x = if length x > 2^10
+                  -- Too many possibilities, so thin it out and take ~ 1024
+                  -- possibilities
+                  then concatMap (take 1) . iterate (drop (floor $ (length x) / 2^10))
+                  else x
+      possibilities = thinout $ sequence $ map varyBusting prgDefs
   putStr $ "All weakening possibilities below current Ghostbuster erasure point: "++ show (length possibilities) ++"\n"
   forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
     putStr $ show ind ++ ": "
