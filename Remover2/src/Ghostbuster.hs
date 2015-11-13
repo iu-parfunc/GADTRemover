@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, TupleSections #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -30,6 +30,8 @@ import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
+import Data.Maybe
+import Data.List
 
 
 -- | Run an expression in the context of ghostbusted definitions.
@@ -93,9 +95,10 @@ writeProg filename prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
+
 fuzzTestDDef :: Bool -> Prog -> FilePath -> IO [Maybe (Int, FilePath)]
 fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
-  let possibilities = sequence $ map varyBusting prgDefs
+  let possibilities = thinout $ sequence $ map varyBusting prgDefs
   putStr $ "All weakening possibilities below current Ghostbuster erasure point: "++ show (length possibilities) ++"\n"
   forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
     putStr $ show ind ++ ": "
@@ -123,6 +126,10 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
    ]
 
  where
+  takeEvery m = unfoldr ((\x-> fmap (,drop m x) (listToMaybe x)))
+  thinout ls = if length ls > 2^10
+               then takeEvery (quot (length ls) 2^10) ls
+               else ls
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
    let
        -- total = length cVars + length sVars

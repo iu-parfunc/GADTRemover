@@ -17,7 +17,7 @@
 -- │   └── MiniFeldspar.hs
 -- └── Foo.hs
 --
--- Then we can run: 
+-- Then we can run:
 --    ./ConnectedDDefs.hs testDir/
 -- which tells the tool to gather all haskell files contained in testDir,
 -- find the connected components and then output one of these per file and
@@ -54,15 +54,17 @@
    - DONE Collect Stats
    - DONE Output stats to file
    - DONE Run Ghostbuster and output to a file inside a directory
-   - Make more robust to exceptions
+   - DONE Fix directory structure?  Nah can handle it.
+
+   - DONE Stream output lines to file
+   - DONE -- Added in ghostbuster.hs: Handle HUGE search spaces, look before you leap.
+   - DONE Report how many fail after ambiguity-check (goal: 0)
+     - Changed fields around to support this
+   - DONE Cauterize DDefs so that we don't have missing constructors
+
    - Fix CPP: try expanding it first, then fall back to dropping lines on floor.
-
-   - fix directory structure?  Nah can handle it.
-   - Stream output lines to file
-   - Report final answer for gradual-erasure hypothesis.
-   - Report how many fail after ambiguity-check (goal: 0)
-
-   - Handle HUGE search spaces, look before you leap.
+   - Report final answer for gradual-erasure hypothesis. (??)
+   - Make more robust to exceptions
 
    - Driver: build parallel driver.
    - Driver: set up directories so intermediate files are not in NFS
@@ -71,35 +73,37 @@
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 module ConnectedDDefs where
 
-import           Control.Exception      
+import           Control.Exception
+import           Control.Monad
+import qualified Data.ByteString             as DB
+import qualified Data.ByteString.Char8       as DBB
+import qualified Data.ByteString.Lazy.Char8  as DBLC
+import qualified Data.Csv                    as CSV
+import           Data.Tuple.Utils
+import           Data.Graph
+import           Data.List
+import           Data.Tree
+import qualified Data.Vector                 as V
+import           GHC.Generics
+import qualified Ghostbuster                 as G
+import qualified Ghostbuster.Parser.Prog     as GPP
+import qualified Ghostbuster.Types           as GT
+import           Language.Haskell.Exts       as H hiding (name, parse)
+import qualified Language.Preprocessor.Cpphs as CP
 import           System.Directory
-import qualified System.FilePath.Find as SFF
 import           System.Environment
 import           System.Exit
 import           System.FilePath
-import           System.Process
+import qualified System.FilePath.Find        as SFF
 import           System.IO
-import           Text.Printf
-import           Data.List
-import           Data.Graph
-import           Data.Tree
-import           Language.Haskell.Exts          as H hiding (name, parse)
-import qualified Language.Preprocessor.Cpphs    as CP
-import           Data.Functor
-import           Control.Monad
-import qualified Ghostbuster                    as G
-import qualified Ghostbuster.Parser.Prog        as GPP
-import qualified Ghostbuster.Types              as GT
-import qualified Data.Csv                       as CSV
-import           GHC.Generics
-import qualified Data.ByteString.Lazy.Char8     as DBLC
 
 data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this file
                    , numGADTs           :: Integer  -- Number of GADTs in this file
                    , parseSucc          :: Integer
                    , parseFailed        :: Integer  -- These are integers to make it easier to combine
                    , numCCs             :: Integer  -- Number of connected components
-                   , failedErasures     :: Integer  -- Number of failed erasure settings
+                   , failedAmb          :: Integer  -- Number of failed erasure settings
+                   , failedGBust        :: Integer  -- Number of failed erasure settings
                    , successfulErasures :: Integer  -- Number of successful erasure settings
                    , fileName           :: String   -- File name
                    }
@@ -107,6 +111,7 @@ data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this fi
 
 instance CSV.FromNamedRecord Stats
 instance CSV.ToNamedRecord Stats
+instance CSV.ToRecord Stats
 instance CSV.DefaultOrdered Stats
 
 emptyStats :: Stats
@@ -115,9 +120,11 @@ emptyStats = Stats { numADTs            = 0
                    , parseSucc          = 0
                    , parseFailed        = 0
                    , numCCs             = 0
-                   , failedErasures     = 0
-                   , successfulErasures = 0 
-                   , fileName = ""   }
+                   , failedAmb          = 0
+                   , failedGBust        = 0
+                   , successfulErasures = 0
+                   , fileName           = ""
+                   }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -135,7 +142,8 @@ gParseModule str = do
   case parsed of
     ParseOk (Module a b c d e f decls) ->
       let ddefs                    = concatMap gatherDataDecls decls
-          (graph, lookupF, memberF)= graphFromEdges $ makeGraph ddefs
+          g                        = makeGraph ddefs
+          (graph, lookupF, memberF)= graphFromEdges $ map cleanGraph g
           connComps                = components graph
           -- list of list of names of CCs
           connNames = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
@@ -148,12 +156,33 @@ gParseModule str = do
                                   else (fst acc, 1 + snd acc))
                        (0,0)) cDefs
           -- Take the various data definitions and output them to a file
-          ghostbusterDDefs = map sParseProg cDefs
+          cauterizedCDefs = map (cauterize (concatMap thd3 g)) cDefs
+          ghostbusterDDefs = map sParseProg cauterizedCDefs
           -- Make this into a module of CC data defs
-          modules = map (Module a b c d e f) cDefs
-      in return $ Left (modules, countGADTs, ghostbusterDDefs)
+          modules = map (Module a b c d e f) cauterizedCDefs
+       in return $ Left (modules, countGADTs, ghostbusterDDefs)
     ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
 
+cleanGraph :: (a,b,[(c,d)]) -> (a,b,[c])
+cleanGraph (a,b,c) = (a,b, map fst c)
+
+cauterize :: [(Name, Int)] -- List of kinding info for all found TyCons
+          -> [Decl] -- List of DDefs for thic CC
+          -> [Decl]
+cauterize nameKinds decls = newDecls
+  where
+    -- Get the names we know
+    knownNames = [ name | DataDecl  _ DataType _ name tvs   ks _ <- decls ]
+              ++ [ name | GDataDecl _ DataType _ name tvs _ ks _ <- decls ]
+    leftOverNames = (map fst nameKinds) \\ knownNames
+    createStubs = filter (\x -> (elem (fst x) leftOverNames)) nameKinds
+    stubDecls = [ DataDecl (SrcLoc "foo" 0 0) DataType [] name vars [] []
+                | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
+    createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [0..]
+    newDecls = stubDecls ++ decls
+
+{-[DataDecl (SrcLoc "Test.hs" 1 1) DataType [] (Ident "Foo") [UnkindedVar (Ident "a-}
+{-1"),UnkindedVar (Ident "a2"),UnkindedVar (Ident "a3")] [] []]-}
 -- | We have to replicate some of the functionality from the parser here,
 -- but we _can't_ use the gParseProg from the parser since that expects
 -- annotations (and adding annotations is actually harder than doing this)
@@ -187,24 +216,25 @@ smash (_, x, y) = x : y
 -- | Given a list of decls, and a list of names in this connected
 -- component, return all of the decls in this CC
 lookupDDef :: [Decl] -> [Name] -> [Decl]
-lookupDDef decls names = filter getName decls
-  where
-    getName (DataDecl _ DataType _ nm tyvars contrs _) = elem nm names
-    getName v@(GDataDecl _ _ _ nm _ _ _ _) = elem nm names
+lookupDDef decls names = filter (getName names) decls
+
+getName :: [Name] -> Decl -> Bool
+getName names (DataDecl _ DataType _ nm tyvars contrs _) = elem nm names
+getName names v@(GDataDecl _ _ _ nm _ _ _ _) = elem nm names
 
 -- [decl, name, [<list of data exprs used>]]
-makeGraph :: [Decl] -> [(Decl, Name, [Name])]
+makeGraph :: [Decl] -> [(Decl, Name, [(Name, Int)])]
 makeGraph = map calledConstrs
 
 -- | Return all the constructors (or type constructors) that are used in
 -- this data declaration
-calledConstrs :: Decl -> (Decl, Name, [Name])
+calledConstrs :: Decl -> (Decl, Name, [(Name, Int)])
 calledConstrs v@(DataDecl _ DataType _ nm tyvars contrs _) =
   let tys = concatMap fromConDecl contrs
-  in (v, nm, nub (filter (/= nm) $ concatMap gatherCalled tys))
+  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
 calledConstrs v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
   let tys = map (\x -> case x of GadtDecl _ _ _ typ -> typ) contrs
-  in (v, nm, nub (filter (/= nm) $ concatMap gatherCalled tys))
+  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
 
 -- | Rip out the types from the ConDecl for non-GADTs
 fromConDecl :: QualConDecl -> [Type]
@@ -215,16 +245,20 @@ fromConDecl (QualConDecl _ _ _ decl) = destruct decl
     destruct (RecDecl _ ntys) = map snd ntys
 
 -- | Gather the called constructors from the type
-gatherCalled :: Type -> [Name]
-gatherCalled (TyFun a b)              = gatherCalled a ++ gatherCalled b
-gatherCalled (TyVar v)                = []
-gatherCalled (TyCon c)                = [nameOfQName c]
-gatherCalled (TyParen t)              = gatherCalled t
-gatherCalled (TyBang s t)             = gatherCalled t
-gatherCalled (TyTuple _ ts)           = concatMap gatherCalled ts
-gatherCalled (TyApp t1 t2)            = gatherCalled t1 ++ gatherCalled t2
-gatherCalled (TyPromoted _)           = []
-gatherCalled other                    = [] -- error $ "convertType: unhandled case: " ++ show other
+gatherCalled :: Type -> [(Name, Int)]
+gatherCalled (TyFun a b)    = gatherCalled a ++ gatherCalled b
+gatherCalled (TyVar v)      = []
+gatherCalled (TyCon c)      = [(nameOfQName c, 0)]
+gatherCalled (TyParen t)    = gatherCalled t
+gatherCalled (TyBang s t)   = gatherCalled t
+gatherCalled (TyTuple _ ts) = concatMap gatherCalled ts
+-- Tricky
+gatherCalled (TyApp t1 t2)  = case gatherCalled t1 of
+                                [] -> gatherCalled t2
+                                ((nm,kind):rest) -> ((nm, kind + 1) : rest) ++ gatherCalled t2
+gatherCalled (TyPromoted _) = []
+gatherCalled other          = [] -- error $ "convertType: unhandled case: " ++ show other
+
 
 strOfName :: Name -> String
 strOfName (Ident s)  = s
@@ -250,17 +284,19 @@ main :: IO ()
 main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
+      -- ick
+      header = (DB.intercalate ",") (V.toList (CSV.headerOrder (undefined :: Stats)))
+  (putStrLn . show) header
   fls <- SFF.find SFF.always
         (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
         curDir
   -- Get the stats for each file in this package
-  stats <- zipWithM outputCCs fls (map ((outputDir </>) . dropExtension) fls)
-  let csvDat = CSV.encodeDefaultOrderedByName stats
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
-  hdl <- openFile (outputDir </> "ghostbust_data.hdata") WriteMode
-  hPutStr hdl (DBLC.unpack csvDat) -- HACKY
-  hClose hdl
-  {-mapM_ (putStrLn . show) stats-}
+  withFile (outputDir </> "ghostbust_data.hdata") WriteMode $ \hdl -> do
+    DBB.hPutStrLn hdl header
+    _stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
+    {-mapM_ (putStrLn . show) stats-}
+    return ()
 
 parseInput :: [String] -> (String, String)
 -- We place our output in the same directory that we started in but in "output"
@@ -269,45 +305,52 @@ parseInput [input, output] = (input, output)
 parseInput _               = error "argument parse failed: expected one or two args"
 
 -- | Parse the module and return the list of CCs
-outputCCs :: String -> String -> IO Stats
-outputCCs input outputBase =
-   catch go (\e -> 
+outputCCs :: Handle -> String -> String -> IO Stats
+outputCCs hdl input outputBase =
+   catch go (\e ->
               do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
                  print (e :: SomeException)
                  return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1})
- where 
-  go = 
+ where
+  go =
    gParseModule input >>= \res ->
     case res of
       Left (mods, count, gdecls) -> do
         putStrLn $ "--------- Reading File " ++ input ++ " --------------"
         -- Output the file that we're looking at
-        zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [1..]
+        zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
         -- Barfing all over the place here... Please don't judge me based on
         -- this code...
         maybeFiles <- zipWithM (\prog num ->
+          -- If we catch an error, that means that we have passed the
+          -- ambiguity check but have failed in one of the other passes.
+          -- Don't care for now about which pass, just that it happened
                                  catch (G.fuzzTestDDef True prog
                                         (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
                                 (\e -> putStrLn (show (e :: SomeException)) >>=
-                                   (\_ -> return ([Nothing] :: [Maybe (Int, FilePath)]))))
-                              gdecls [1..]
-        mapM_ (putStrLn . show) maybeFiles 
+                                   (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
+                              gdecls [(1::Int)..]
+        {-mapM_ (putStrLn . show) maybeFiles -}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
         -- This should be able to be done like the above but for some
         -- reason it's giving faulty results so I'm just going to go with
         -- the in-elegant solution that works...
         let deepSumFilter = \x -> sum (map (toInteger . length . (filter x)) maybeFiles)
-            somethings = deepSumFilter (/= Nothing)
-            nothings = deepSumFilter (== Nothing)
-        return $ Stats { numADTs            = foldr (+) 0 (map fst count)
+            somethings = deepSumFilter (\x -> (x /= Nothing))
+            failedAmb = deepSumFilter (== Nothing)
+            failedGBust = toInteger  $ sum $ map length $ filter (== []) maybeFiles
+            stats = Stats { numADTs         = foldr (+) 0 (map fst count)
                        , numGADTs           = foldr (+) 0 (map snd count)
                        , parseSucc          = 1
                        , parseFailed        = 0
                        , numCCs             = toInteger $ length mods
-                       , failedErasures     = nothings
+                       , failedAmb          = failedAmb
+                       , failedGBust        = failedGBust
                        , successfulErasures = somethings
                        , fileName           = input
                        }
+        DBLC.hPutStr hdl $ CSV.encode [stats]
+        return stats
       Right str -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
         putStrLn str
@@ -317,12 +360,9 @@ outputCCs input outputBase =
 sWriteProg :: String -> Module -> IO ()
 sWriteProg filename (Module a nm c d e f decls) = do
   createDirectoryIfMissing True (takeDirectory filename)
-  hdl <- openFile filename WriteMode
-  hPutStr hdl (prettyPrint (Module a nm' c d e f decls))
-  hClose hdl
-  return ()
-    where
-      nm' = ModuleName (takeBaseName filename)
+  writeFile filename (prettyPrint (Module a nm' c d e f decls))
+  where
+    nm' = ModuleName (takeBaseName filename)
 
 parse :: [String] -> (String, String)
 parse [input]         = (input, takeDirectory input </> "output")
