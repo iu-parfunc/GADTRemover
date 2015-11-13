@@ -148,7 +148,8 @@ gParseModule str = do
           -- list of list of names of CCs
           connNames = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
           -- list of list of CC ddefs
-          cDefs = map (lookupDDef ddefs) connNames
+          defsAndKnownNames = map unzip $ map (lookupDDef ddefs) connNames
+          (cDefs, knownDefNames) = (map fst defsAndKnownNames , map snd defsAndKnownNames )
           -- [(numADTs,numGADTs)] -- each pair corresponds to a CC
           countGADTs =
             map (foldr (\x acc -> if isDataDecl x
@@ -156,7 +157,7 @@ gParseModule str = do
                                   else (fst acc, 1 + snd acc))
                        (0,0)) cDefs
           -- Take the various data definitions and output them to a file
-          cauterizedCDefs = map (cauterize (concatMap thd3 g)) cDefs
+          cauterizedCDefs = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
           ghostbusterDDefs = map sParseProg cauterizedCDefs
           -- Make this into a module of CC data defs
           modules = map (Module a b c d e f) cauterizedCDefs
@@ -167,15 +168,20 @@ cleanGraph :: (a,b,[(c,d)]) -> (a,b,[c])
 cleanGraph (a,b,c) = (a,b, map fst c)
 
 cauterize :: [(Name, Int)] -- List of kinding info for all found TyCons
-          -> [Decl] -- List of DDefs for thic CC
+          -> [Decl] -- List of decls 
+          -> [Name] -- List of Names in this CC
+          -> [Name] -- List of Names already defined in this CC
           -> [Decl]
-cauterize nameKinds decls = newDecls
+cauterize nameKinds decls total defined = newDecls
   where
     -- Get the names we know
-    knownNames = [ name | DataDecl  _ DataType _ name tvs   ks _ <- decls ]
-              ++ [ name | GDataDecl _ DataType _ name tvs _ ks _ <- decls ]
-    leftOverNames = (map fst nameKinds) \\ knownNames
-    createStubs = filter (\x -> (elem (fst x) leftOverNames)) nameKinds
+    unknownNames = total \\ defined
+    -- hacky but whatevs right now
+    createStubs = concatMap (\nm -> if elem nm unknownNames 
+                                    then case lookup nm nameKinds of 
+                                            Just i -> [(nm,i)]
+                                            Nothing -> []
+                                    else ([] :: [(Name,Int)])) unknownNames 
     stubDecls = [ DataDecl (SrcLoc "foo" 0 0) DataType [] name vars [] []
                 | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
     createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [0..]
@@ -215,12 +221,18 @@ smash (_, x, y) = x : y
 
 -- | Given a list of decls, and a list of names in this connected
 -- component, return all of the decls in this CC
-lookupDDef :: [Decl] -> [Name] -> [Decl]
-lookupDDef decls names = filter (getName names) decls
+lookupDDef :: [Decl] -> [Name] -> [(Decl, Name)]
+lookupDDef decls names = concatMap
+  (\x -> let (yes, name) = getName names x
+         in if yes
+            then [(x,name)]
+            else [])
+  decls
+{-filter (getName names) decls-}
 
-getName :: [Name] -> Decl -> Bool
-getName names (DataDecl _ DataType _ nm tyvars contrs _) = elem nm names
-getName names v@(GDataDecl _ _ _ nm _ _ _ _) = elem nm names
+getName :: [Name] -> Decl -> (Bool, Name)
+getName names (DataDecl _ DataType _ nm tyvars contrs _) = (elem nm names, nm)
+getName names v@(GDataDecl _ _ _ nm _ _ _ _) = (elem nm names, nm)
 
 -- [decl, name, [<list of data exprs used>]]
 makeGraph :: [Decl] -> [(Decl, Name, [(Name, Int)])]
@@ -330,7 +342,7 @@ outputCCs hdl input outputBase =
                                 (\e -> putStrLn (show (e :: SomeException)) >>=
                                    (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
                               gdecls [(1::Int)..]
-        {-mapM_ (putStrLn . show) maybeFiles -}
+        {-mapM_ (putStrLn . show) maybeFiles-}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
         -- This should be able to be done like the above but for some
         -- reason it's giving faulty results so I'm just going to go with
