@@ -119,8 +119,8 @@ gatherByTyVar
 gatherByTyVar nm anns ktys =
   let annMentioned = S.fromList (map fst ktys) in
   case find (\a -> nm == gbName a) anns of
-    Nothing                     -> ([], [], []) -- No Ghostbuster annotation for this datatype
-    Just (GhostbustAnn _ k c s) ->              -- Things to ghostbust!
+    Nothing                     -> (ktys, [], [])       -- No Ghostbuster annotation for this datatype: keep everything
+    Just (GhostbustAnn _ k c s) ->                      -- Things to ghostbust!
       if S.fromList (k++c++s) == annMentioned
         then ( filter (\x -> elem (fst x) k) ktys
              , filter (\x -> elem (fst x) c) ktys
