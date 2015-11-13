@@ -152,11 +152,10 @@ upTyp
     )
   ]
 
-
 -- | Test: run the upExp conversion against the sample value.
 upProg :: Prog
 upProg
-  = Prog [ints, maybeD] [upExp]
+  = Prog [intD, maybeD] [upExp]
   $ VDef "upProg" (ForAll [] (ConTy "Int" [])) (EApp "upExp" exp1)
 
 ex0 :: Val

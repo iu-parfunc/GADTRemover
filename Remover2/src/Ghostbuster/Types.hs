@@ -131,7 +131,7 @@ primitiveTypes =
 -- Only arrow really needs to be here.  We CAN put other types here
 -- for convenience, but the original plan was to include only the
 -- types that must truly be built-in here...
-  , ints
+  , intD
   , maybeD
   , boolD
   , unitD
@@ -152,8 +152,8 @@ data Val = VK KName [Val]    -- ^ Data constructors are parameterized by values.
 --------------------------------------------------------------------------------
 -- General prerequisites for doing useful things in the core language:
 
-ints :: DDef
-ints = DDef "Int" [] [] []
+intD :: DDef
+intD = DDef "Int" [] [] []
         [ KCons "One" [] []
         , KCons "Two" [] []
         , KCons "Three" [] []

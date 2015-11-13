@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc  --package Ghostbuster
+-- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package Ghostbuster
 -- | This is a shell script that yanks out all of the connected component
 -- data declarations (i.e., all the declarations that refer to each other
 -- in the same file) and puts them in separate files -- each file is a
@@ -79,10 +79,11 @@ import qualified Data.ByteString             as DB
 import qualified Data.ByteString.Char8       as DBB
 import qualified Data.ByteString.Lazy.Char8  as DBLC
 import qualified Data.Csv                    as CSV
-import           Data.Tuple.Utils
 import           Data.Graph
 import           Data.List
+import           Data.Maybe
 import           Data.Tree
+import           Data.Tuple.Utils
 import qualified Data.Vector                 as V
 import           GHC.Generics
 import qualified Ghostbuster                 as G
@@ -140,16 +141,16 @@ gParseModule str = do
               }
     <$> (CP.runCpphs CP.defaultCpphsOptions "" =<< (readFile str))
   case parsed of
-    ParseOk (Module a b c d e f decls) ->
-      let ddefs                    = concatMap gatherDataDecls decls
-          g                        = makeGraph ddefs
-          (graph, lookupF, memberF)= graphFromEdges $ map cleanGraph g
-          connComps                = components graph
+    ParseOk (Module a b c _ _ f decls) ->
+      let ddefs                     = [ d | d <- decls , isDataDecl d ]
+          g                         = makeGraph ddefs
+          (graph, lookupF, memberF) = graphFromEdges $ map cleanGraph g
+          connComps                 = components graph
           -- list of list of names of CCs
-          connNames = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
+          connNames                 = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
           -- list of list of CC ddefs
-          defsAndKnownNames = map unzip $ map (lookupDDef ddefs) connNames
-          (cDefs, knownDefNames) = (map fst defsAndKnownNames , map snd defsAndKnownNames )
+          defsAndKnownNames         = map unzip $ map (lookupDDef ddefs) connNames
+          (cDefs, knownDefNames)    = unzip defsAndKnownNames
           -- [(numADTs,numGADTs)] -- each pair corresponds to a CC
           countGADTs =
             map (foldr (\x acc -> if isDataDecl x
@@ -157,12 +158,16 @@ gParseModule str = do
                                   else (fst acc, 1 + snd acc))
                        (0,0)) cDefs
           -- Take the various data definitions and output them to a file
-          cauterizedCDefs = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
+          cauterizedCDefs  = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
           ghostbusterDDefs = map sParseProg cauterizedCDefs
           -- Make this into a module of CC data defs
-          modules = map (Module a b c d e f) cauterizedCDefs
+          modules = map (Module a b c Nothing Nothing f) cauterizedCDefs
        in return $ Left (modules, countGADTs, ghostbusterDDefs)
     ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
+
+builtin :: [Name]
+builtin = map Ident [ "Int", "Bool", "Maybe", "Unit"]   -- Ghostbuster.Types.primitiveTypes
+
 
 cleanGraph :: (a,b,[(c,d)]) -> (a,b,[c])
 cleanGraph (a,b,c) = (a,b, map fst c)
@@ -175,16 +180,16 @@ cauterize :: [(Name, Int)] -- List of kinding info for all found TyCons
 cauterize nameKinds decls total defined = newDecls
   where
     -- Get the names we know
-    unknownNames = total \\ defined
+    unknownNames = total \\ (defined ++ builtin)
     -- hacky but whatevs right now
     createStubs = concatMap (\nm -> if elem nm unknownNames 
                                     then case lookup nm nameKinds of 
                                             Just i -> [(nm,i)]
                                             Nothing -> []
                                     else ([] :: [(Name,Int)])) unknownNames 
-    stubDecls = [ DataDecl (SrcLoc "foo" 0 0) DataType [] name vars [] []
+    stubDecls = [ DataDecl (SrcLoc "Foo" 0 0) DataType [] name vars [] []
                 | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
-    createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [0..]
+    createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [(0::Int)..]
     newDecls = stubDecls ++ decls
 
 {-[DataDecl (SrcLoc "Test.hs" 1 1) DataType [] (Ident "Foo") [UnkindedVar (Ident "a-}
@@ -205,14 +210,15 @@ sParseProg decls = GT.Prog ddefs vdefs expr
   expr  = GT.VDef "ghostbuster" (GT.ForAll [] (GT.ConTy "()" [])) (GT.EK "()")
 
 -- | Gather all of the data declarations for this module
-gatherDataDecls :: Decl -> [Decl]
-gatherDataDecls v@(DataDecl _ DataType _ nm tyvars contrs _) = [v]
-gatherDataDecls v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) = [v]
-gatherDataDecls _ = []
+maybeDataDecl :: Decl -> Maybe Decl
+maybeDataDecl v =
+  case v of
+    DataDecl  _ DataType _ _ _ _ _   -> Just v
+    GDataDecl _ DataType _ _ _ _ _ _ -> Just v
+    _                                -> Nothing
 
 isDataDecl :: Decl -> Bool
-isDataDecl v@(DataDecl _ DataType _ nm tyvars contrs _) = True
-isDataDecl  _ = False
+isDataDecl = isJust . maybeDataDecl
 
 -- | We don't particularly care about this, but this is the way we get it
 -- out of the graph so...
@@ -231,8 +237,8 @@ lookupDDef decls names = concatMap
 {-filter (getName names) decls-}
 
 getName :: [Name] -> Decl -> (Bool, Name)
-getName names (DataDecl _ DataType _ nm tyvars contrs _) = (elem nm names, nm)
-getName names v@(GDataDecl _ _ _ nm _ _ _ _) = (elem nm names, nm)
+getName names (DataDecl _ _ _ nm _ _ _)    = (elem nm names, nm)
+getName names (GDataDecl _ _ _ nm _ _ _ _) = (elem nm names, nm)
 
 -- [decl, name, [<list of data exprs used>]]
 makeGraph :: [Decl] -> [(Decl, Name, [(Name, Int)])]
@@ -252,15 +258,18 @@ calledConstrs v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
 fromConDecl :: QualConDecl -> [Type]
 fromConDecl (QualConDecl _ _ _ decl) = destruct decl
   where
-    destruct (ConDecl _ ltys) = ltys
+    destruct (ConDecl _ ltys)           = ltys
     destruct (InfixConDecl atyp _ btyp) = [atyp,  btyp]
-    destruct (RecDecl _ ntys) = map snd ntys
+    destruct (RecDecl _ ntys)           = map snd ntys
 
 -- | Gather the called constructors from the type
 gatherCalled :: Type -> [(Name, Int)]
 gatherCalled (TyFun a b)    = gatherCalled a ++ gatherCalled b
 gatherCalled (TyVar v)      = []
 gatherCalled (TyCon c)      = [(nameOfQName c, 0)]
+-- gatherCalled (TyCon q)      = case q of
+--                                 Special _ -> []
+--                                 _         -> [(nameOfQName q, 0)]
 gatherCalled (TyParen t)    = gatherCalled t
 gatherCalled (TyBang s t)   = gatherCalled t
 gatherCalled (TyTuple _ ts) = concatMap gatherCalled ts
@@ -281,7 +290,19 @@ nameOfQName qname =
   case qname of
     UnQual n              -> n
     Qual (ModuleName m) n -> Ident (m ++ '.':strOfName n)
-    Special x             -> Ident "foo" -- error  ("varOfQName: unhandled case: Special " ++ show x)
+    Special x             -> nameOfSpecialCon x
+
+nameOfSpecialCon :: SpecialCon -> Name
+nameOfSpecialCon x =
+  Ident $ case x of
+    UnitCon            -> "()"
+    ListCon            -> "[]"
+    FunCon             -> "->"
+    Cons               -> ":"
+    TupleCon Boxed n   -> "("  ++ replicate (n-1) ',' ++  ")"
+    TupleCon Unboxed n -> "(#" ++ replicate (n-1) ',' ++ "#)"
+    UnboxedSingleCon   -> "(# #)"
+
 
 ---------------------------------------------------------------------------
 -- Make the tool runable from the command line.
@@ -298,7 +319,9 @@ main = do
   let (curDir, outputDir) = parseInput args
       -- ick
       header = (DB.intercalate ",") (V.toList (CSV.headerOrder (undefined :: Stats)))
-  (putStrLn . show) header
+  -- putStrLn $ "current directory: " ++ curDir
+  -- putStrLn $ "output directory:  " ++ outputDir
+  putStrLn (show header)
   fls <- SFF.find SFF.always
         (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
         curDir

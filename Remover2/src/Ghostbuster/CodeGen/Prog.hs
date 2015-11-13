@@ -38,10 +38,7 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                   ]
 
     mkImport n  = ImportDecl noLoc (ModuleName n) False False False Nothing Nothing
-    imports     = [ mkImport "Prelude" $ Just (True, [ IAbs      (Ident "Int")
-                                                     , IThingAll (Ident "Maybe")
-                                                     , IThingAll (Ident "Bool")
-                                                     ])
+    imports     = [ mkImport "Prelude" $ Just (True, builtinTypes)
                   -- , mkImport "Data.Typeable" Nothing
                   ]
 
@@ -58,6 +55,17 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                ++ concatMap declOfVDef vdefs
                ++ declOfVDef vtop
                ++ declOfVDef (mkMain topShowable vtop)
+
+builtinTypes :: [ImportSpec]
+builtinTypes = map (IAbs      . Ident) types
+            ++ map (IThingAll . Ident) ctors
+  where
+    types       = [ "Char", "Float", "Double", "Int", "Word" ]
+    ctors       = [ "Bool", "Maybe" ]
+    -- ctypes      = [ "CChar", "CSChar", "CUChar", "CFloat", "CDouble", "CShort", "CUShort", "CInt", "CUInt", "CLong", "CULong", "CLLong", "CULLong" ]
+    -- ints        = [ "Int8", "Int16", "Int32", "Int64" ]
+    -- words       = [ "Word8", "Word16", "Word32", "Word64" ]
+    -- tuples      = map (\i -> "(" ++ replicate i ',' ++ ")") [(0::Int)..14]
 
 
 mkMain :: Bool -> VDef -> VDef

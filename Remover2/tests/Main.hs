@@ -60,11 +60,11 @@ mkTestCase tname act = testCase tname (expectFailure tname act)
 
 case_E02 :: Assertion
 case_E02 = assertEqual "interp_case"
-                       (VK (Var "Two") []) (interp $ Prog [ints] [] v02)
+                       (VK (Var "Two") []) (interp $ Prog [intD] [] v02)
 
 case_E03 :: Assertion
 case_E03 = assertEqual "interp dict"
-             (VDict (Var "Int") []) (interp $ Prog [ints] [] v03)
+             (VDict (Var "Int") []) (interp $ Prog [intD] [] v03)
 
 case_E04 :: Assertion
 case_E04 = assertEqual "construct arrow dict"
@@ -74,12 +74,12 @@ case_E04 = assertEqual "construct arrow dict"
 case_E05 :: Assertion
 case_E05 = assertEqual "nested casedict, return one"
                        (VK "One" []) $
-                       interp $ Prog [ints] [] v05
+                       interp $ Prog [intD] [] v05
 
 case_E06 :: Assertion
 case_E06 = assertEqual "take a false CaseDict branch"
                        (VK (Var "Three") [])
-                       (interp $ Prog [ints] [] v06)
+                       (interp $ Prog [intD] [] v06)
 
 case_E07 :: Assertion
 case_E07 = assertEqual ""
@@ -94,7 +94,7 @@ case_E08 = assertEqual ""
 case_E10 :: Assertion
 case_E10 = assertEqual "apply identity function"
                        (VK "Three" []) $
-                       interp $ Prog [ints] [] v10
+                       interp $ Prog [intD] [] v10
 
 -- | This should NOT diverge (lazy evaluation):
 case_P8 :: Assertion
