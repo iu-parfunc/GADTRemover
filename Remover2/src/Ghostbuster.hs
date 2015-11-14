@@ -23,15 +23,13 @@ import Ghostbuster.Parser.Prog as Parse
 import Ghostbuster.Types
 
 import Control.Exception       (catch, SomeException, throw)
-import Control.Monad           (forM_)
+import Control.Monad           (forM_, when)
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
-import Data.Maybe
-import Data.List
 
 
 -- | Run an expression in the context of ghostbusted definitions.
@@ -98,10 +96,10 @@ writeProg filename prog = do
 
 fuzzTestDDef :: Bool -> Prog -> FilePath -> IO [Maybe (Int, FilePath)]
 fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
-  let possibilities = thinout $ sequence $ map varyBusting prgDefs
-  putStr $ "All weakening possibilities below current Ghostbuster erasure point: "++ show (length possibilities) ++"\n"
-  forM_ (zip [(0::Int)..] possibilities) $ \ (ind,defs) -> do
-    putStr $ show ind ++ ": "
+  putStrLn         $ printf "Number of weakening possibilities below current Ghostbuster erasure point: %d" n
+  when (n > lIMIT) $ printf "Testing the first %d weakenings\n" (lIMIT `min` (n `div` lIMIT))
+  forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
+    printf "%4d:" ind
     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
       putStr $ "  " ++
                show ( map (unVar . fst) kVars
@@ -122,14 +120,22 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
       Right () -> do
         writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
         return (Just (index,newName))
-   | (index,defs) <- (zip [(0::Int) ..] possibilities)
+   | (index,defs) <- (zip [(0::Int) ..] taken)
    ]
 
  where
-  takeEvery m = unfoldr ((\x-> fmap (,drop m x) (listToMaybe x)))
-  thinout ls = if length ls > 2^10
-               then takeEvery (quot (length ls) 2^10) ls
-               else ls
+  lIMIT         = 1024
+  busted        = map varyBusting prgDefs
+  weakenings    = sequence busted
+  n             = product [ length d | d <- busted ]
+  taken
+    | n < lIMIT = weakenings
+    | otherwise = take lIMIT (thin weakenings)
+
+  thin []       = []
+  thin (x:xs)   = x : thin (drop lIMIT xs)
+
+  varyBusting :: DDef -> [DDef]
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
    let
        -- total = length cVars + length sVars
@@ -157,8 +163,8 @@ fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hy
          -> FilePath -- ^ Seed to build output file path
          -> IO [Maybe (Int, FilePath)]
 fuzzTest doStrong inpath outroot = do
-  p@(Prog prgDefs _prgVals (VDef _name tyscheme expr)) <- Parse.gParseModule inpath
-  fuzzTestDDef doStrong p outroot
+  prg <- Parse.gParseModule inpath
+  fuzzTestDDef doStrong prg outroot
 
 --------------------------------------------------------------------------------
 
