@@ -315,17 +315,18 @@ main :: IO ()
 main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
-      -- ick
-      header = (DB.intercalate ",") (V.toList (CSV.headerOrder (undefined :: Stats)))
+      header = DB.intercalate ","
+             $ V.toList
+             $ CSV.headerOrder (undefined :: Stats)
   -- putStrLn $ "current directory: " ++ curDir
   -- putStrLn $ "output directory:  " ++ outputDir
-  putStrLn (show header)
+  -- putStrLn $ show header
   fls <- SFF.find SFF.always
         (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
         curDir
   -- Get the stats for each file in this package
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
-  withFile (outputDir </> "ghostbust_data.hdata") WriteMode $ \hdl -> do
+  withFile (outputDir </> "ghostbust_data.csv") WriteMode $ \hdl -> do
     DBB.hPutStrLn hdl header
     _stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
     {-mapM_ (putStrLn . show) stats-}
