@@ -234,6 +234,8 @@ convertType = go
                                       --
                                       (c,ts)                  = app t
                                   in  G.ConTy (varOfQName c) ts
+    go (TyList t)               = G.ConTy (mkVar "[]") [go t]
+    go (TyForall Nothing _ t)   = go t  -- TODO: ignoring the context!!
     go other                    = error $ printf "convertType: unhandled case: %s" (show other)
 
     bang _ t                    = t
