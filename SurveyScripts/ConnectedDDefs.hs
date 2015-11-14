@@ -129,7 +129,9 @@ emptyStats = Stats { numADTs            = 0
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
-gParseModule :: String -> IO (Either ([Module], [(Integer, Integer)], [GT.Prog]) String)
+gParseModule
+    :: String
+    -> IO (Either ([Module], ([Integer], [Integer]), [GT.Prog]) String)
 gParseModule str = do
   parsed <- parseFileContentsWithMode
     ParseMode { parseFilename         = str
@@ -142,7 +144,7 @@ gParseModule str = do
     <$> (CP.runCpphs CP.defaultCpphsOptions "" =<< (readFile str))
   case parsed of
     ParseOk (Module a b c _ _ f decls) ->
-      let ddefs                     = [ d | d <- decls , isDataDecl d ]
+      let ddefs                     = [ d | d <- decls, isDataDecl d ]
           g                         = makeGraph ddefs
           (graph, lookupF, memberF) = graphFromEdges $ map cleanGraph g
           connComps                 = components graph
@@ -151,18 +153,17 @@ gParseModule str = do
           -- list of list of CC ddefs
           defsAndKnownNames         = map unzip $ map (lookupDDef ddefs) connNames
           (cDefs, knownDefNames)    = unzip defsAndKnownNames
-          -- [(numADTs,numGADTs)] -- each pair corresponds to a CC
-          countGADTs =
-            map (foldr (\x acc -> if isDataDecl x
-                                  then (1+ fst acc, snd acc)
-                                  else (fst acc, 1 + snd acc))
-                       (0,0)) cDefs
+          numADTs                   = [ sum [ 1 | DataDecl{}  <- ds ] | ds <- cDefs ]
+          numGADTs                  = [ sum [ 1 | GDataDecl{} <- ds ] | ds <- cDefs ]
+
           -- Take the various data definitions and output them to a file
-          cauterizedCDefs  = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
-          ghostbusterDDefs = map sParseProg cauterizedCDefs
+          cauterizedCDefs           = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
+          ghostbusterDDefs          = map sParseProg cauterizedCDefs
+
           -- Make this into a module of CC data defs
-          modules = map (Module a b c Nothing Nothing f) cauterizedCDefs
-       in return $ Left (modules, countGADTs, ghostbusterDDefs)
+          modules                   = map (Module a b c Nothing Nothing f) cauterizedCDefs
+      in
+      return $ Left (modules, (numADTs,numGADTs), ghostbusterDDefs)
     ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
 
 builtin :: [Name]
@@ -339,15 +340,15 @@ parseInput _               = error "argument parse failed: expected one or two a
 -- | Parse the module and return the list of CCs
 outputCCs :: Handle -> String -> String -> IO Stats
 outputCCs hdl input outputBase =
-   catch go (\e ->
-              do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
-                 print (e :: SomeException)
-                 return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1})
- where
+  go `catch` \e ->
+    do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
+       print (e :: SomeException)
+       return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1}
+  where
   go =
    gParseModule input >>= \res ->
     case res of
-      Left (mods, count, gdecls) -> do
+      Left (mods, (adts,gadts), gdecls) -> do
         putStrLn $ "--------- Reading File " ++ input ++ " --------------"
         -- Output the file that we're looking at
         zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
@@ -367,20 +368,22 @@ outputCCs hdl input outputBase =
         -- This should be able to be done like the above but for some
         -- reason it's giving faulty results so I'm just going to go with
         -- the in-elegant solution that works...
-        let deepSumFilter = \x -> sum (map (toInteger . length . (filter x)) maybeFiles)
-            somethings = deepSumFilter (\x -> (x /= Nothing))
-            failedAmb = deepSumFilter (== Nothing)
-            failedGBust = toInteger  $ sum $ map length $ filter (== []) maybeFiles
-            stats = Stats { numADTs         = foldr (+) 0 (map fst count)
-                       , numGADTs           = foldr (+) 0 (map snd count)
-                       , parseSucc          = 1
-                       , parseFailed        = 0
-                       , numCCs             = toInteger $ length mods
-                       , failedAmb          = failedAmb
-                       , failedGBust        = failedGBust
-                       , successfulErasures = somethings
-                       , fileName           = input
-                       }
+        let
+            deepSumFilter p = sum (map (toInteger . length . (filter p)) maybeFiles)
+            somethings      = deepSumFilter isJust
+            failedAmb       = deepSumFilter isNothing
+            failedGBust     = toInteger . sum . map length $ filter null maybeFiles
+            stats           = Stats
+              { numADTs            = sum adts
+              , numGADTs           = sum gadts
+              , parseSucc          = 1
+              , parseFailed        = 0
+              , numCCs             = toInteger $ length mods
+              , failedAmb          = failedAmb
+              , failedGBust        = failedGBust
+              , successfulErasures = somethings
+              , fileName           = input
+              }
         DBLC.hPutStr hdl $ CSV.encode [stats]
         return stats
       Right str -> do
