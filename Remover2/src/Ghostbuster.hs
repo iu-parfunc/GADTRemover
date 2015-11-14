@@ -127,7 +127,10 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   lIMIT         = 1024
   busted        = map varyBusting prgDefs
   weakenings    = sequence busted
-  n             = product [ length d | d <- busted ]
+  -- Be careful here: don't just take the length of 'weakenings', as this
+  -- could be an enormous list. Instead calculate the length ourselves.
+  -- This way we don't need to keep the spine of 'weakenings' in memory.
+  n             = product [ length b | b <- busted ]
   taken
     | n < lIMIT = weakenings
     | otherwise = take lIMIT (thin weakenings)
@@ -137,10 +140,6 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
 
   varyBusting :: DDef -> [DDef]
   varyBusting dd@(DDef{kVars,cVars,sVars}) =
-   let
-       -- total = length cVars + length sVars
-       -- erased = (cVars++sVars)
-   in
     [ -- (steal1A+steal1B, steal2)
      dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
         , cVars = drop steal1A cVars ++ take steal2 sVars
