@@ -265,18 +265,26 @@ fromConDecl (QualConDecl _ _ _ decl) = destruct decl
 
 -- | Gather the called constructors from the type
 gatherCalled :: Type -> [(Name, Int)]
-gatherCalled (TyFun a b)    = gatherCalled a ++ gatherCalled b
-gatherCalled (TyVar v)      = []
-gatherCalled (TyCon c)      = [(nameOfQName c, 0)]
-gatherCalled (TyParen t)    = gatherCalled t
-gatherCalled (TyBang s t)   = gatherCalled t
-gatherCalled (TyTuple _ ts) = concatMap gatherCalled ts
--- Tricky
-gatherCalled (TyApp t1 t2)  = case gatherCalled t1 of
-                                [] -> gatherCalled t2
-                                ((nm,kind):rest) -> ((nm, kind + 1) : rest) ++ gatherCalled t2
-gatherCalled (TyPromoted _) = []
-gatherCalled other          = [] -- error $ "convertType: unhandled case: " ++ show other
+gatherCalled = go
+  where
+    go :: Type -> [(Name, Int)]
+    go (TyFun a b)              = go a ++ go b
+    go (TyVar v)                = []
+    go (TyCon c)                = [(nameOfQName c, 0)]
+    go (TyParen t)              = go t
+    go (TyBang _ t)             = go t
+    go (TyTuple _ ts)           = concatMap go ts
+
+    -- Tricky
+    go (TyApp t1 t2)            = case go t1 of
+                                    []               -> go t2
+                                    ((nm,kind):rest) -> ((nm, kind + 1) : rest) ++ go t2
+    go (TyList t)               = go t  -- TLM: ???
+    go (TyForall Nothing _ t)   = go t  -- TLM: ???
+    go (TyInfix l t r)          = (nameOfQName t, 3) : go l ++ go r
+
+    -- go (TyPromoted _)           = []
+    go other                    = error $ "gatherCalled: unhandled case: " ++ show other
 
 
 strOfName :: Name -> String

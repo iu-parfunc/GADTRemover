@@ -228,14 +228,14 @@ convertType = go
     go (TyBang s t)             = bang s (go t)
     go (TyTuple _ ts)           = let ts' = map go ts
                                   in  G.ConTy (mkVar (printf "Tup%d" (length ts'))) ts'
-    go t@TyApp{}                = let app (TyApp (TyCon c) t) = (c, [go t])
+    go t@TyApp{}                = let app (TyApp (TyCon c) t) = (varOfQName c, [go t])
+                                      app (TyApp (TyVar n) t) = (fromName n,   [go t])
                                       app (TyApp a b)         = let (c,r) = app a in (c, r ++ [go b])
-                                      app _                   = error "convertType: unhandled type application"
-                                      --
-                                      (c,ts)                  = app t
-                                  in  G.ConTy (varOfQName c) ts
+                                      app t                   = error $ printf "convertType: unhandled type application: %s\n" (show t)
+                                  in uncurry G.ConTy (app t)
     go (TyList t)               = G.ConTy (mkVar "[]") [go t]
     go (TyForall Nothing _ t)   = go t  -- TODO: ignoring the context!!
+    go (TyInfix l t r)          = G.ConTy (varOfQName t) [go l, go r]
     go other                    = error $ printf "convertType: unhandled case: %s" (show other)
 
     bang _ t                    = t
