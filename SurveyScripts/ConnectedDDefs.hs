@@ -295,7 +295,7 @@ nameOfQName qname =
 nameOfSpecialCon :: SpecialCon -> Name
 nameOfSpecialCon x =
   Ident $ case x of
-    UnitCon            -> "()"
+    UnitCon            -> "Unit"
     ListCon            -> "[]"
     FunCon             -> "->"
     Cons               -> ":"

@@ -255,7 +255,7 @@ varOfQName qname =
 nameOfSpecialCon :: SpecialCon -> String
 nameOfSpecialCon x =
   case x of
-    UnitCon            -> "()"
+    UnitCon            -> "Unit"
     ListCon            -> "[]"
     FunCon             -> "->"
     Cons               -> ":"
