@@ -267,9 +267,6 @@ gatherCalled :: Type -> [(Name, Int)]
 gatherCalled (TyFun a b)    = gatherCalled a ++ gatherCalled b
 gatherCalled (TyVar v)      = []
 gatherCalled (TyCon c)      = [(nameOfQName c, 0)]
--- gatherCalled (TyCon q)      = case q of
---                                 Special _ -> []
---                                 _         -> [(nameOfQName q, 0)]
 gatherCalled (TyParen t)    = gatherCalled t
 gatherCalled (TyBang s t)   = gatherCalled t
 gatherCalled (TyTuple _ ts) = concatMap gatherCalled ts
