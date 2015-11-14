@@ -246,7 +246,7 @@ convertType = go
 varOfQName :: QName -> G.Var
 varOfQName qname =
   mkVar $ case qname of
-            UnQual n              -> strOfName n
+            UnQual n              -> zEncodeString (strOfName n)
             Qual (ModuleName m) n -> m ++ '.':strOfName n
             Special x             -> nameOfSpecialCon x
 
