@@ -363,15 +363,16 @@ outputCCs hdl input outputBase =
         zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
         -- Barfing all over the place here... Please don't judge me based on
         -- this code...
-        maybeFiles <- zipWithM (\prog num ->
-          -- If we catch an error, that means that we have passed the
-          -- ambiguity check but have failed in one of the other passes.
-          -- Don't care for now about which pass, just that it happened
-                                 catch (G.fuzzTestDDef True prog
-                                        (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
-                                (\e -> putStrLn (show (e :: SomeException)) >>=
-                                   (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
-                              gdecls [(1::Int)..]
+        maybeFiles :: [[Maybe (Int, FilePath)]] <-
+             zipWithM (\prog num ->
+                        -- If we catch an error, that means that we have passed the
+                        -- ambiguity check but have failed in one of the other passes.
+                        -- Don't care for now about which pass, just that it happened
+                         catch (G.fuzzTestDDef True prog
+                                (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
+                        (\e -> putStrLn (show (e :: SomeException)) >>=
+                           (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
+                gdecls [(1::Int)..]
         {-mapM_ (putStrLn . show) maybeFiles-}
         {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
         -- This should be able to be done like the above but for some
