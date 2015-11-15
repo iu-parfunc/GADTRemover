@@ -281,7 +281,7 @@ gatherCalled = go
                                     ((nm,kind):rest) -> ((nm, kind + 1) : rest) ++ go t2
     go (TyList t)               = go t  -- TLM: ???
     go (TyForall Nothing _ t)   = go t  -- TLM: ???
-    go (TyInfix l t r)          = (nameOfQName t, 3) : go l ++ go r
+    go (TyInfix l t r)          = (nameOfQName t, 2) : go l ++ go r
 
     -- go (TyPromoted _)           = []
     go other                    = error $ "gatherCalled: unhandled case: " ++ show other
