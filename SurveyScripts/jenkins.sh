@@ -9,42 +9,74 @@ make clean
 # First, set up directories:
 # --------------------------------------------------------------------------------
 
+# Try two places:
 localstorage=/home.local/$USER/
-# localstorage=$HOME/local/
+if ! [ -d $localstorage ]; then
+    localstorage=$HOME/local/
+fi
 
 if ! [ -d $localstorage ]; then
     echo "Local storage not found."
     exit 1
 fi
 
-inputdir=$localstorage/hackage_all_tarballs/
-scratch=$localstorage/GhostbusterSurvey/
+# input
+# ------------------------------
 
+origdir=$localstorage/hackage_all_tarballs/
 mkdir -p ./data/
+
+inputdir=./data/0_hackage_all_tarballs
+
+if [ "$SKIPTO" == ""]; then
+    # Run the WHOLE data set.
+    ln -s -f $origdir $inputdir
+else
+    # Run a chunk of the data set:
+    ls $origdir/ | sort > full_file_list.txt
+    # Annoyingly, tail is zero-based
+    onebased=$((SKIPTO + 1))
+    tail -n+${onebased} full_file_list.txt > all_following.txt
+    if [ "$RUNONLY" == "" ]; then
+        cp all_following.txt my_chunk.txt
+    else
+        head -n${RUNONLY} all_following.txt > my_chunk.txt
+    fi
+
+    rm -rf $inputdir
+    mkdir -p $inputdir
+    for file in `cat my_chunk.txt`; do
+        echo "Linking: $file"
+        ln -s "$origdir/$file" "$inputdir/$file"
+    done
+fi
+
+# intermediates
+# ------------------------------
+
+scratch=$localstorage/GhostbusterSurvey/
 mkdir -p $scratch
 
-ln -s -f $inputdir ./data/0_hackage_all_tarballs
-
 intermediates="1_only_newest_versions 2_untarred 3_ddef_clusters 4_compiled_ddefs"
-
 for dir in $intermediates; do
     mkdir -p $scratch/$dir
     ln -s -f $scratch/$dir ./data/$dir
 done
+
+# final output location
+# ------------------------------
 
 outdir=`pwd`/collected_output_stats_`date +"%s"`/
 
 mkdir -p "$outdir"
 uname -a > "$outdir/uname.txt"
 
-function collect() {
-    find ./data/ -name "*.csv" | xargs -i cp {} $outdir/
-}
-
-# Next, run the whole pipeline:
+# Next, run the pipeline:
 # --------------------------------------------------------------------------------
 
 time make all
 
-# We *could* do this in between steps...
-collect
+# We *could* do this collection in between steps...
+for csvfile in `find ./data/ -name "*.csv"`; do
+    cp "$csvfile" "$outdir/"
+done

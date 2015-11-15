@@ -33,6 +33,11 @@ step4: CompileBusted
 # ------------------------------------------------------------------
 
 clean:
+# It's important to do this first when they are symlinks:
+	rm -rf data/1_only_newest_versions/*
+	rm -rf data/2_untarred/*
+	rm -rf data/3_ddef_clusters/*
+	rm -rf data/4_compiled_ddefs/*
 	rm -rf data/1_only_newest_versions
 	rm -rf data/2_untarred
 	rm -rf data/3_ddef_clusters

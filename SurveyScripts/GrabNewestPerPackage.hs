@@ -61,7 +61,7 @@ main =
 
      chatter "Symlinking newest versions of each tarball..."
      forM_ (M.toList mp) $ \(_root,path) ->
-       do chatter $ "TEMP: path = "++ show path
+       do
           let -- (file: "0_hackage_all_tarballs" : _rest) = reverse $ S.splitDirectories path
               (file:olddir:_)   = reverse $ S.splitDirectories path
               newPath           = outputDir </> file
