@@ -74,7 +74,12 @@ done
 # final output location
 # ------------------------------
 
-outdir=$HOME/ghostbuster_survey_collected_output_stats/run_`date +"%s"`/
+if [ "$BUILD_NUMBER" == "" ]; then
+    BUILD_NUMBER="unknown"
+fi
+
+# outdir=$HOME/ghostbuster_survey_collected_output_stats/run_`date +"%s"`/
+outdir=$HOME/ghostbuster_survey_collected_output_stats/build_${BUILD_NUMBER}/skipto_${SKIPTO}/
 metadata="$outdir/collection_machine_info.txt"
 
 mkdir -p "$outdir"
