@@ -26,6 +26,11 @@ fi
 origdir=$localstorage/hackage_all_tarballs/
 mkdir -p ./data/
 
+# IU/cutter specific hack.  Get the data:
+if ! [ -d "$origdir" ]; then
+    rsync -rplt crest-team@cutter.crest.iu.edu:"$origdir" "$origdir"
+fi
+
 inputdir=./data/0_hackage_all_tarballs
 
 if [ "$SKIPTO" == "" ]; then
