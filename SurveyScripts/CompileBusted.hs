@@ -18,7 +18,6 @@ import qualified ConnectedDDefs               as CC ( Stats(..) )
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Exception
-import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Par.Class
 import           Control.Monad.Par.IO
@@ -204,10 +203,10 @@ testAllP opts stats sh = do
   numCap <- getNumCapabilities
   printf "Running in parallel on %d capabilities\n" numCap
   results  <- runParIO $
-    flip parMapM stats $ \s -> liftIO $ do
+    parForM stats $ \s -> do
       r <- test1 opts s
-      tick progress
-      withSharedHandle sh $ \h -> BL.hPutStr h (CSV.encode [r])
+      liftIO $ tick progress
+      liftIO $ withSharedHandle sh $ \h -> BL.hPutStr h (CSV.encode [r])
       return r
   --
   closeConsoleRegion (pgRegion progress)
@@ -217,16 +216,19 @@ testAllP opts stats sh = do
 -- Same implementation as in Control.Monad.Par, but with fixed type
 -- signature allowing ParIO.
 --
-parMapM :: (NFData b, ParFuture f m) => (a -> m b) -> Vector a -> m (Vector b)
-parMapM f xs = V.mapM (spawn . f) xs >>= V.mapM get
+parMapM :: (Traversable t, NFData b, ParFuture future m) => (a -> m b) -> t a -> m (t b)
+parMapM f xs = traverse (spawn . f) xs >>= traverse get
+
+parForM :: (Traversable t, NFData b, ParFuture future m) => t a -> (a -> m b) -> m (t b)
+parForM xs f = parMapM f xs
 
 
 -- Attempt to compile all of the ghostbusted CCs generated from the given
 -- input file.
 --
-test1 :: Options -> Stats -> IO Result
+test1 :: Options -> Stats -> ParIO Result
 test1 opts stat = do
-  defs          <- locateBustedDDefs opts stat
+  defs          <- liftIO $ locateBustedDDefs opts stat
   let result    = Result { filePath  = CC.fileName stat
                          , variants  = genericLength defs
                          , successes = 0
@@ -235,11 +237,11 @@ test1 opts stat = do
   if null defs
     then return result
     else do
-      progress  <- newProgressBar def
+      progress  <- liftIO $ newProgressBar def
                       { pgTotal  = genericLength defs
                       , pgFormat = printf "%s :percent [:bar] :current/:total (for :elapsed, :eta remaining)" (takeBaseName (CC.fileName stat))
                       }
-      !status   <- forM defs $ \d -> do
+      !status   <- parForM defs $ \d -> liftIO $ do
                       !s <- compileFile opts (takeDirectory (CC.fileName stat) </> d)
                              `catch`
                              \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
@@ -247,7 +249,7 @@ test1 opts stat = do
                       tick progress
                       return s
       --
-      closeConsoleRegion (pgRegion progress)
+      liftIO $ closeConsoleRegion (pgRegion progress)
       return result { successes = sum [ 1 | True <- status ] }
 
 
