@@ -3,6 +3,9 @@
 # Script launched by Jenkins to do the full survey.
 set -xe
 
+# Just in case we are run in a dirty directory:
+make clean
+
 # First, set up directories:
 # --------------------------------------------------------------------------------
 
@@ -41,7 +44,7 @@ function collect() {
 # Next, run the whole pipeline:
 # --------------------------------------------------------------------------------
 
-make all
+time make all
 
-# Could do this in between steps:
+# We *could* do this in between steps...
 collect
