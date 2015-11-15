@@ -403,7 +403,7 @@ outputCCs hdl input outputBase =
                          , failedAmb          = ambFailed
                          , failedGBust        = codeGenFailed
                          , successfulErasures = codeGend
-                         , fileName           = nm
+                         , fileName           = takeDirectory input </> nm
                          }
              in return stats
       Right str -> do
