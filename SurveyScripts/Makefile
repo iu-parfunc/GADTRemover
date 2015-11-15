@@ -27,7 +27,7 @@ step3:
 	cd data/2_untarred && $(ROOT)/bin/ConnectedDDefs.exe . $(ROOT)/data/3_ddef_clusters/
 
 # Attempt to compile generated DDefs
-step4: CompileBusted
+step4:
 	$(ROOT)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N -RTS
 
 # ------------------------------------------------------------------

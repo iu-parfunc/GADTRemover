@@ -259,7 +259,7 @@ locateBustedDDefs opts stats =
   let
       inDir             = takeDirectory (inputCSV opts)
       (base,name)       = splitFileName (CC.fileName stats)
-      pat               = dropExtension name ++ "_*ghostbusted*"
+      pat               = dropExtension name ++ "*ghostbusted*"
   in
   if CC.successfulErasures stats > 0
     then do

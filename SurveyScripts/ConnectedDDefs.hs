@@ -382,15 +382,10 @@ outputCCs hdl input outputBase =
                            -- Gather the stats for this CC
                            -- - Number of failed/succeeded/ambCheckFails for each erasure setting
                            -- - Number of GADTs and ADTs for this CC
-                    -- Use canonicalizePath as opposed to makeAbsolute so we don't have to worry about sym-links
-                    -- NB: that this will give an error if the file
-                    -- doesn't exist. However, this will only happen if we
-                    -- fail to parse (since this is the file that contains
-                    -- the source for this CC). Therefore we should be safe
-                    -- here and not throw any errors, since the only way we
-                    -- are here is if parsing succeeded.
-                    canonicalCCName <- canonicalizePath (outputBase ++ "_" ++ show num ++ ".hs")
-                    stat <- gatherStats res (fst prog) canonicalCCName
+                    -- Use canonicalizepath as opposed to makeAbsolute so we don't have to worry about sym-links
+                    -- canonicalBase <- makeAbsolute outputBase
+                    -- canonicalBase <- canonicalizePath outputBase
+                    stat <- gatherStats res (fst prog) (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
                     DBLC.hPutStr hdl $ CSV.encode [stat]
                     return stat)
                 (zip mods gdecls) [(1::Int)..]
@@ -411,7 +406,7 @@ outputCCs hdl input outputBase =
                          , failedAmb          = ambFailed
                          , failedGBust        = codeGenFailed
                          , successfulErasures = codeGend
-                         , fileName           = nm
+                         , fileName           = takeDirectory input </> nm
                          }
              in return stats
       Right str -> do
