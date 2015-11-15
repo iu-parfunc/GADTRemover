@@ -69,7 +69,7 @@ done
 outdir=`pwd`/collected_output_stats_`date +"%s"`/
 
 mkdir -p "$outdir"
-uname -a > "$outdir/uname.txt"
+uname -a | tee "$outdir/uname.txt"
 
 # Next, run the pipeline:
 # --------------------------------------------------------------------------------
