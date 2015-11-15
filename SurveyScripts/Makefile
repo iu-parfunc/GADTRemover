@@ -15,8 +15,7 @@ step2:
 # Gathers DDefs from each discovered haskell file.
 # Organize output in per-package directories.
 step3:
-	cd data/2_untarred
-	../../ConnectedDDefs.hs . ../3_ddef_clusters/
+	cd data/2_untarred && ../../ConnectedDDefs.hs . ../3_ddef_clusters/
 
 # Attempt to compile generated DDefs
 step4: CompileBusted
