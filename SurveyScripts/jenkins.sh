@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script launched by Jenkins to do the full survey.
-set -e
+set -xe
 
 # Just in case we are run in a dirty directory:
 make clean
@@ -59,7 +59,6 @@ else
     done
 fi
 
-set -x
 
 # intermediates
 # ------------------------------
