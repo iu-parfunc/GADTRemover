@@ -90,6 +90,11 @@ echo "Collected from working copy `pwd` " >> "$metadata"
 time make all
 
 # We *could* do this collection in between steps...
-for csvfile in `find ./data/ -name "*.csv"`; do
-    cp "$csvfile" "$outdir/"
+
+find "./data/3_ddef_clusters/"  -name "*.csv" > all_csvs.txt
+find "./data/4_compiled_ddefs/" -name "*.csv" >> all_csvs.txt
+n=0
+for csvfile in `cat all_csvs.txt`; do
+    echo "Filing away: $csvfile"
+    cp "$csvfile" "$outdir/$((n++))_"`basename $csvfile`
 done
