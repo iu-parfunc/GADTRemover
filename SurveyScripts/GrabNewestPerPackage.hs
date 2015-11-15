@@ -6,7 +6,7 @@
 -- | This is a shell script to extract the latest tarball for each package.
 
 {-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
-module Main where
+-- module Main where
 
 -- import qualified Control.Foldl as L
 import           System.FilePath.Find as F

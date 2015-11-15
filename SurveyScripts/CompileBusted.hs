@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package Ghostbuster
+-- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package Ghostbuster --package filemanip --package concurrent-output --package ascii-progress
 
 -- | This script compiles the generated connected component definitions
 -- that were ghostbusted in the previous step by 'ConnectedDDefs'.
@@ -10,7 +10,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module CompileBusted where
+-- module CompileBusted where
 
 import ConnectedDDefs                                   ( Stats )
 import qualified ConnectedDDefs                         as CC ( Stats(..) )
@@ -56,7 +56,7 @@ helpMessage = unlines $
   , "    those filenames which match the optional glob pattern will be"
   , "    compiled."
   , ""
-  , "    The basic glob pattern syntax is the same as for the Unx shell"
+  , "    The basic glob pattern syntax is the same as for the Unix shell"
   , "    environment."
   , ""
   , "     - '*' matches up to a directory separator or end of string"
@@ -304,4 +304,3 @@ sayIO msg = outputConcurrent (msg ++ "\n")
 errIO :: String -> IO ()
 errIO msg = errorConcurrent (msg ++ "\n")
 -- sayIO _ = return ()
-

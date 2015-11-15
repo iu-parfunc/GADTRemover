@@ -70,8 +70,8 @@
    - Driver: set up directories so intermediate files are not in NFS
 -}
 
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
-module ConnectedDDefs where
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables #-}
+module ConnectedDDefs where -- Used as a library as well.
 
 import           Control.Exception
 import           Control.Monad
@@ -174,7 +174,7 @@ cleanGraph :: (a,b,[(c,d)]) -> (a,b,[c])
 cleanGraph (a,b,c) = (a,b, map fst c)
 
 cauterize :: [(Name, Int)] -- List of kinding info for all found TyCons
-          -> [Decl] -- List of decls 
+          -> [Decl] -- List of decls
           -> [Name] -- List of Names in this CC
           -> [Name] -- List of Names already defined in this CC
           -> [Decl]
@@ -183,11 +183,11 @@ cauterize nameKinds decls total defined = newDecls
     -- Get the names we know
     unknownNames = total \\ (defined ++ builtin)
     -- hacky but whatevs right now
-    createStubs = concatMap (\nm -> if elem nm unknownNames 
-                                    then case lookup nm nameKinds of 
+    createStubs = concatMap (\nm -> if elem nm unknownNames
+                                    then case lookup nm nameKinds of
                                             Just i -> [(nm,i)]
                                             Nothing -> []
-                                    else ([] :: [(Name,Int)])) unknownNames 
+                                    else ([] :: [(Name,Int)])) unknownNames
     stubDecls = [ DataDecl (SrcLoc "Foo" 0 0) DataType [] name vars [] []
                 | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
     createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [(0::Int)..]
