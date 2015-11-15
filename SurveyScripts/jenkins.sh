@@ -45,6 +45,8 @@ else
 
     rm -rf $inputdir
     mkdir -p $inputdir
+    echo "Running on a SUBRANGE of input packages.  Here's the size of my_chunk.txt:"
+    wc -l my_chunk.txt
     for file in `cat my_chunk.txt`; do
         echo "Linking: $file"
         ln -s "$origdir/$file" "$inputdir/$file"
