@@ -126,12 +126,16 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
         return $ AmbFailure
 
       Right () -> do
-        writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
-        return (Success (index,newName)) `catch`
-                   \e ->
-                   do putStrLn $ "Unable to run codegen on program "
-                      print (e :: SomeException)
-                      return $ CodeGenFailure
+        ((writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)) >>=
+          \_ -> return (Success (index,newName)))
+           `catch`
+           \e ->
+             do putStrLn $ "Unable to run codegen on program "
+                -- The above output to a file, but wrote nothing, so remove it
+                fExists <- doesFileExist newName
+                when fExists $ removeFile newName
+                print (e :: SomeException)
+                return $ CodeGenFailure
    | (index,defs) <- (zip [(0::Int) ..] taken)
    ]
 
@@ -168,7 +172,6 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
                  then [0 .. length sVars - steal1B]
                  else [0] -- Alternatively, this uses only the simpler gradualization.
     ]
-
 
 fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hypothesis?
          -> FilePath -- ^ Input haskell file
