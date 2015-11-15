@@ -3,6 +3,5 @@ packages:
 - CastChallenge/
 - GADTRemover/
 - Remover2/
-extra-deps:
-  - tasty-program-1.0.3
+extra-deps: []
 resolver: lts-3.8
