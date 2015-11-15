@@ -28,7 +28,7 @@ mkdir -p ./data/
 
 inputdir=./data/0_hackage_all_tarballs
 
-if [ "$SKIPTO" == ""]; then
+if [ "$SKIPTO" == "" ]; then
     # Run the WHOLE data set.
     ln -s -f $origdir $inputdir
 else
