@@ -98,14 +98,14 @@ import           System.FilePath
 import qualified System.FilePath.Find        as SFF
 import           System.IO
 
-data Stats = Stats { numADTs            :: Integer  -- Number of ADTs in this file
-                   , numGADTs           :: Integer  -- Number of GADTs in this file
-                   , parseSucc          :: Integer
-                   , parseFailed        :: Integer  -- These are integers to make it easier to combine
-                   , numCCs             :: Integer  -- Number of connected components
-                   , failedAmb          :: Integer  -- Number of failed erasure settings
-                   , failedGBust        :: Integer  -- Number of failed erasure settings
-                   , successfulErasures :: Integer  -- Number of successful erasure settings
+data Stats = Stats { numADTs            :: Int      -- Number of ADTs in this file
+                   , numGADTs           :: Int      -- Number of GADTs in this file
+                   , parseSucc          :: Int
+                   , parseFailed        :: Int      -- These are integers to make it easier to combine
+                   , numCCs             :: Int      -- Number of connected components
+                   , failedAmb          :: Int      -- Number of failed erasure settings
+                   , failedGBust        :: Int      -- Number of failed erasure settings
+                   , successfulErasures :: Int      -- Number of successful erasure settings
                    , fileName           :: String   -- File name
                    }
  deriving (Show, Eq, Ord, Generic)
@@ -126,6 +126,20 @@ emptyStats = Stats { numADTs            = 0
                    , successfulErasures = 0
                    , fileName           = ""
                    }
+
+instance Monoid Stats where
+   mempty = emptyStats
+   mappend x y =
+     Stats { numADTs                = (numADTs x)            + (numADTs y)
+           , numGADTs               = (numGADTs x)           + (numGADTs y)
+           , parseSucc              = (parseSucc x)          + (parseSucc y)
+           , parseFailed            = (parseFailed x)        + (parseFailed y)
+           , numCCs                 = (numCCs x)             + (numCCs y)
+           , failedAmb              = (failedAmb x)          + (failedAmb y)
+           , failedGBust            = (failedGBust x)        + (failedGBust y)
+           , successfulErasures     = (successfulErasures x) + (successfulErasures y)
+           , fileName               = (fileName x)          ++ (fileName y)
+           }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -361,41 +375,37 @@ outputCCs hdl input outputBase =
         putStrLn $ "--------- Reading File " ++ input ++ " --------------"
         -- Output the file that we're looking at
         zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
-        -- Barfing all over the place here... Please don't judge me based on
-        -- this code...
-        maybeFiles :: [[Maybe (Int, FilePath)]] <-
-             zipWithM (\prog num ->
-                        -- If we catch an error, that means that we have passed the
-                        -- ambiguity check but have failed in one of the other passes.
-                        -- Don't care for now about which pass, just that it happened
-                         catch (G.fuzzTestDDef True prog
-                                (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs"))
-                        (\e -> putStrLn (show (e :: SomeException)) >>=
-                           (\_ -> return ([] :: [Maybe (Int, FilePath)]))))
-                gdecls [(1::Int)..]
-        {-mapM_ (putStrLn . show) maybeFiles-}
-        {-let (nothings, somethings) = unzip (map (partition (/= Nothing)) maybeFiles)-}
-        -- This should be able to be done like the above but for some
-        -- reason it's giving faulty results so I'm just going to go with
-        -- the in-elegant solution that works...
-        let
-            deepSumFilter p = sum (map (toInteger . length . (filter p)) maybeFiles)
-            somethings      = deepSumFilter isJust
-            failedAmb       = deepSumFilter isNothing
-            failedGBust     = toInteger . sum . map length $ filter null maybeFiles
-            stats           = Stats
-              { numADTs            = sum adts
-              , numGADTs           = sum gadts
-              , parseSucc          = 1
-              , parseFailed        = 0
-              , numCCs             = toInteger $ length mods
-              , failedAmb          = failedAmb
-              , failedGBust        = failedGBust
-              , successfulErasures = somethings
-              , fileName           = input
-              }
-        DBLC.hPutStr hdl $ CSV.encode [stats]
-        return stats
+        -- Moved the error handling into Ghostbuster proper so we have a
+        -- per-erasure ability to look at failures/successes etc.
+        stats <- zipWithM (\prog num -> do
+                    res <- G.fuzzTestProg True (snd prog) (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs")
+                           -- Gather the stats for this CC
+                           -- - Number of failed/succeeded/ambCheckFails for each erasure setting
+                           -- - Number of GADTs and ADTs for this CC
+                    stat <- gatherStats res (fst prog) (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
+                    DBLC.hPutStr hdl $ CSV.encode [stat]
+                    return stat)
+                (zip mods gdecls) [(1::Int)..]
+        return $ mconcat stats
+           where
+            gatherStats res (Module _ _ _ _ _ _ decls) nm =
+             let codeGend      = sum [1 | G.Success _ <- res]
+                 ambFailed     = sum [1 | G.AmbFailure <- res]
+                 codeGenFailed = sum [1 | G.CodeGenFailure <- res]
+                 ccNumADTs     = sum [1 | DataDecl{} <- decls]
+                 ccNumGADTs    = sum [1 | GDataDecl{} <- decls]
+                 stats = Stats
+                         { numADTs            = ccNumADTs
+                         , numGADTs           = ccNumGADTs
+                         , parseSucc          = 1
+                         , parseFailed        = 0
+                         , numCCs             = length mods -- Superfluous?
+                         , failedAmb          = ambFailed
+                         , failedGBust        = codeGenFailed
+                         , successfulErasures = codeGend
+                         , fileName           = nm
+                         }
+             in return stats
       Right str -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
         putStrLn str
