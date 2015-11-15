@@ -10,10 +10,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
--- module CompileBusted where
+module Main where
 
-import           ConnectedDDefs ( Stats )
-import qualified ConnectedDDefs as CC ( Stats(..) )
+import           ConnectedDDefs               ( Stats )
+import qualified ConnectedDDefs               as CC ( Stats(..) )
 
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
@@ -22,14 +22,14 @@ import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Par.Class
 import           Control.Monad.Par.IO
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BL
-import           Data.Csv as CSV
+import qualified Data.ByteString              as B
+import qualified Data.ByteString.Lazy         as BL
+import           Data.Csv                     as CSV
 import           Data.Default
-import           Data.List as L
-import           Data.Vector ( Vector )
-import qualified Data.Vector as V
-import           GHC.Conc (getNumCapabilities, setNumCapabilities)
+import           Data.List                    as L
+import           Data.Vector                  ( Vector )
+import qualified Data.Vector                  as V
+import           GHC.Conc                     (getNumCapabilities)
 import           GHC.Generics
 import           System.Console.AsciiProgress ( newProgressBar, tick, pgRegion, pgTotal, pgFormat )
 import           System.Console.Concurrent
@@ -40,8 +40,7 @@ import           System.Exit
 import           System.FilePath
 import           System.FilePath.GlobPattern
 import           System.IO
-import           System.IO.Unsafe (unsafePerformIO)
-import qualified System.Info as Info
+import           System.IO.Unsafe             (unsafePerformIO)
 import           System.Process
 import           Text.Printf
 
@@ -270,16 +269,17 @@ locateBustedDDefs opts stats =
       return []
 
 
--- TODO, change this to: `stack exec which ghc`
-ghcExecutable :: FilePath
-ghcExecutable = homeDir++"/.stack/programs/x86_64-"++ osKind ++"/ghc-7.10.2/bin/ghc"
- where
- osKind = case Info.os of
-            "darwin" -> "osx"
-            oth -> oth
+{-# NOINLINE ghc #-}
+ghc :: FilePath
+ghc = unsafePerformIO $ do
+  (_,Just h,_,_) <- createProcess (proc "stack" ["exec", "which", "--", "ghc"]) { std_out = CreatePipe }
+  path           <- init `fmap` hGetContents h  -- drop trailing '\n'
+  yes            <- doesFileExist path
+  if yes
+     then do sayIO $ printf "Using 'ghc' at path: %s" path
+             return path
+     else error "could not find ghc"
 
-homeDir :: FilePath
-homeDir = unsafePerformIO getHomeDirectory
 
 -- Run GHC on the given file. No object files are generated. The standard
 -- output and error logs are written into files in the output directory.
@@ -297,8 +297,7 @@ compileFile opts inFile = do
   withFile (outFile `replaceExtension` "log") WriteMode $ \h -> do
     let
         -- This initially called "stack exec ghc", but that is very slow.
-        compile = (proc ghcExecutable
-                         ["-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
+        compile = (proc ghc ["-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
                     { std_out = UseHandle h
                     , std_err = UseHandle h
                     }
