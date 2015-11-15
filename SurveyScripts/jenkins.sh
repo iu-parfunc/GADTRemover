@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script launched by Jenkins to do the full survey.
-set -xe
+set -e
 
 # Just in case we are run in a dirty directory:
 make clean
@@ -28,7 +28,7 @@ mkdir -p ./data/
 
 # IU/cutter specific hack.  Get the data:
 if ! [ -d "$origdir" ]; then
-    rsync -rplt crest-team@cutter.crest.iu.edu:"$origdir" "$origdir"
+    rsync -rplt crest-team@cutter.crest.iu.edu:/home.local/crest-team/hackage_all_tarballs/ "$origdir"
 fi
 
 inputdir=./data/0_hackage_all_tarballs
@@ -58,6 +58,8 @@ else
         ln -s "$origdir/$file" "$inputdir/$file"
     done
 fi
+
+set -x
 
 # intermediates
 # ------------------------------
@@ -102,4 +104,11 @@ n=0
 for csvfile in `cat all_csvs.txt`; do
     echo "Filing away: $csvfile"
     cp "$csvfile" "$outdir/$((n++))_"`basename $csvfile`
+done
+
+find "./data/4_compiled_ddefs/" -name "*.log" >> logfiles.txt
+for logfile in `cat logfiles.txt`; do
+    dest="$outdir/$logfile"
+    mkdir -p `dirname "$dest"`
+    cp "$logfile" "$dest"
 done
