@@ -21,17 +21,9 @@ import           Data.List as L
 import           System.Posix.Files (createSymbolicLink, fileExist)
 import           System.Directory (removeFile, doesFileExist)
 import           Control.Exception (catch, SomeException, IOException)
+import           System.Directory (getCurrentDirectory)
 
 --------------------------------------------------------------------------------
-
-dataDir :: T.FilePath
-dataDir = "." </> "data"
-
-inputDir :: T.FilePath
-inputDir = dataDir </> "0_hackage_all_tarballs/"
-
-outputDir :: T.FilePath
-outputDir = dataDir </> "1_only_newest_versions"
 
 
 chatter :: String -> IO ()
@@ -39,8 +31,15 @@ chatter s = putStrLn $ " [GrabNewestPerPackage.hs] " ++ s
 
 main :: IO ()
 main =
-  do chatter$ "finding all tarballs in input data set: "++(S.encodeString inputDir)
+  do
+     topDir <- fmap S.decodeString getCurrentDirectory
 
+     let dataDir :: T.FilePath
+         dataDir = topDir </> "data"
+         inputDir = dataDir </> "0_hackage_all_tarballs/"
+         outputDir = dataDir </> "1_only_newest_versions"
+
+     chatter$ "finding all tarballs in input data set: "++(S.encodeString inputDir)
      ls <- F.find (return True) (F.extension ==? ".gz") (S.encodeString inputDir)
 
      let mp :: M.Map String S.FilePath
@@ -62,13 +61,13 @@ main =
 
      chatter "Symlinking newest versions of each tarball..."
      forM_ (M.toList mp) $ \(_root,path) ->
-       do
-          let
-              [_,_,olddir,file] = S.splitDirectories path
+       do chatter $ "TEMP: path = "++ show path
+          let -- (file: "0_hackage_all_tarballs" : _rest) = reverse $ S.splitDirectories path
+              (file:olddir:_)   = reverse $ S.splitDirectories path
               newPath           = outputDir </> file
               newPath_s         = S.encodeString newPath
-              linkTarget        = S.encodeString $ "../" </> olddir </> file
-          --
+              linkTarget        = S.encodeString $ dataDir </> olddir </> file
+
           clearOutputFile newPath_s
           chatter $ "Creating link: " ++ newPath_s
           createSymbolicLink linkTarget newPath_s

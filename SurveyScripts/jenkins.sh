@@ -6,8 +6,8 @@ set -xe
 # First, set up directories:
 # --------------------------------------------------------------------------------
 
-# localstorage=/home.local/$USER/
-localstorage=$HOME/local/
+localstorage=/home.local/$USER/
+# localstorage=$HOME/local/
 
 if ! [ -d $localstorage ]; then
     echo "Local storage not found."
@@ -29,7 +29,19 @@ for dir in $intermediates; do
     ln -s -f $scratch/$dir ./data/$dir
 done
 
+outdir=`pwd`/collected_output_stats_`date +"%s"`/
+
+mkdir -p "$outdir"
+uname -a > "$outdir/uname.txt"
+
+function collect() {
+    find ./data/ -name "*.csv" | xargs -i cp {} $outdir/
+}
+
 # Next, run the whole pipeline:
 # --------------------------------------------------------------------------------
 
 make all
+
+# Could do this in between steps:
+collect
