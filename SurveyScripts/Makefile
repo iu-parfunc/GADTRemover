@@ -28,7 +28,7 @@ step3:
 
 # Attempt to compile generated DDefs
 step4: CompileBusted
-	$(ROOT)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N36
+	$(ROOT)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N -RTS
 
 # ------------------------------------------------------------------
 
