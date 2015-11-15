@@ -2,6 +2,7 @@
 
 .PHONY: step1 step2 step3 step4 CompileBusted clean distclean
 
+ROOT=$(shell pwd)
 
 default: scripts
 all: scripts step1 step2 step3 step4
@@ -23,11 +24,11 @@ step2:
 # Gathers DDefs from each discovered haskell file.
 # Organize output in per-package directories.
 step3:
-	cd data/2_untarred && ../../bin/ConnectedDDefs.exe . ../3_ddef_clusters/
+	cd data/2_untarred && $(ROOT)/bin/ConnectedDDefs.exe . $(ROOT)/data/3_ddef_clusters/
 
 # Attempt to compile generated DDefs
 step4: CompileBusted
-	./bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N
+	$(ROOT)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N
 
 # ------------------------------------------------------------------
 

@@ -12,35 +12,38 @@
 
 -- module CompileBusted where
 
-import ConnectedDDefs                                   ( Stats )
-import qualified ConnectedDDefs                         as CC ( Stats(..) )
+import           ConnectedDDefs ( Stats )
+import qualified ConnectedDDefs as CC ( Stats(..) )
 
-import Control.Concurrent.MVar
-import Control.DeepSeq
-import Control.Exception
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Par.Class
-import Control.Monad.Par.IO
-import Data.Csv                                         as CSV
-import Data.Default
-import Data.List                                        as L
-import Data.Vector                                      ( Vector )
-import GHC.Generics
-import System.Console.AsciiProgress                     ( newProgressBar, tick, pgRegion, pgTotal, pgFormat )
-import System.Console.Concurrent
-import System.Console.Regions
-import System.Directory
-import System.Environment
-import System.Exit
-import System.FilePath
-import System.FilePath.GlobPattern
-import System.IO
-import System.Process
-import Text.Printf
-import qualified Data.ByteString                        as B
-import qualified Data.ByteString.Lazy                   as BL
-import qualified Data.Vector                            as V
+import           Control.Concurrent.MVar
+import           Control.DeepSeq
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Par.Class
+import           Control.Monad.Par.IO
+import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as BL
+import           Data.Csv as CSV
+import           Data.Default
+import           Data.List as L
+import           Data.Vector ( Vector )
+import qualified Data.Vector as V
+import           GHC.Conc (getNumCapabilities, setNumCapabilities)
+import           GHC.Generics
+import           System.Console.AsciiProgress ( newProgressBar, tick, pgRegion, pgTotal, pgFormat )
+import           System.Console.Concurrent
+import           System.Console.Regions
+import           System.Directory
+import           System.Environment
+import           System.Exit
+import           System.FilePath
+import           System.FilePath.GlobPattern
+import           System.IO
+import           System.IO.Unsafe (unsafePerformIO)
+import qualified System.Info as Info
+import           System.Process
+import           Text.Printf
 
 
 helpMessage :: String
@@ -199,6 +202,8 @@ main = displayConsoleRegions $ do
 testAllP :: Options -> Vector Stats -> SharedHandle -> IO (Vector Result)
 testAllP opts stats sh = do
   progress <- newProgressBar def { pgTotal = toInteger (V.length stats) }
+  numCap <- getNumCapabilities
+  printf "Running in parallel on %d capabilities\n" numCap
   results  <- runParIO $
     flip parMapM stats $ \s -> liftIO $ do
       r <- test1 opts s
@@ -265,6 +270,17 @@ locateBustedDDefs opts stats =
       return []
 
 
+-- TODO, change this to: `stack exec which ghc`
+ghcExecutable :: FilePath
+ghcExecutable = homeDir++"/.stack/programs/x86_64-"++ osKind ++"/ghc-7.10.2/bin/ghc"
+ where
+ osKind = case Info.os of
+            "darwin" -> "osx"
+            oth -> oth
+
+homeDir :: FilePath
+homeDir = unsafePerformIO getHomeDirectory
+
 -- Run GHC on the given file. No object files are generated. The standard
 -- output and error logs are written into files in the output directory.
 -- Return whether or not the file compiled successfully.
@@ -280,7 +296,9 @@ compileFile opts inFile = do
   createDirectoryIfMissing True outDir
   withFile (outFile `replaceExtension` "log") WriteMode $ \h -> do
     let
-        compile = (proc "stack" ["exec", "ghc", "--", "-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
+        -- This initially called "stack exec ghc", but that is very slow.
+        compile = (proc ghcExecutable
+                         ["-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
                     { std_out = UseHandle h
                     , std_err = UseHandle h
                     }
