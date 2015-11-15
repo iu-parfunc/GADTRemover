@@ -74,10 +74,15 @@ done
 # final output location
 # ------------------------------
 
-outdir=`pwd`/collected_output_stats_`date +"%s"`/
+outdir=$HOME/ghostbuster_survey_collected_output_stats/run_`date +"%s"`/
+metadata="$outdir/collection_machine_info.txt"
 
 mkdir -p "$outdir"
-uname -a | tee "$outdir/uname.txt"
+uname -a | tee $metadata
+echo "" >> "$metadata"
+echo "Collected on `date` " >> "$metadata"
+echo "Collected on machine `hostname` " >> "$metadata"
+echo "Collected from working copy `pwd` " >> "$metadata"
 
 # Next, run the pipeline:
 # --------------------------------------------------------------------------------
