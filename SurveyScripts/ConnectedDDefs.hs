@@ -115,18 +115,6 @@ instance CSV.ToNamedRecord Stats
 instance CSV.ToRecord Stats
 instance CSV.DefaultOrdered Stats
 
-emptyStats :: Stats
-emptyStats = Stats { numADTs            = 0
-                   , numGADTs           = 0
-                   , parseSucc          = 0
-                   , parseFailed        = 0
-                   , numCCs             = 0
-                   , failedAmb          = 0
-                   , failedGBust        = 0
-                   , successfulErasures = 0
-                   , fileName           = ""
-                   }
-
 instance Monoid Stats where
    mempty = emptyStats
    mappend x y =
@@ -140,6 +128,18 @@ instance Monoid Stats where
            , successfulErasures     = (successfulErasures x) + (successfulErasures y)
            , fileName               = (fileName x)          ++ (fileName y)
            }
+
+emptyStats :: Stats
+emptyStats = Stats { numADTs            = 0
+                   , numGADTs           = 0
+                   , parseSucc          = 0
+                   , parseFailed        = 0
+                   , numCCs             = 0
+                   , failedAmb          = 0
+                   , failedGBust        = 0
+                   , successfulErasures = 0
+                   , fileName           = ""
+                   }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -382,6 +382,9 @@ outputCCs hdl input outputBase =
                            -- Gather the stats for this CC
                            -- - Number of failed/succeeded/ambCheckFails for each erasure setting
                            -- - Number of GADTs and ADTs for this CC
+                    -- Use canonicalizepath as opposed to makeAbsolute so we don't have to worry about sym-links
+                    -- canonicalBase <- makeAbsolute outputBase
+                    -- canonicalBase <- canonicalizePath outputBase
                     stat <- gatherStats res (fst prog) (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
                     DBLC.hPutStr hdl $ CSV.encode [stat]
                     return stat)
