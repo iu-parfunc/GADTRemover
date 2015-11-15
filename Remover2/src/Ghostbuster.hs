@@ -131,9 +131,10 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   -- could be an enormous list. Instead calculate the length ourselves.
   -- This way we don't need to keep the spine of 'weakenings' in memory.
   n             = product [ length b | b <- busted ]
-  taken
-    | n < lIMIT = weakenings
-    | otherwise = take lIMIT (thin weakenings)
+  taken =
+    case splitAt lIMIT weakenings of
+      (short,[]) -> short
+      _          -> take lIMIT (thin weakenings)
 
   thin []       = []
   thin (x:xs)   = x : thin (drop lIMIT xs)

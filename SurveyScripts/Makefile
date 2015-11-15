@@ -32,7 +32,6 @@ step4: CompileBusted
 # ------------------------------------------------------------------
 
 clean:
-	stack clean
 	rm -rf data/1_only_newest_versions
 	rm -rf data/2_untarred
 	rm -rf data/3_ddef_clusters
@@ -40,4 +39,5 @@ clean:
 	rm -rf dist
 	rm -f  bin/*
 
-distclean:
+distclean: clean
+	stack clean
