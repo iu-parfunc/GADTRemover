@@ -11,7 +11,8 @@ module Ghostbuster (
     , ghostBustToFile
     , writeProg
     , fuzzTest
-    , fuzzTestDDef
+    , fuzzTestProg
+    , FuzzResult(..)
 ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -30,7 +31,12 @@ import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
+import Data.Functor -- for GHC 7.8.4
 
+-- | Records a result from the fuzzer. Since we want to keep track of each
+-- of these fields for each erasure setting
+data FuzzResult a = AmbFailure | CodeGenFailure | Success a
+ deriving (Show, Eq, Ord)
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -94,8 +100,10 @@ writeProg filename prog = do
 -- Each test action returns an output filepath if it succeeds.
 --
 
-fuzzTestDDef :: Bool -> Prog -> FilePath -> IO [Maybe (Int, FilePath)]
-fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
+-- Make this return whether it failed ambiguity check (AmbFailure)
+-- codgen'd (CodeGen (Int, FilePath)) or failed to codegen (CodeGenFailure)
+fuzzTestProg :: Bool -> Prog -> FilePath -> IO [FuzzResult (Int, FilePath)]
+fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
   putStrLn         $ printf "Number of weakening possibilities below current Ghostbuster erasure point: %d" n
   when (n > lIMIT) $ printf "Testing the first %d weakenings\n" (lIMIT `min` (n `div` lIMIT))
   forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
@@ -115,11 +123,15 @@ fuzzTestDDef doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     case ambCheck defs of
       Left err -> do
         printf "Possibility %d failed ambiguity check!\nReturned error: %s" index err
-        return Nothing
+        return $ AmbFailure
 
       Right () -> do
         writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
-        return (Just (index,newName))
+        return (Success (index,newName)) `catch`
+                   \e ->
+                   do putStrLn $ "Unable to run codegen on program "
+                      print (e :: SomeException)
+                      return $ CodeGenFailure
    | (index,defs) <- (zip [(0::Int) ..] taken)
    ]
 
@@ -164,7 +176,13 @@ fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hy
          -> IO [Maybe (Int, FilePath)]
 fuzzTest doStrong inpath outroot = do
   prg <- Parse.gParseModule inpath
-  fuzzTestDDef doStrong prg outroot
+  fromFuzzResult <$> fuzzTestProg doStrong prg outroot
+    where
+      fromFuzzResult :: [FuzzResult (Int, FilePath)] -> [Maybe (Int, FilePath)]
+      fromFuzzResult = map go
+         where 
+            go (Success a) = Just a
+            go _ = Nothing
 
 --------------------------------------------------------------------------------
 
