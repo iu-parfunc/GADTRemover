@@ -32,8 +32,10 @@ if [ "$SKIPTO" == "" ]; then
     # Run the WHOLE data set.
     ln -s -f $origdir $inputdir
 else
-    # Run a chunk of the data set:
+    echo "Running on a SUBRANGE of input packages.  "
     ls $origdir/ | sort > full_file_list.txt
+    echo "The FULL data set discovered has this many tarballs:"`wc -l full_file_list.txt`
+
     # Annoyingly, tail is zero-based
     onebased=$((SKIPTO + 1))
     tail -n+${onebased} full_file_list.txt > all_following.txt
@@ -45,8 +47,7 @@ else
 
     rm -rf $inputdir
     mkdir -p $inputdir
-    echo "Running on a SUBRANGE of input packages.  Here's the size of my_chunk.txt:"
-    wc -l my_chunk.txt
+    echo "Here's the size of my_chunk.txt: "`wc -l my_chunk.txt`
     for file in `cat my_chunk.txt`; do
         echo "Linking: $file"
         ln -s "$origdir/$file" "$inputdir/$file"
