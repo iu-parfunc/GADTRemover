@@ -40,6 +40,7 @@ moduleOfProg (Prog ddefs vdefs vtop) =
 
     mkImport n  = ImportDecl noLoc (ModuleName n) False False False Nothing Nothing
     imports     = [ mkImport "Prelude" $ Just (True, builtinTypes)
+                  ,(mkImport "Prelude" Nothing) { importQualified = True }
                   -- , mkImport "Data.Typeable" Nothing
                   ]
 
@@ -61,8 +62,8 @@ builtinTypes :: [ImportSpec]
 builtinTypes = map (IAbs      . Ident) types
             ++ map (IThingAll . Ident) ctors
   where
-    types       = [ "Char", "Float", "Double", "Int", "Word" ]
-    ctors       = [ "Bool", "Maybe" ]
+    types       = [ "Char", "Float", "Double", "Int", "Word", "Integer", "String", "FilePath", "IO", "IOError", "Ordering", "Rational", "Real", "ShowS", "String" ]
+    ctors       = [ "Bool", "Maybe", "Either" ]
     -- ctypes      = [ "CChar", "CSChar", "CUChar", "CFloat", "CDouble", "CShort", "CUShort", "CInt", "CUInt", "CLong", "CULong", "CLLong", "CULLong" ]
     -- ints        = [ "Int8", "Int16", "Int32", "Int64" ]
     -- words       = [ "Word8", "Word16", "Word32", "Word64" ]
@@ -72,7 +73,7 @@ builtinTypes = map (IAbs      . Ident) types
 mkMain :: Bool -> VDef -> VDef
 mkMain doprint vtop =
   VDef { valName = "main"
-       , valTy   = ForAll [] (ConTy "IO" [ConTy "()" []])
+       , valTy   = ForAll [] (ConTy "Prelude.IO" [ConTy "()" []])
        , valExp  = if doprint
                       then EApp "print" (G.EVar (valName vtop))
                       else EApp (EApp "seq" (G.EVar (valName vtop)))
