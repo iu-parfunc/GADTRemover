@@ -156,7 +156,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   taken =
     case splitAt lIMIT weakenings of
       (short,[]) -> short
-      (x:_,rest) -> x : take (lIMIT-1) (thin weakenings)
+      (x:_,rest) -> x : take (lIMIT-1) (thin rest)
       _          -> error "impossible case"
 
   thin []       = []
