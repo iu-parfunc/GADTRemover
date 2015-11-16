@@ -21,8 +21,8 @@ fuzztest _ []            = putStrLn "fuzztest: requires input file.\n" >> usage 
 fuzztest doStrong (infile:rest) = do
   let (_,outfile) = parse [infile]
   --
-  printf "Begin fuzz testing: %s" infile
-  printf "Passing extra arguments to tasty: %s" (show rest)
+  printf "Begin fuzz testing: %s\n" infile
+  printf "Passing extra arguments to tasty: %s\n" (show rest)
   --
   toTest <- fuzzTest doStrong infile outfile
   --
