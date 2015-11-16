@@ -1,4 +1,6 @@
-{-# LANGUAGE NamedFieldPuns, TupleSections #-}
+{-# LANGUAGE NamedFieldPuns  #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections   #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -142,7 +144,11 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
  where
   lIMIT         = 1024
   busted        = map varyBusting prgDefs
-  weakenings    = sequence busted
+  -- Take the cartesian product of varying the erasure level of each data
+  -- type, but filter out any combinations where _all_ of the data types
+  -- have only kept variables
+  weakenings    = filter (not . all (\DDef{..} -> null cVars && null sVars))
+                $ sequence busted
   -- Be careful here: don't just take the length of 'weakenings', as this
   -- could be an enormous list. Instead calculate the length ourselves.
   -- This way we don't need to keep the spine of 'weakenings' in memory.
@@ -150,7 +156,8 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   taken =
     case splitAt lIMIT weakenings of
       (short,[]) -> short
-      _          -> take lIMIT (thin weakenings)
+      (x:_,rest) -> x : take (lIMIT-1) (thin weakenings)
+      _          -> error "impossible case"
 
   thin []       = []
   thin (x:xs)   = x : thin (drop lIMIT xs)
