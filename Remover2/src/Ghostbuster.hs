@@ -163,11 +163,11 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   thin (x:xs)   = x : thin (drop lIMIT xs)
 
   varyBusting :: DDef -> [DDef]
-  varyBusting dd@(DDef{kVars,cVars,sVars}) =
-    [ -- (steal1A+steal1B, steal2)
-     dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
-        , cVars = drop steal1A cVars ++ take steal2 sVars
-        , sVars = drop (steal1B + steal2) sVars }
+  varyBusting dd@DDef{..} =
+    [ dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
+         , cVars = drop steal1A cVars ++ take steal2 sVars
+         , sVars = drop (steal1B + steal2) sVars
+         }
     | steal1A <- [0..length cVars]
     , steal1B <- [0.. if steal1A == length cVars
                       then length sVars
