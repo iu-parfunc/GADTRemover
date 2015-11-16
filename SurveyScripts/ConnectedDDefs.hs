@@ -70,7 +70,7 @@
    - Driver: set up directories so intermediate files are not in NFS
 -}
 
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
 module ConnectedDDefs where -- Used as a library as well.
 
 import           Control.Exception
@@ -403,13 +403,13 @@ outputCCs hdl input outputBase =
                     -- Use canonicalizepath as opposed to makeAbsolute so we don't have to worry about sym-links
                     -- canonicalBase <- makeAbsolute outputBase
                     -- canonicalBase <- canonicalizePath outputBase
-                    stat <- gatherStats res (fst prog) (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
+                    stat <- gatherStats res prog (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
                     DBLC.hPutStr hdl $ CSV.encode [stat]
                     return stat)
                 (zip mods gdecls) [(1::Int)..]
         return $ mconcat stats
            where
-            gatherStats res (Module _ _ _ _ _ _ decls) nm =
+            gatherStats res ((Module _ _ _ _ _ _ decls), (GT.Prog ddefs _ _)) nm =
              let codeGend      = sum [1 | G.Success _ <- res]
                  ambFailed     = sum [1 | G.AmbFailure <- res]
                  codeGenFailed = sum [1 | G.CodeGenFailure <- res]
@@ -421,6 +421,11 @@ outputCCs hdl input outputBase =
                  numGADTsWParams = sum [1  | GDataDecl _ _ _ _ (y:ys) _ _ _ <- decls]
                  totalParamsInCC = sum [length tvs |  GDataDecl _ _ _ _ tvs  _ _ _ <- decls]
                                  + sum [length tvs |  DataDecl loc _ _ _ tvs _ _ <- decls, loc /= noLoc]
+                 weakenings    = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
+                                 $ map (G.varyBusting True) ddefs
+                 searchSpaceSize = product [ length b | b <- weakenings]
+                 -- We truncate the search-space at 1024 so if it's larger than that we know it's 1024
+                 actualSearchSpaceSize = min searchSpaceSize 1024
                  stats = Stats
                          { numADTs            = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
                          , numGADTs           = ccNumGADTs
@@ -434,8 +439,8 @@ outputCCs hdl input outputBase =
                          , successfulErasures = codeGend
                          , fileName           = takeDirectory input </> nm
                          , numParamsInCC      = totalParamsInCC
-                         , actualCCSearchSpace = 0 -- TODO
-                         , exploredCCSearchSpace = 0 -- TODO
+                         , actualCCSearchSpace = searchSpaceSize
+                         , exploredCCSearchSpace = actualSearchSpaceSize
                          }
              in return stats
       Right str -> do

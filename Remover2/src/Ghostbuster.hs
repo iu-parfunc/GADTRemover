@@ -15,6 +15,7 @@ module Ghostbuster (
     , fuzzTest
     , fuzzTestProg
     , FuzzResult(..)
+    , varyBusting
 ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -143,7 +144,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
 
  where
   lIMIT         = 1024
-  busted        = map varyBusting prgDefs
+  busted        = map (varyBusting doStrong) prgDefs
   -- Take the cartesian product of varying the erasure level of each data
   -- type, but filter out any combinations where _all_ of the data types
   -- have only kept variables
@@ -162,22 +163,22 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   thin []       = []
   thin (x:xs)   = x : thin (drop lIMIT xs)
 
-  varyBusting :: DDef -> [DDef]
-  varyBusting dd@DDef{..} =
+varyBusting :: Bool -> DDef -> [DDef]
+varyBusting doStrong dd@DDef{..} =
     [ dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
-         , cVars = drop steal1A cVars ++ take steal2 sVars
-         , sVars = drop (steal1B + steal2) sVars
-         }
+            , cVars = drop steal1A cVars ++ take steal2 sVars
+            , sVars = drop (steal1B + steal2) sVars
+            }
     | steal1A <- [0..length cVars]
     , steal1B <- [0.. if steal1A == length cVars
-                      then length sVars
-                      else 0]
+                        then length sVars
+                        else 0]
     -- This attempts the stronger form of gradualizaiton, where synth
     -- vars can be demoted to checked.  I think this form doesn't actually
     -- hold, but we need to pinpoint exactly why.
     , steal2  <- if doStrong
-                 then [0 .. length sVars - steal1B]
-                 else [0] -- Alternatively, this uses only the simpler gradualization.
+                    then [0 .. length sVars - steal1B]
+                    else [0] -- Alternatively, this uses only the simpler gradualization.
     ]
 
 fuzzTest :: Bool     -- ^ Should we attempt the "stronger" version of gradual hypothesis?
