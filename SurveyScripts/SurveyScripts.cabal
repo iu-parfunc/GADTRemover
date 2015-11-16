@@ -19,7 +19,6 @@ cabal-version:       >=1.10
 
 executable CompileBusted.exe
   main-is:             CompileBusted.hs
-  other-modules:       ConnectDDefs
   ghc-options:         -threaded -rtsopts
   other-extensions:    BangPatterns, DeriveAnyClass, DeriveGeneric, OverloadedStrings, RecordWildCards, ScopedTypeVariables
   build-depends:       base >=4.7,
