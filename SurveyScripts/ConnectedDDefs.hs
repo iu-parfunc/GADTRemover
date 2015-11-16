@@ -231,7 +231,7 @@ cauterize nameKinds decls total defined = newDecls
 sParseProg :: [Decl] -> GT.Prog
 sParseProg decls = GT.Prog ddefs vdefs expr
  where
-  ddefs = [ cvt nm ts cons | DataDecl _ DataType  _ nm ts   ks _ <- decls, let cons = map (GPP.kconsOfQualConDecl ts) ks ]
+  ddefs = [ cvt nm ts cons | DataDecl  _ DataType _ nm ts   ks _ <- decls, let cons = map (GPP.kconsOfQualConDecl ts) ks ]
        ++ [ cvt nm ts cons | GDataDecl _ DataType _ nm ts _ ks _ <- decls, let cons = map GPP.kconsOfGadtDecl ks ]
   vdefs = []
   expr  = GT.VDef "ghostbuster" (GT.ForAll [] (GT.ConTy "()" [])) (GT.EK "()")
@@ -410,36 +410,37 @@ outputCCs hdl input outputBase =
         return $ mconcat stats
            where
             gatherStats res ((Module _ _ _ _ _ _ decls), (GT.Prog ddefs _ _)) nm =
-             let codeGend      = sum [1 | G.Success _ <- res]
-                 ambFailed     = sum [1 | G.AmbFailure <- res]
-                 codeGenFailed = sum [1 | G.CodeGenFailure <- res]
-                 ccNumADTs     = sum [1 | DataDecl{} <- decls]
-                 -- We only cauterize with ADTs 
-                 numADTsCauterized  = sum [1 | DataDecl (SrcLoc "" (-1) (-1)) _ _ _ _ _ _ <- decls]
-                 ccNumGADTs         = sum [1 | GDataDecl{} <- decls]
-                 numADTsWParams = sum  [1  | DataDecl loc _ _ _ (y:ys) _ _ <- decls, loc /= noLoc]
-                 numGADTsWParams = sum [1  | GDataDecl _ _ _ _ (y:ys) _ _ _ <- decls]
-                 totalParamsInCC = sum [length tvs |  GDataDecl _ _ _ _ tvs  _ _ _ <- decls]
-                                 + sum [length tvs |  DataDecl loc _ _ _ tvs _ _ <- decls, loc /= noLoc]
-                 weakenings    = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
-                                 $ map (G.varyBusting True) ddefs
-                 searchSpaceSize = product [ length b | b <- weakenings]
+             let codeGend               = sum [1 | G.Success _ <- res]
+                 ambFailed              = sum [1 | G.AmbFailure <- res]
+                 codeGenFailed          = sum [1 | G.CodeGenFailure <- res]
+                 ccNumADTs              = sum [1 | DataDecl{} <- decls]
+                 -- We only cauterize with ADTs
+                 numADTsCauterized      = sum [1 | DataDecl loc _ _ _ _ _ _ <- decls, loc == noLoc]
+                 ccNumGADTs             = sum [1 | GDataDecl{} <- decls]
+                 numADTsWParams         = sum [1 | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc, not (null tvs)]
+                 numGADTsWParams        = sum [1 | GDataDecl _  _ _ _ tvs _ _ _ <- decls, not (null tvs)]
+                 totalParamsInCC        = sum [length tvs | GDataDecl _  _ _ _ tvs _ _ _ <- decls]
+                                        + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
+                 weakenings             = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
+                                        $ sequence
+                                        $ map (G.varyBusting True) ddefs
+                 searchSpaceSize        = product [ length b | b <- weakenings]
                  -- We truncate the search-space at 1024 so if it's larger than that we know it's 1024
                  actualSearchSpaceSize = min searchSpaceSize 1024
                  stats = Stats
-                         { numADTs            = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
-                         , numGADTs           = ccNumGADTs
-                         , numADTsWithParams = numADTsWParams
-                         , numGADTsWithParams = numGADTsWParams
-                         , parseSucc          = 1
-                         , parseFailed        = 0
-                         , numCCsInFile       = length mods -- Superfluous?
-                         , failedAmb          = ambFailed
-                         , failedGBust        = codeGenFailed
-                         , successfulErasures = codeGend
-                         , fileName           = takeDirectory input </> nm
-                         , numParamsInCC      = totalParamsInCC
-                         , actualCCSearchSpace = searchSpaceSize
+                         { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
+                         , numGADTs              = ccNumGADTs
+                         , numADTsWithParams     = numADTsWParams
+                         , numGADTsWithParams    = numGADTsWParams
+                         , parseSucc             = 1
+                         , parseFailed           = 0
+                         , numCCsInFile          = length mods -- Superfluous?
+                         , failedAmb             = ambFailed
+                         , failedGBust           = codeGenFailed
+                         , successfulErasures    = codeGend
+                         , fileName              = takeDirectory input </> nm
+                         , numParamsInCC         = totalParamsInCC
+                         , actualCCSearchSpace   = searchSpaceSize
                          , exploredCCSearchSpace = actualSearchSpaceSize
                          }
              in return stats
