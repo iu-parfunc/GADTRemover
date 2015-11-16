@@ -75,27 +75,28 @@ module ConnectedDDefs where -- Used as a library as well.
 
 import           Control.Exception
 import           Control.Monad
-import qualified Data.ByteString             as DB
-import qualified Data.ByteString.Char8       as DBB
-import qualified Data.ByteString.Lazy.Char8  as DBLC
-import qualified Data.Csv                    as CSV
+import qualified Data.ByteString              as DB
+import qualified Data.ByteString.Char8        as DBB
+import qualified Data.ByteString.Lazy.Char8   as DBLC
+import qualified Data.Csv                     as CSV
 import           Data.Graph
 import           Data.List
 import           Data.Maybe
 import           Data.Tree
 import           Data.Tuple.Utils
-import qualified Data.Vector                 as V
+import qualified Data.Vector                  as V
 import           GHC.Generics
-import qualified Ghostbuster                 as G
-import qualified Ghostbuster.Parser.Prog     as GPP
-import qualified Ghostbuster.Types           as GT
-import           Language.Haskell.Exts       as H hiding (name, parse)
-import qualified Language.Preprocessor.Cpphs as CP
+import qualified Ghostbuster                  as G
+import qualified Ghostbuster.Parser.Prog      as GPP
+import qualified Ghostbuster.Types            as GT
+import           Language.Haskell.Exts        as H hiding (name, parse)
+import           Language.Haskell.Exts.SrcLoc (noLoc)
+import qualified Language.Preprocessor.Cpphs  as CP
 import           System.Directory
 import           System.Environment
 import           System.Exit
 import           System.FilePath
-import qualified System.FilePath.Find        as SFF
+import qualified System.FilePath.Find         as SFF
 import           System.IO
 
 data Stats = Stats { numADTs            :: Int      -- Number of ADTs in this file
@@ -202,7 +203,7 @@ cauterize nameKinds decls total defined = newDecls
                                             Just i -> [(nm,i)]
                                             Nothing -> []
                                     else ([] :: [(Name,Int)])) unknownNames
-    stubDecls = [ DataDecl (SrcLoc "Foo" 0 0) DataType [] name vars [] []
+    stubDecls = [ DataDecl noLoc DataType [] name vars [] []
                 | (name, vars) <- map (\(x,y) -> (x, createVars y)) createStubs]
     createVars i = take i $ map (UnkindedVar . Ident . ("a"++) . show) [(0::Int)..]
     newDecls = stubDecls ++ decls
