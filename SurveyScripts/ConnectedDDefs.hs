@@ -70,7 +70,7 @@
    - Driver: set up directories so intermediate files are not in NFS
 -}
 
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
 module ConnectedDDefs where -- Used as a library as well.
 
 import           Control.Exception
@@ -100,13 +100,18 @@ import qualified System.FilePath.Find         as SFF
 import           System.IO
 
 data Stats = Stats { numADTs            :: Int      -- Number of ADTs in this file
+                   , numADTsWithParams  :: Int      -- Number of ADTs in this file
                    , numGADTs           :: Int      -- Number of GADTs in this file
+                   , numGADTsWithParams :: Int      -- Number of GADTs in this file
                    , parseSucc          :: Int
                    , parseFailed        :: Int      -- These are integers to make it easier to combine
-                   , numCCs             :: Int      -- Number of connected components
+                   , numCCsInFile             :: Int      -- Number of connected components
                    , failedAmb          :: Int      -- Number of failed erasure settings
                    , failedGBust        :: Int      -- Number of failed erasure settings
                    , successfulErasures :: Int      -- Number of successful erasure settings
+                   , numParamsInCC      :: Int      -- Average number of parameters in this CC
+                   , actualCCSearchSpace :: Int     -- Actual search space size for this CC
+                   , exploredCCSearchSpace :: Int   -- The search space we searched (in the case of truncation)
                    , fileName           :: String   -- File name
                    }
  deriving (Show, Eq, Ord, Generic)
@@ -120,26 +125,36 @@ instance Monoid Stats where
    mempty = emptyStats
    mappend x y =
      Stats { numADTs                = (numADTs x)            + (numADTs y)
+           , numADTsWithParams      = (numADTsWithParams x)            + (numADTsWithParams y)
            , numGADTs               = (numGADTs x)           + (numGADTs y)
+           , numGADTsWithParams     = (numGADTsWithParams x)           + (numGADTsWithParams y)
            , parseSucc              = (parseSucc x)          + (parseSucc y)
            , parseFailed            = (parseFailed x)        + (parseFailed y)
-           , numCCs                 = (numCCs x)             + (numCCs y)
+           , numCCsInFile                 = (numCCsInFile x)             + (numCCsInFile y)
            , failedAmb              = (failedAmb x)          + (failedAmb y)
            , failedGBust            = (failedGBust x)        + (failedGBust y)
            , successfulErasures     = (successfulErasures x) + (successfulErasures y)
            , fileName               = (fileName x)          ++ (fileName y)
+           , numParamsInCC          = (numParamsInCC x)      + (numParamsInCC y)     
+           , actualCCSearchSpace    = (actualCCSearchSpace x)+ (actualCCSearchSpace y)
+           , exploredCCSearchSpace  = (exploredCCSearchSpace x) + (exploredCCSearchSpace y)
            }
 
 emptyStats :: Stats
 emptyStats = Stats { numADTs            = 0
+                   , numADTsWithParams           = 0
                    , numGADTs           = 0
+                   , numGADTsWithParams           = 0
                    , parseSucc          = 0
                    , parseFailed        = 0
-                   , numCCs             = 0
+                   , numCCsInFile             = 0
                    , failedAmb          = 0
                    , failedGBust        = 0
                    , successfulErasures = 0
                    , fileName           = ""
+                   , numParamsInCC      = 0
+                   , actualCCSearchSpace = 0
+                   , exploredCCSearchSpace = 0
                    }
 
 -- | Read in a module and then gather it into a forest of connected components
@@ -216,7 +231,7 @@ cauterize nameKinds decls total defined = newDecls
 sParseProg :: [Decl] -> GT.Prog
 sParseProg decls = GT.Prog ddefs vdefs expr
  where
-  ddefs = [ cvt nm ts cons | DataDecl _ DataType  _ nm ts   ks _ <- decls, let cons = map (GPP.kconsOfQualConDecl ts) ks ]
+  ddefs = [ cvt nm ts cons | DataDecl  _ DataType _ nm ts   ks _ <- decls, let cons = map (GPP.kconsOfQualConDecl ts) ks ]
        ++ [ cvt nm ts cons | GDataDecl _ DataType _ nm ts _ ks _ <- decls, let cons = map GPP.kconsOfGadtDecl ks ]
   vdefs = []
   expr  = GT.VDef "ghostbuster" (GT.ForAll [] (GT.ConTy "()" [])) (GT.EK "()")
@@ -388,28 +403,45 @@ outputCCs hdl input outputBase =
                     -- Use canonicalizepath as opposed to makeAbsolute so we don't have to worry about sym-links
                     -- canonicalBase <- makeAbsolute outputBase
                     -- canonicalBase <- canonicalizePath outputBase
-                    stat <- gatherStats res (fst prog) (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
+                    stat <- gatherStats res prog (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
                     DBLC.hPutStr hdl $ CSV.encode [stat]
                     return stat)
                 (zip mods gdecls) [(1::Int)..]
         return $ mconcat stats
            where
-            gatherStats res (Module _ _ _ _ _ _ decls) nm =
-             let codeGend      = sum [1 | G.Success _ <- res]
-                 ambFailed     = sum [1 | G.AmbFailure <- res]
-                 codeGenFailed = sum [1 | G.CodeGenFailure <- res]
-                 ccNumADTs     = sum [1 | DataDecl{} <- decls]
-                 ccNumGADTs    = sum [1 | GDataDecl{} <- decls]
+            gatherStats res ((Module _ _ _ _ _ _ decls), (GT.Prog ddefs _ _)) nm =
+             let codeGend               = sum [1 | G.Success _ <- res]
+                 ambFailed              = sum [1 | G.AmbFailure <- res]
+                 codeGenFailed          = sum [1 | G.CodeGenFailure <- res]
+                 ccNumADTs              = sum [1 | DataDecl{} <- decls]
+                 -- We only cauterize with ADTs
+                 numADTsCauterized      = sum [1 | DataDecl loc _ _ _ _ _ _ <- decls, loc == noLoc]
+                 ccNumGADTs             = sum [1 | GDataDecl{} <- decls]
+                 numADTsWParams         = sum [1 | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc, not (null tvs)]
+                 numGADTsWParams        = sum [1 | GDataDecl _  _ _ _ tvs _ _ _ <- decls, not (null tvs)]
+                 totalParamsInCC        = sum [length tvs | GDataDecl _  _ _ _ tvs _ _ _ <- decls]
+                                        + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
+                 weakenings             = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
+                                        $ sequence
+                                        $ map (G.varyBusting True) ddefs
+                 searchSpaceSize        = product [ length b | b <- weakenings]
+                 -- We truncate the search-space at 1024 so if it's larger than that we know it's 1024
+                 actualSearchSpaceSize = min searchSpaceSize 1024
                  stats = Stats
-                         { numADTs            = ccNumADTs
-                         , numGADTs           = ccNumGADTs
-                         , parseSucc          = 1
-                         , parseFailed        = 0
-                         , numCCs             = length mods -- Superfluous?
-                         , failedAmb          = ambFailed
-                         , failedGBust        = codeGenFailed
-                         , successfulErasures = codeGend
-                         , fileName           = takeDirectory input </> nm
+                         { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
+                         , numGADTs              = ccNumGADTs
+                         , numADTsWithParams     = numADTsWParams
+                         , numGADTsWithParams    = numGADTsWParams
+                         , parseSucc             = 1
+                         , parseFailed           = 0
+                         , numCCsInFile          = length mods -- Superfluous?
+                         , failedAmb             = ambFailed
+                         , failedGBust           = codeGenFailed
+                         , successfulErasures    = codeGend
+                         , fileName              = takeDirectory input </> nm
+                         , numParamsInCC         = totalParamsInCC
+                         , actualCCSearchSpace   = searchSpaceSize
+                         , exploredCCSearchSpace = actualSearchSpaceSize
                          }
              in return stats
       Right str -> do
