@@ -106,8 +106,11 @@ for csvfile in `cat all_csvs.txt`; do
 done
 
 find "./data/4_compiled_ddefs/" -name "*.log" >> logfiles.txt
+set +x
+echo "Begin copying log files."
 for logfile in `cat logfiles.txt`; do
     dest="$outdir/$logfile"
     mkdir -p `dirname "$dest"`
     cp "$logfile" "$dest"
 done
+echo "Done copying log files."

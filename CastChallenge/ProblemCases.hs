@@ -27,6 +27,9 @@ instance Show (Foo x) where
   show (Foo _x) = "Foo"
   show (Bar x) = "Bar ("++ show x ++")"
 
+
+
+
 t0 :: Foo Int
 t0 = Bar (Foo 'a')
 
@@ -226,3 +229,37 @@ c' = downC c
 
 c'' :: Maybe (C Float)
 c'' = upC c'
+
+--------------------------------------------------------------------------------
+
+data Bad a where
+  Leaf :: x -> Bad x
+  Wrap :: Bad x -> Bad y -> Bad y
+
+-- deriving instance Show y => (Show (Bad y))  -- Could not deduce (Show x).
+
+copyBad :: Bad a -> Bad a
+copyBad (Leaf x) = Leaf x
+copyBad (Wrap x y) = Wrap (copyBad x) (copyBad y)
+
+data Bad' where
+  Leaf' :: Typeable x => x -> Bad'
+  Wrap' :: Bad' -> Bad' -> Bad'
+
+downBad :: Typeable a => Bad a -> Bad'
+downBad (Leaf x)   = Leaf' x
+downBad (Wrap x y) = Wrap' (undefined) (downBad y) -- We don't have the Typeable constraint for downBad x.
+
+data Good a where
+  GLeaf :: x -> Good x
+  GWrap :: Typeable x => Good x -> Good y -> Good y
+
+data Good' where
+  GLeaf' :: Typeable x => x -> Good'
+  GWrap' :: Good' -> Good' -> Good'
+
+-- deriving instance (Show (Good'))  -- Still no (Show x) of course
+
+downGood :: Typeable a => Good a -> Good'
+downGood (GLeaf x)   = GLeaf' x
+downGood (GWrap x y) = GWrap' (downGood x) (downGood y)
