@@ -70,7 +70,12 @@
    - Driver: set up directories so intermediate files are not in NFS
 -}
 
-{-# LANGUAGE DeriveGeneric, OverloadedStrings, ScopedTypeVariables, RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# OPTIONS_GHC -Wall #-}
+
 module ConnectedDDefs where -- Used as a library as well.
 
 import           Control.Exception
@@ -107,7 +112,7 @@ data Stats = Stats
   , numGADTsWithParams          :: Int          -- Number of GADTs in this file with a type variable
   , parseSucc                   :: Int          -- These are integers to make it easier to combine
   , parseFailed                 :: Int
-  , numCCsInFile                :: Int          -- Number of connected components
+  -- , numCCsInFile                :: Int          -- Number of connected components
   , failedAmb                   :: Int          -- Number of failed erasure settings
   , failedGBust                 :: Int          -- Number of failed erasure settings
   , successfulErasures          :: Int          -- Number of successful erasure settings
@@ -132,7 +137,7 @@ instance Monoid Stats where
            , numGADTsWithParams    = on (+) numGADTsWithParams x y
            , parseSucc             = on (+) parseSucc x y
            , parseFailed           = on (+) parseFailed x y
-           , numCCsInFile          = on (+) numCCsInFile x y
+           -- , numCCsInFile          = on (+) numCCsInFile x y
            , failedAmb             = on (+) failedAmb x y
            , failedGBust           = on (+) failedGBust x y
            , successfulErasures    = on (+) successfulErasures x y
@@ -151,7 +156,7 @@ emptyStats =
     , numGADTsWithParams    = 0
     , parseSucc             = 0
     , parseFailed           = 0
-    , numCCsInFile          = 0
+    -- , numCCsInFile          = 0
     , failedAmb             = 0
     , failedGBust           = 0
     , successfulErasures    = 0
@@ -165,7 +170,7 @@ emptyStats =
 -- TZ: Treating pairs and arrows as primitive for now
 gParseModule
     :: String
-    -> IO (Either ([Module], ([Integer], [Integer]), [GT.Prog]) String)
+    -> IO (Either [(Module, GT.Prog)] String)
 gParseModule str = do
   parsed <- parseFileContentsWithMode
     ParseMode { parseFilename         = str
@@ -178,17 +183,18 @@ gParseModule str = do
     <$> (CP.runCpphs CP.defaultCpphsOptions "" =<< (readFile str))
   case parsed of
     ParseOk (Module a b c _ _ f decls) ->
-      let ddefs                     = [ d | d <- decls, isDataDecl d ]
-          g                         = makeGraph ddefs
-          (graph, lookupF, memberF) = graphFromEdges $ map cleanGraph g
-          connComps                 = components graph
-          -- list of list of names of CCs
-          connNames                 = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
-          -- list of list of CC ddefs
+      let ddefs                 = [ d | d <- decls, isDataDecl d ]
+          g                     = makeGraph ddefs
+          (graph, lookupF, _)   = graphFromEdges $ map cleanGraph g
+          connComps             = components graph
+
+          connNames :: [[Name]]
+          connNames             = map (nub . (concatMap (smash . lookupF) . flatten)) connComps
+
+          cDefs         :: [[Decl]]
+          knownDefNames :: [[Name]]
           defsAndKnownNames         = map unzip $ map (lookupDDef ddefs) connNames
           (cDefs, knownDefNames)    = unzip defsAndKnownNames
-          numADTs                   = [ sum [ 1 | DataDecl{}  <- ds ] | ds <- cDefs ]
-          numGADTs                  = [ sum [ 1 | GDataDecl{} <- ds ] | ds <- cDefs ]
 
           -- Take the various data definitions and output them to a file
           cauterizedCDefs           = zipWith3 (cauterize (concatMap thd3 g)) cDefs connNames knownDefNames
@@ -197,7 +203,7 @@ gParseModule str = do
           -- Make this into a module of CC data defs
           modules                   = map (Module a b c Nothing Nothing f) cauterizedCDefs
       in
-      return $ Left (modules, (numADTs,numGADTs), ghostbusterDDefs)
+      return $ Left (zip modules ghostbusterDDefs)
     ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
 
 builtin :: [Name]
@@ -276,6 +282,7 @@ lookupDDef decls names = concatMap
 getName :: [Name] -> Decl -> (Bool, Name)
 getName names (DataDecl _ _ _ nm _ _ _)    = (elem nm names, nm)
 getName names (GDataDecl _ _ _ nm _ _ _ _) = (elem nm names, nm)
+getName _     _                            = error "getName: I only know about ADTs and GADTs"
 
 -- [decl, name, [<list of data exprs used>]]
 makeGraph :: [Decl] -> [(Decl, Name, [(Name, Int)])]
@@ -284,12 +291,16 @@ makeGraph = map calledConstrs
 -- | Return all the constructors (or type constructors) that are used in
 -- this data declaration
 calledConstrs :: Decl -> (Decl, Name, [(Name, Int)])
-calledConstrs v@(DataDecl _ DataType _ nm tyvars contrs _) =
-  let tys = concatMap fromConDecl contrs
-  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
-calledConstrs v@(GDataDecl _ DataType _ nm tyvars _kinds contrs _) =
-  let tys = map (\x -> case x of GadtDecl _ _ _ typ -> typ) contrs
-  in (v, nm, nub (filter ((/= nm) . fst) $ concatMap gatherCalled tys))
+calledConstrs decl =
+  case decl of
+    DataDecl  _ DataType _ nm _   contrs _ -> (decl, nm, called nm (concatMap fromConDecl contrs))
+    GDataDecl _ DataType _ nm _ _ contrs _ -> (decl, nm, called nm [ typ | GadtDecl _ _ _ typ <- contrs ])
+    _                                           -> error "calledConstrs: i only know about ADTs and GADTs"
+  where
+    called nm = nub
+              . filter ((/= nm) . fst)
+              . concatMap gatherCalled
+
 
 -- | Rip out the types from the ConDecl for non-GADTs
 fromConDecl :: QualConDecl -> [Type]
@@ -305,7 +316,7 @@ gatherCalled = go
   where
     go :: Type -> [(Name, Int)]
     go (TyFun a b)              = go a ++ go b
-    go (TyVar v)                = []
+    go (TyVar _)                = []
     go (TyCon c)                = [(nameOfQName c, 0)]
     go (TyParen t)              = go t
     go (TyBang _ t)             = go t
@@ -359,22 +370,15 @@ main :: IO ()
 main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
-      header = DB.intercalate ","
-             $ V.toList
-             $ CSV.headerOrder (undefined :: Stats)
-  -- putStrLn $ "current directory: " ++ curDir
-  -- putStrLn $ "output directory:  " ++ outputDir
-  -- putStrLn $ show header
-  fls <- SFF.find SFF.always
-        (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs")
-        curDir
-  -- Get the stats for each file in this package
+
+  onlyGADTs <- maybe True read <$> lookupEnv "GHOSTBUST_ONLY_GADTS"
+  inputs    <- SFF.find SFF.always (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs") curDir
+
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
   withFile (outputDir </> "ghostbust_data.csv") WriteMode $ \hdl -> do
-    DBB.hPutStrLn hdl header
-    _stats <- zipWithM (outputCCs hdl) fls (map ((outputDir </>) . dropExtension) fls)
-    {-mapM_ (putStrLn . show) stats-}
-    return ()
+    DBB.hPutStrLn hdl $ DB.intercalate "," $ V.toList $ CSV.headerOrder (undefined :: Stats)
+    mapM_ (outputCCs onlyGADTs hdl outputDir) inputs
+
 
 parseInput :: [String] -> (String, String)
 -- We place our output in the same directory that we started in but in "output"
@@ -383,8 +387,8 @@ parseInput [input, output] = (input, output)
 parseInput _               = error "argument parse failed: expected one or two args"
 
 -- | Parse the module and return the list of CCs
-outputCCs :: Handle -> String -> String -> IO Stats
-outputCCs hdl input outputBase =
+outputCCs :: Bool -> Handle -> String -> String -> IO Stats
+outputCCs onlyGADTs hdl outputBase input =
   go `catch` \e ->
     do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
        print (e :: SomeException)
@@ -393,69 +397,87 @@ outputCCs hdl input outputBase =
   go =
    gParseModule input >>= \res ->
     case res of
-      Left (mods, (adts,gadts), gdecls) -> do
+      Left yes -> do
+        let
+            -- Number all the tests
+            tests :: [(Integer, Module, GT.Prog)]
+            tests = zipWith (\(m,d) n -> (n,m,d)) yes [1..]
+
         putStrLn $ "--------- Reading File " ++ input ++ " --------------"
-        -- Output the file that we're looking at
-        zipWithM_ (\mod num -> sWriteProg (outputBase ++ "_" ++ show num ++ ".hs") mod) mods [(1::Int)..]
-        -- Moved the error handling into Ghostbuster proper so we have a
-        -- per-erasure ability to look at failures/successes etc.
-        stats <- zipWithM (\prog num -> do
-                    res <- G.fuzzTestProg True (snd prog) (outputBase ++ "_" ++ show num ++ "ghostbusted" ++ ".hs")
-                           -- Gather the stats for this CC
-                           -- - Number of failed/succeeded/ambCheckFails for each erasure setting
-                           -- - Number of GADTs and ADTs for this CC
-                    -- Use canonicalizepath as opposed to makeAbsolute so we don't have to worry about sym-links
-                    -- canonicalBase <- makeAbsolute outputBase
-                    -- canonicalBase <- canonicalizePath outputBase
-                    stat <- gatherStats res prog (takeBaseName outputBase ++ "_" ++ show num ++ ".hs")
-                    DBLC.hPutStr hdl $ CSV.encode [stat]
-                    return stat)
-                (zip mods gdecls) [(1::Int)..]
-        return $ mconcat stats
-           where
-            gatherStats res ((Module _ _ _ _ _ _ decls), (GT.Prog ddefs _ _)) nm =
-             let codeGend               = sum [1 | G.Success _ <- res]
-                 ambFailed              = sum [1 | G.AmbFailure <- res]
-                 codeGenFailed          = sum [1 | G.CodeGenFailure <- res]
-                 ccNumADTs              = sum [1 | DataDecl{} <- decls]
-                 -- We only cauterize with ADTs
-                 numADTsCauterized      = sum [1 | DataDecl loc _ _ _ _ _ _ <- decls, loc == noLoc]
-                 ccNumGADTs             = sum [1 | GDataDecl{} <- decls]
-                 numADTsWParams         = sum [1 | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc, not (null tvs)]
-                 numGADTsWParams        = sum [1 | GDataDecl _  _ _ _ tvs _ _ _ <- decls, not (null tvs)]
-                 totalParamsInCC        = sum [length tvs | GDataDecl _  _ _ _ tvs _ _ _ <- decls]
-                                        + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
-                 weakenings             = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
-                                        $ sequence
-                                        $ map (G.varyBusting True) ddefs
-                 searchSpaceSize        = product [ length b | b <- weakenings]
-                 -- We truncate the search-space at 1024 so if it's larger than that we know it's 1024
-                 actualSearchSpaceSize = min searchSpaceSize 1024
-                 stats = Stats
-                         { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
-                         , numGADTs              = ccNumGADTs
-                         , numADTsWithParams     = numADTsWParams
-                         , numGADTsWithParams    = numGADTsWParams
-                         , parseSucc             = 1
-                         , parseFailed           = 0
-                         , numCCsInFile          = length mods -- Superfluous?
-                         , failedAmb             = ambFailed
-                         , failedGBust           = codeGenFailed
-                         , successfulErasures    = codeGend
-                         , fileName              = takeDirectory input </> nm
-                         , numParamsInCC         = totalParamsInCC
-                         , actualCCSearchSpace   = searchSpaceSize
-                         , exploredCCSearchSpace = actualSearchSpaceSize
-                         }
-             in return stats
-      Right str -> do
+        fmap mconcat $ forM tests $ \(n, mdl, prog) ->
+            let
+                Module _ _ _ _ _ _ decls = mdl
+                ccName   = dropExtension input ++ "_" ++ show n <.> "hs"
+                gbName   = outputBase </> dropExtension ccName ++ "ghostbusted" <.> "hs"
+                hasGADTs = or [True | GDataDecl{} <- decls ]
+                doit     = (onlyGADTs && hasGADTs) || (not onlyGADTs && not hasGADTs)
+            in
+            if doit
+            then do
+              -- Output the file that we're looking at
+              sWriteProg  (outputBase </> ccName) mdl
+
+              -- Fuzz-test this module
+              fuzz <- G.fuzzTestProg True prog gbName
+
+              -- Compute statistics for fuzz-testing this module and save
+              let stat = gatherFuzzStats fuzz mdl prog ccName
+              DBLC.hPutStr hdl (CSV.encode [stat])
+              return stat
+            else
+              return mempty
+      --
+      Right err -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
-        putStrLn str
+        putStrLn err
         return $ emptyStats { parseFailed = 1 }
+
+
+gatherFuzzStats
+    :: [G.FuzzResult (Int,FilePath)]
+    -> Module
+    -> GT.Prog
+    -> FilePath
+    -> Stats
+gatherFuzzStats res (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
+  let codeGend              = sum [1 | G.Success _ <- res]
+      ambFailed             = sum [1 | G.AmbFailure <- res]
+      codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
+      ccNumADTs             = sum [1 | DataDecl{} <- decls]
+      -- We only cauterize with ADTs
+      numADTsCauterized     = sum [1 | DataDecl loc _ _ _ _ _ _ <- decls, loc == noLoc]
+      ccNumGADTs            = sum [1 | GDataDecl{} <- decls]
+      numADTsWParams        = sum [1 | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc, not (null tvs)]
+      numGADTsWParams       = sum [1 | GDataDecl _  _ _ _ tvs _ _ _ <- decls, not (null tvs)]
+      totalParamsInCC       = sum [length tvs | GDataDecl _  _ _ _ tvs _ _ _ <- decls]
+                            + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
+      weakenings            = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
+                            $ sequence
+                            $ map (G.varyBusting True) ddefs
+      searchSpaceSize       = product [ length b | b <- weakenings]
+      actualSearchSpaceSize = length res
+  in
+  Stats
+    { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
+    , numGADTs              = ccNumGADTs
+    , numADTsWithParams     = numADTsWParams
+    , numGADTsWithParams    = numGADTsWParams
+    , parseSucc             = 1
+    , parseFailed           = 0
+    -- , numCCsInFile          = length mods -- Superfluous?
+    , failedAmb             = ambFailed
+    , failedGBust           = codeGenFailed
+    , successfulErasures    = codeGend
+    , fileName              = file
+    , numParamsInCC         = totalParamsInCC
+    , actualCCSearchSpace   = searchSpaceSize
+    , exploredCCSearchSpace = actualSearchSpaceSize
+    }
+
 
 -- | Write the decls out to a file
 sWriteProg :: String -> Module -> IO ()
-sWriteProg filename (Module a nm c d e f decls) = do
+sWriteProg filename (Module a _ c d e f decls) = do
   createDirectoryIfMissing True (takeDirectory filename)
   writeFile filename (prettyPrint (Module a nm' c d e f decls))
   where
