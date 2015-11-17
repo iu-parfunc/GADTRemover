@@ -79,6 +79,7 @@ import qualified Data.ByteString              as DB
 import qualified Data.ByteString.Char8        as DBB
 import qualified Data.ByteString.Lazy.Char8   as DBLC
 import qualified Data.Csv                     as CSV
+import           Data.Function
 import           Data.Graph
 import           Data.List
 import           Data.Maybe
@@ -99,21 +100,22 @@ import           System.FilePath
 import qualified System.FilePath.Find         as SFF
 import           System.IO
 
-data Stats = Stats { numADTs            :: Int      -- Number of ADTs in this file
-                   , numADTsWithParams  :: Int      -- Number of ADTs in this file
-                   , numGADTs           :: Int      -- Number of GADTs in this file
-                   , numGADTsWithParams :: Int      -- Number of GADTs in this file
-                   , parseSucc          :: Int
-                   , parseFailed        :: Int      -- These are integers to make it easier to combine
-                   , numCCsInFile             :: Int      -- Number of connected components
-                   , failedAmb          :: Int      -- Number of failed erasure settings
-                   , failedGBust        :: Int      -- Number of failed erasure settings
-                   , successfulErasures :: Int      -- Number of successful erasure settings
-                   , numParamsInCC      :: Int      -- Average number of parameters in this CC
-                   , actualCCSearchSpace :: Int     -- Actual search space size for this CC
-                   , exploredCCSearchSpace :: Int   -- The search space we searched (in the case of truncation)
-                   , fileName           :: String   -- File name
-                   }
+data Stats = Stats
+  { numADTs                     :: Int          -- Number of ADTs in this file
+  , numADTsWithParams           :: Int          -- Number of ADTs in this file with a type variable
+  , numGADTs                    :: Int          -- Number of GADTs in this file
+  , numGADTsWithParams          :: Int          -- Number of GADTs in this file with a type variable
+  , parseSucc                   :: Int          -- These are integers to make it easier to combine
+  , parseFailed                 :: Int
+  , numCCsInFile                :: Int          -- Number of connected components
+  , failedAmb                   :: Int          -- Number of failed erasure settings
+  , failedGBust                 :: Int          -- Number of failed erasure settings
+  , successfulErasures          :: Int          -- Number of successful erasure settings
+  , numParamsInCC               :: Int          -- Average number of parameters in this CC
+  , actualCCSearchSpace         :: Int          -- Actual search space size for this CC
+  , exploredCCSearchSpace       :: Int          -- The search space we searched (in the case of truncation)
+  , fileName                    :: String       -- File name
+  }
  deriving (Show, Eq, Ord, Generic)
 
 instance CSV.FromNamedRecord Stats
@@ -122,40 +124,42 @@ instance CSV.ToRecord Stats
 instance CSV.DefaultOrdered Stats
 
 instance Monoid Stats where
-   mempty = emptyStats
+   mempty      = emptyStats
    mappend x y =
-     Stats { numADTs                = (numADTs x)            + (numADTs y)
-           , numADTsWithParams      = (numADTsWithParams x)            + (numADTsWithParams y)
-           , numGADTs               = (numGADTs x)           + (numGADTs y)
-           , numGADTsWithParams     = (numGADTsWithParams x)           + (numGADTsWithParams y)
-           , parseSucc              = (parseSucc x)          + (parseSucc y)
-           , parseFailed            = (parseFailed x)        + (parseFailed y)
-           , numCCsInFile                 = (numCCsInFile x)             + (numCCsInFile y)
-           , failedAmb              = (failedAmb x)          + (failedAmb y)
-           , failedGBust            = (failedGBust x)        + (failedGBust y)
-           , successfulErasures     = (successfulErasures x) + (successfulErasures y)
-           , fileName               = (fileName x)          ++ (fileName y)
-           , numParamsInCC          = (numParamsInCC x)      + (numParamsInCC y)     
-           , actualCCSearchSpace    = (actualCCSearchSpace x)+ (actualCCSearchSpace y)
-           , exploredCCSearchSpace  = (exploredCCSearchSpace x) + (exploredCCSearchSpace y)
+     Stats { numADTs               = on (+) numADTs x y
+           , numADTsWithParams     = on (+) numADTsWithParams x y
+           , numGADTs              = on (+) numGADTs x y
+           , numGADTsWithParams    = on (+) numGADTsWithParams x y
+           , parseSucc             = on (+) parseSucc x y
+           , parseFailed           = on (+) parseFailed x y
+           , numCCsInFile          = on (+) numCCsInFile x y
+           , failedAmb             = on (+) failedAmb x y
+           , failedGBust           = on (+) failedGBust x y
+           , successfulErasures    = on (+) successfulErasures x y
+           , numParamsInCC         = on (+) numParamsInCC x y
+           , actualCCSearchSpace   = on (+) actualCCSearchSpace x y
+           , exploredCCSearchSpace = on (+) exploredCCSearchSpace x y
+           , fileName              = fileName x ++ ':':fileName y
            }
 
 emptyStats :: Stats
-emptyStats = Stats { numADTs            = 0
-                   , numADTsWithParams           = 0
-                   , numGADTs           = 0
-                   , numGADTsWithParams           = 0
-                   , parseSucc          = 0
-                   , parseFailed        = 0
-                   , numCCsInFile             = 0
-                   , failedAmb          = 0
-                   , failedGBust        = 0
-                   , successfulErasures = 0
-                   , fileName           = ""
-                   , numParamsInCC      = 0
-                   , actualCCSearchSpace = 0
-                   , exploredCCSearchSpace = 0
-                   }
+emptyStats =
+  Stats
+    { numADTs               = 0
+    , numADTsWithParams     = 0
+    , numGADTs              = 0
+    , numGADTsWithParams    = 0
+    , parseSucc             = 0
+    , parseFailed           = 0
+    , numCCsInFile          = 0
+    , failedAmb             = 0
+    , failedGBust           = 0
+    , successfulErasures    = 0
+    , numParamsInCC         = 0
+    , actualCCSearchSpace   = 0
+    , exploredCCSearchSpace = 0
+    , fileName              = ""
+    }
 
 -- | Read in a module and then gather it into a forest of connected components
 -- TZ: Treating pairs and arrows as primitive for now
@@ -384,7 +388,7 @@ outputCCs hdl input outputBase =
   go `catch` \e ->
     do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
        print (e :: SomeException)
-       return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1}
+       return $ emptyStats {parseFailed = 1}
   where
   go =
    gParseModule input >>= \res ->
@@ -447,7 +451,7 @@ outputCCs hdl input outputBase =
       Right str -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
         putStrLn str
-        return $ emptyStats{parseFailed = (parseFailed emptyStats) + 1}
+        return $ emptyStats { parseFailed = 1 }
 
 -- | Write the decls out to a file
 sWriteProg :: String -> Module -> IO ()
