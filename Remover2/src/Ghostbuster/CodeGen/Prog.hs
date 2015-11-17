@@ -28,6 +28,7 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                   , LanguagePragma noLoc [ Ident "ScopedTypeVariables" ]
                   , LanguagePragma noLoc [ Ident "BangPatterns" ]
                   , LanguagePragma noLoc [ Ident "MagicHash" ]
+                  , LanguagePragma noLoc [ Ident "KindSignatures" ]
                   -- , LanguagePragma noLoc [ Ident "EmptyCase" ]
                   , OptionsPragma noLoc (Just GHC) " -Wall "
                   -- , OptionsPragma noLoc (Just GHC) " -fdefer-type-errors "
