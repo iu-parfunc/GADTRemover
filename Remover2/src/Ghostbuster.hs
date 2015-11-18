@@ -95,6 +95,89 @@ writeProg filename prog = do
     say "\n File written." $
       return ()
 
+
+-- | This is similar to `fuzzTestProg`, except instead of assuming a
+-- prog with ghostbuster annotations, it starts from nothing and
+-- exhaustively (or partially/greedily) explores the search space.
+--
+--
+surveyFuzzTest :: Prog -> FilePath -> IO [FuzzResult (Int, FilePath)]
+surveyFuzzTest (Prog prgDefs _prgVals (VDef _name tyscheme expr)) _path = do
+   putStrLn         $ printf "surveyFuzzTest: Number of exhaustive possibilities (given ordering limitation): %d" numPossib
+   undefined
+{-
+   forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
+     printf "%4d:" ind
+     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+       putStr $ "  " ++
+                show ( map (unVar . fst) kVars
+                     , map (unVar . fst) cVars
+                     , map (unVar . fst) sVars)
+     putStr "\n"
+   sequence [
+     let
+         (file,ext) = splitExtension outroot
+         newName    = file ++ printf "%03d" index <.> ext
+     in
+     case ambCheck defs of
+       Left err -> do
+         printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
+         return $ AmbFailure
+       Right () -> do
+         ((writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)) >>=
+           \_ -> return (Success (index,newName)))
+            `catch`
+            \e ->
+              do putStrLn $ "Unable to run codegen on program "
+                 -- The above output to a file, but wrote nothing, so remove it
+                 fExists <- doesFileExist newName
+                 when fExists $ removeFile newName
+                 print (e :: SomeException)
+                 return $ CodeGenFailure
+    | (index,defs) <- (zip [(0::Int) ..] taken)
+    ]
+-}
+  where
+   lIMIT     = 1024
+   defs      = undefined
+   numPossib = product (map ddefNumPossib defs)
+{-
+   busted        = map (varyBusting doStrong) prgDefs
+   -- Take the cartesian product of varying the erasure level of each data
+   -- type, but filter out any combinations where _all_ of the data types
+   -- have only kept variables
+   weakenings    = filter (not . all (\DDef{..} -> null cVars && null sVars))
+                 $ sequence busted
+   -- Be careful here: don't just take the length of 'weakenings', as this
+   -- could be an enormous list. Instead calculate the length ourselves.
+   -- This way we don't need to keep the spine of 'weakenings' in memory.
+   n             = product [ length b | b <- busted ]
+   taken =
+     case splitAt lIMIT weakenings of
+       (short,[]) -> short
+       (x:_,rest) -> x : take (lIMIT-1) (thin rest)
+       _          -> error "impossible case"
+   thin []       = []
+   thin (x:xs)   = x : thin (drop lIMIT xs)
+-}
+
+
+-- | Number of possible erasures.  This is highly limited by our
+-- temporary ORDERING limitation.
+ddefNumPossib :: DDef -> Int
+ddefNumPossib dd@DDef{kVars,cVars,sVars} = combinations
+  where
+  -- There are (totalVars + 1) ways to place a cursor between/before/after some var.
+  -- Thus there are (totalVars + 1) `choose` 2 ways to split into our three buckets.
+  -- n! / (k! * (n-k)!)
+  n = totalVars + 1
+  k = 2
+  combinations = totalVars * (fact n) `quot` (fact k * fact (n-k))
+  totalVars    = length allVars
+  allVars      = kVars ++ cVars ++ sVars
+
+fact = undefined
+
 -- | Try different weakenings of the ghostbuster configuration in the input
 -- file, and write the outputs to filepaths at the given root.
 --
@@ -102,7 +185,6 @@ writeProg filename prog = do
 -- of possible test actions corresponding to different weakenings.
 -- Each test action returns an output filepath if it succeeds.
 --
-
 -- Make this return whether it failed ambiguity check (AmbFailure)
 -- codgen'd (CodeGen (Int, FilePath)) or failed to codegen (CodeGenFailure)
 fuzzTestProg :: Bool -> Prog -> FilePath -> IO [FuzzResult (Int, FilePath)]
@@ -163,6 +245,8 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
   thin []       = []
   thin (x:xs)   = x : thin (drop lIMIT xs)
 
+-- | This produces bustings of a DDef that are WEAKER than the current state.
+--   That is, some number of erased variables become unerased.
 varyBusting :: Bool -> DDef -> [DDef]
 varyBusting doStrong dd@DDef{..} =
     [ dd { kVars = kVars ++ take steal1A cVars ++ take steal1B sVars
@@ -191,7 +275,7 @@ fuzzTest doStrong inpath outroot = do
     where
       fromFuzzResult :: [FuzzResult (Int, FilePath)] -> [Maybe (Int, FilePath)]
       fromFuzzResult = map go
-         where 
+         where
             go (Success a) = Just a
             go _ = Nothing
 
