@@ -13,7 +13,7 @@ module Ghostbuster.Parser.Prog where
 import           Data.Char
 import           Data.List
 import qualified Data.Set                       as S
-import qualified Debug.Trace                    as Debug
+-- -- import qualified Debug.Trace                    as Debug
 import           Ghostbuster.CodeGen
 import           Ghostbuster.Types              as G hiding (outputs)
 import           Language.Haskell.Exts          as H hiding (name)
@@ -327,4 +327,3 @@ encode_as_unicode_char c
                               else '0':hex_str
   where
     hex_str = showHex (ord c) "U"
-

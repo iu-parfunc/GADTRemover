@@ -14,9 +14,10 @@ module Ghostbuster (
     , writeProg
     , fuzzTest
     , fuzzTestProg
+    , surveyFuzzTest
     , FuzzResult(..)
     , varyBusting
-) where
+    ) where
 
 import Ghostbuster.Ambiguity   as A
 import Ghostbuster.CodeGen
@@ -34,12 +35,26 @@ import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
-import Data.Functor -- for GHC 7.8.4
+-- import Data.Functor -- for GHC 7.8.4
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
 data FuzzResult a = AmbFailure | CodeGenFailure | Success a
  deriving (Show, Eq, Ord)
+
+-- | Each ConnectedComponent of DDefs is surveyed in one of these two modes.
+data SurveyMode = Exhaustive { searchSpace :: Int }
+                | Greedy     { searchSpace :: Int
+                             , exploredVariants :: Int -- ^ If this equals searchSpace then we shoud have done Exhaustive.
+                             , exploredRounds   :: (Int,Int)
+                             -- ^ How many complete rounds, then how many variants within the last round.
+                             }
+
+data SurveyResult =
+     SurveyResult { gadtsBecameASTS :: [DDef] -- ^ a subset of the survey'd CC that became ADTs in some variant
+                  , surveyMode :: SurveyMode
+                  , results :: [FuzzResult (Int,FilePath) ]
+                  }
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -101,10 +116,13 @@ writeProg filename prog = do
 -- exhaustively (or partially/greedily) explores the search space.
 --
 --
-surveyFuzzTest :: Prog -> FilePath -> IO [FuzzResult (Int, FilePath)]
-surveyFuzzTest (Prog prgDefs _prgVals (VDef _name tyscheme expr)) _path = do
-   putStrLn         $ printf "surveyFuzzTest: Number of exhaustive possibilities (given ordering limitation): %d" numPossib
-   undefined
+surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
+surveyFuzzTest prg@(Prog _prgDefs _prgVals (VDef _name _tyscheme _expr)) _path = do
+   printf "surveyFuzzTest: Number of exhaustive possibilities (given ordering limitation): %d" numPossib
+   putStrLn $ "                Based on ddef possibilities: "++show possibs
+   if numPossib <= lIMIT
+      then doExhaustive
+      else doGreedy
 {-
    forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
      printf "%4d:" ind
@@ -140,50 +158,56 @@ surveyFuzzTest (Prog prgDefs _prgVals (VDef _name tyscheme expr)) _path = do
   where
    lIMIT     = 1024
    defs      = undefined
-   numPossib = product (map ddefNumPossib defs)
-{-
-   busted        = map (varyBusting doStrong) prgDefs
-   -- Take the cartesian product of varying the erasure level of each data
-   -- type, but filter out any combinations where _all_ of the data types
-   -- have only kept variables
-   weakenings    = filter (not . all (\DDef{..} -> null cVars && null sVars))
-                 $ sequence busted
-   -- Be careful here: don't just take the length of 'weakenings', as this
-   -- could be an enormous list. Instead calculate the length ourselves.
-   -- This way we don't need to keep the spine of 'weakenings' in memory.
-   n             = product [ length b | b <- busted ]
-   taken =
-     case splitAt lIMIT weakenings of
-       (short,[]) -> short
-       (x:_,rest) -> x : take (lIMIT-1) (thin rest)
-       _          -> error "impossible case"
-   thin []       = []
-   thin (x:xs)   = x : thin (drop lIMIT xs)
--}
+   numPossib = product possibs
+   possibs   = (map ddefNumPossib defs)
+
+   doExhaustive =
+     return $ SurveyResult [] (Exhaustive numPossib) []
+
+   doGreedy =
+     return $ SurveyResult [] (Greedy numPossib 0 (0,0)) []
 
 
 -- | Number of possible erasures.  This is highly limited by our
 -- temporary ORDERING limitation.
 ddefNumPossib :: DDef -> Int
-ddefNumPossib dd@DDef{kVars,cVars,sVars} = combinations
+ddefNumPossib DDef{kVars,cVars,sVars} = combinations
   where
   -- There are (totalVars + 1) ways to place a cursor between/before/after some var.
   -- Thus there are (totalVars + 1) `choose` 2 ways to split into our three buckets.
-  -- n! / (k! * (n-k)!)
-  n = totalVars + 1
-  k = 2
-  combinations = totalVars * (fact n) `quot` (fact k * fact (n-k))
+  combinations = ((totalVars + 1) `choose` 2) - 1  -- Subtract 1 for degenerate case.
   totalVars    = length allVars
   allVars      = kVars ++ cVars ++ sVars
 
-fact = undefined
+-- | Explode a single DDef into all the possible erasure modes.
+-- Limited by our ORDERING limitation.
+ddefPossibs :: DDef -> [DDef]
+ddefPossibs dd@DDef{..} =
+  let allVars = kVars ++ cVars ++ sVars
+      totalVars = length allVars
+  in
+  [ dd{kVars= ks, cVars = cs, sVars = ss}
+  | take1 <- [0 .. totalVars-1] -- (-1) because we omit the degenerate case.
+  , take2 <- [take1 .. totalVars]
+  , let ks = take take1 allVars
+  , let cs = drop take1 $ take take2 allVars
+  , let ss = drop take2 allVars
+  ]
+
+choose :: Integral a => a -> a -> a
+choose n k = (fact n) `quot` (fact k * fact (n-k))
+
+fact :: (Num a, Ord a) => a -> a
+fact n = if n < 2 then 1 else n * fact (n-1)
+
 
 -- | Try different weakenings of the ghostbuster configuration in the input
 -- file, and write the outputs to filepaths at the given root.
 --
 -- This function immediately parses the input file and returns a list
 -- of possible test actions corresponding to different weakenings.
--- Each test action returns an output filepath if it succeeds.
+-- Each test action returns an output filepath if it succeeds,
+-- plus a simple index for which variant in the space it was.
 --
 -- Make this return whether it failed ambiguity check (AmbFailure)
 -- codgen'd (CodeGen (Int, FilePath)) or failed to codegen (CodeGenFailure)

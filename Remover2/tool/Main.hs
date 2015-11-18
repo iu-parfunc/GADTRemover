@@ -35,12 +35,17 @@ fuzztest doStrong (infile:rest) = do
       | Just (ind,file) <- toTest
       ]
 
+survey :: [String] -> IO ()
+survey args =
+  undefined (surveyFuzzTest undefined undefined)
+
 
 check :: [String] -> IO ()
 check ["-h"]                 = usage   >> exit
 check ["-v"]                 = version >> exit
 check ("--fuzz":args)        = fuzztest False args >> exit
 check ("--strong-fuzz":args) = fuzztest True args >> exit
+check ("--survey":args)      = survey args >> exit
 check []              = die "Invalid arguments -- a file name MUST be passed to Ghostbuster.  Try -h."
 check ls@(_:_:_:_)    = die (printf "Invalid args: %s\n" (show ls))
 check _               = return ()
@@ -59,6 +64,7 @@ usage = do
   putStrLn ""
   putStrLn "Usage: ghostbust [-vh] <inputFile> [<outputFile>]"
   putStrLn "       ghostbust --fuzz <inputFile> [<tastyArgs>]"
+  putStrLn "       ghostbust --survey <inputFile> "
   putStrLn "       ghostbust --strong-fuzz <inputFile> [<tastyArgs>]"
   putStrLn " "
   putStrLn " Note that we don't expect the strong version of the gradual guarantee\
