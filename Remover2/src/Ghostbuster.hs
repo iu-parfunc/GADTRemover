@@ -125,7 +125,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     in
     case ambCheck defs of
       Left err -> do
-        printf "Possibility %d failed ambiguity check!\nReturned error: %s" index err
+        printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
         return $ AmbFailure
 
       Right () -> do
