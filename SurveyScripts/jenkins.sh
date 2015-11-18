@@ -103,6 +103,7 @@ n=0
 for csvfile in `cat all_csvs.txt`; do
     echo "Filing away: $csvfile"
     cp "$csvfile" "$outdir/$((n++))_"`basename $csvfile`
+    csvstat $csvfile
 done
 
 find "./data/4_compiled_ddefs/" -name "*.log" >> logfiles.txt
