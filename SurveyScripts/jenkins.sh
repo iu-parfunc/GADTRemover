@@ -80,7 +80,8 @@ if [ "$BUILD_NUMBER" == "" ]; then
 fi
 
 # outdir=$HOME/ghostbuster_survey_collected_output_stats/run_`date +"%s"`/
-outdir=$HOME/ghostbuster_survey_collected_output_stats/build_${BUILD_NUMBER}/skipto_${SKIPTO}_time_`date +"%s"`/
+builddir=build_${BUILD_NUMBER}/skipto_${SKIPTO}_time_`date +"%s"`/
+outdir=$HOME/ghostbuster_survey_collected_output_stats/$builddir
 metadata="$outdir/collection_machine_info.txt"
 
 mkdir -p "$outdir"
@@ -115,3 +116,12 @@ for logfile in `cat logfiles.txt`; do
     cp "$logfile" "$dest"
 done
 echo "Done copying log files."
+
+set +e
+
+echo "Now phone home by sending all results to cutter:"
+remotepath=local/ghostbuster_survey_data_bak/magramal_all_results/$builddir
+ssh crest-team@cutter.crest.iu.edu mkdir -p "$remotepath/data/4_compiled_ddefs"
+ssh crest-team@cutter.crest.iu.edu mkdir -p "$remotepath/data/3_ddef_clusters"
+time rsync -plt "./data/4_compiled_ddefs/" crest-team@cutter.crest.iu.edu:"$remotepath/data/4_compiled_ddefs/"
+time rsync -plt "./data/3_ddef_clusters/" crest-team@cutter.crest.iu.edu:"$remotepath/data/3_ddef_clusters"
