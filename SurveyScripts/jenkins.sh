@@ -8,7 +8,7 @@ TOPDIR=`pwd`
 git clean -fxd
 
 WORKINGNAME=ghostbuster_survey_`date +'%s'`
-LOCALDIR="$HOME/local/working_copies_temp/$WORKINGNAME/"
+LOCALDIR="$HOME/local/working_copies_temp/$WORKINGNAME"
 mkdir -p "$LOCALDIR"
 time cp -a "$TOPDIR" "$LOCALDIR"
 cd "$LOCALDIR/SurveyScripts/"
