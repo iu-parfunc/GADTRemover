@@ -233,13 +233,13 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
      putStrLn $ "Search space size under limit, verifying prediction and possib list match: " ++
               show (length possibs' == numPossib')
 
-   error "UNFINISHED - surveyFuzzTest"
+   -- error "UNFINISHED - surveyFuzzTest"
 
-   if True -- TEMP -- numPossib <= lIMIT
+   if True -- (TEMP Greedy not implemented)
+       -- numPossib <= lIMIT
       then doExhaustive
       else doGreedy
-{-
--}
+
   where
    lIMIT     = 10000 -- Increasing [2015.11.19]
    numPossib = product possibCounts - 1 -- Discount degenerate option.
