@@ -242,9 +242,12 @@ verifyGradualErasure :: SurveyResult -> (Int, Maybe String)
 verifyGradualErasure SurveyResult{results} =
    T.trace ("Looking for maxima in "++show (M.size successesOnly)++" successes, found "++
             show numMaxima++
-            ", and is the success map equal to miniFeldsparSuccesses? "++
-            show (M.keysSet successesOnly == S.fromList miniFeldsparSuccesses) ++ ":\n"
-           ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))) $
+            "\nAnd is the success map equal to miniFeldsparSuccesses? "++
+            show (M.keysSet successesOnly == S.fromList miniFeldsparSuccesses) ++ "\n"++
+            "And how many maxima for miniFeldsparSuccesses? "++show (length (maxima erasureConfigPartOrd miniFeldsparSuccesses))
+            ++"\n"
+           -- ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))
+           ) $
    (numMaxima,mainResult)
   where
    mainResult =
