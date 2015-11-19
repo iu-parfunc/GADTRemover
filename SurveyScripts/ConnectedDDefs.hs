@@ -88,6 +88,7 @@ import qualified Data.Csv                     as CSV
 import           Data.Function
 import           Data.Graph
 import           Data.List
+import qualified Data.Map                     as M
 import           Data.Maybe
 import           Data.Tree
 import           Data.Tuple.Utils
@@ -416,15 +417,22 @@ outputCCs onlyGADTs hdl outputBase input =
         fmap mconcat $ forM tests $ \(n, mdl, prog) ->
             let
                 Module _ _ _ _ _ _ decls = mdl
-                ccName   = dropExtension input ++ "_" ++ show n <.> "hs"
-                gbName   = outputBase </> dropExtension ccName ++ "ghostbusted" <.> "hs"
-                hasGADTs = or [True | GDataDecl{} <- decls ]
-                doit     = (onlyGADTs && hasGADTs) || (not onlyGADTs && not hasGADTs)
+                ccName          = dropExtension input ++ "_" ++ show n <.> "hs"
+                gbName          = outputBase </> dropExtension ccName ++ "ghostbusted" <.> "hs"
+                degenName       = outputBase </> dropExtension ccName ++ "degenerate" <.> "hs"
+                hasGADTs        = or [True | GDataDecl{} <- decls ]
+                doit            = (onlyGADTs && hasGADTs) || (not onlyGADTs && not hasGADTs)
             in
             if doit
             then do
               -- Output the file that we're looking at
-              sWriteProg  (outputBase </> ccName) mdl
+              writeModule (outputBase </> ccName) mdl
+
+              -- Also output the generate program, where all type variables
+              -- are kept. If this program doesn't compile, there is no
+              -- point testing the variants.
+              G.writeProg degenName
+                $ prog { GT.prgDefs = [ ddef { GT.kVars = kVars ++ cVars ++ sVars } | ddef@GT.DDef{..} <- GT.prgDefs prog ]}
 
               -- Fuzz-test this module
               -- fuzz <- G.fuzzTestProg True prog gbName
@@ -449,8 +457,11 @@ gatherFuzzStats
     -> GT.Prog
     -> FilePath
     -> Stats
-gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
-  let codeGend              = sum [1 | G.Success{} <- res]
+gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
+  let
+      res                   = M.elems results
+      --
+      codeGend              = sum [1 | G.Success{} <- res]
       ambFailed             = sum [1 | G.AmbFailure <- res]
       codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
       ccNumADTs             = sum [1 | DataDecl{} <- decls]
@@ -466,8 +477,6 @@ gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
           G.Exhaustive x                           -> (x,x)
           G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
           G.Greedy{}                               -> error "TODO gatherFuzzStats: greedy search"
-      G.SurveyResult{gadtsBecameASTS,surveyMode,results=res} = sres
-
   in
   Stats
     { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
@@ -490,8 +499,8 @@ gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
 
 
 -- | Write the decls out to a file
-sWriteProg :: String -> Module -> IO ()
-sWriteProg filename (Module a _ c d e f decls) = do
+writeModule :: String -> Module -> IO ()
+writeModule filename (Module a _ c d e f decls) = do
   createDirectoryIfMissing True (takeDirectory filename)
   writeFile filename (prettyPrint (Module a nm' c d e f decls))
   where
