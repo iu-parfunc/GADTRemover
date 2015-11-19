@@ -259,7 +259,7 @@ verifyGradualErasure SurveyResult{results} =
               "This was while searching under "++show (length maxes)++" different successful maxima.\n"++
               concat allResults
 
-   numMaxima     = length allResults
+   numMaxima     = length maxes
    maxes         = maxima erasureConfigPartOrd $ M.keys successesOnly
    successesOnly = M.filter isSuccess results
 
@@ -792,6 +792,7 @@ case_t5 = maxima erasureConfigPartOrd [ec1,ec2]
 
 case_t6 = length $ maxima erasureConfigPartOrd miniFeldsparSuccesses
 
+case_t7 = length $ maxima erasureConfigPartOrd $ S.toList $ S.fromList miniFeldsparSuccesses
 
 -- This is still 76 elements long as a set (all unique)
 -- Running maxima on it directly says they're ALL maxima.
