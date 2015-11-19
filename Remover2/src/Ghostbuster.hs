@@ -37,6 +37,7 @@ import System.Process
 import Text.Printf
 import Data.List (transpose)
 import qualified Data.Set as S
+import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
@@ -147,7 +148,11 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         let winds = zip [0..] cartesianProd
 
             -- | Build a map of whether the original datatypes in the CC were GADTs:
-            gadtMap = map isGADT origdefs
+            gadtMap :: M.Map Var Bool
+            gadtMap = M.fromList [ (tyName d, isGADT d) | d <- origdefs ]
+
+        putStrLn $ "These datatypes were originally GADTs: "++show
+                   [ unMkVar d | (d,True) <- M.toList gadtMap ]
 
         ls <- forM (zip [(0::Int)..] cartesianProd) $ \ (ind,defs) -> do
           printf "%4d:" ind
@@ -158,13 +163,18 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
                           , map (unVar . fst) sVars)
           putStr "\n"
           fr <- gogo (ind,defs)
-          let wasGADT = case fr of
+          let wasGADT :: [DDef]
+              wasGADT = case fr of
                          Success{ghostbustedProg,fuzzResult} ->
-                            -- Here we find the matching datatype in the ghostbusted output:
-                            [ match | (True,match) <- zip gadtMap (prgDefs ghostbustedProg) ]
+                            -- Here we find the matching datatype in the ghostbusted output
+                            -- for each datatype that started out as a GADT:
+                            [ dd | dd <- prgDefs ghostbustedProg
+                                 , Just True == (M.lookup (tyName dd) gadtMap) ]
                          CodeGenFailure -> []
                          AmbFailure     -> []
               winners = filter (not . isGADT) wasGADT
+          putStrLn $ "Here are possible winners: " ++
+                     show (map unMkVar $ map tyName $ wasGADT )
           return (fr, S.fromList winners)
 
         let (fuzzRes,gadtsBecameASTS) = unzip ls
@@ -172,8 +182,9 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         putStrLn $ "All exhaustive survey variants explored, returning."
 
         let finalSet = S.unions gadtsBecameASTS
-        unless (S.null finalSet) $
-          putStrLn $ "These datatypes BECAME ADTs but were gADTs: " ++show(map tyName $ S.toList finalSet)
+        if (S.null finalSet)
+         then putStrLn $ "No datatypes became ADTs from GADTs..."
+         else putStrLn $ "These datatypes BECAME ADTs but were gADTs: " ++show(map tyName $ S.toList finalSet)
         return $ SurveyResult (S.toList finalSet) (Exhaustive numPossib) fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
