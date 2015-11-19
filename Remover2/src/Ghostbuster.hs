@@ -55,7 +55,7 @@ import           Test.Tasty.HUnit (assertEqual)
 import qualified Data.Set as S
 import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
--- import Debug.Trace as Trace
+import Debug.Trace as T
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
@@ -85,12 +85,14 @@ data SurveyResult =
 -- | An erasure configuration for a complete CC.
 --  The type arguments are listed in the original order in the datatype.
 newtype ErasureConfig = ErasureConfig (M.Map TName [(TyVar, EraseMode)])
-  deriving (Eq, Ord)
+  deriving (Read, Eq, Ord)
   -- ^ Note this Ord instance is JUST for using it in data structures.
   --  It is not the semantic notion of ordering (which is a partial order).
 
-instance Show ErasureConfig where
-  show (ErasureConfig mp) =
+instance Show ErasureConfig where show = prettyShow
+
+prettyShow :: ErasureConfig -> String
+prettyShow (ErasureConfig mp) =
     let ls = M.toList mp
     in "(ErasureConfig, "++
        concat (L.intersperse " "
@@ -238,6 +240,8 @@ compareMany ls =
 -- Also return the number of maxima.
 verifyGradualErasure :: SurveyResult -> (Int, Maybe String)
 verifyGradualErasure SurveyResult{results} =
+   T.trace ("Looking for maxima in successes: \n"
+           ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))) $
    (numMaxima,mainResult)
   where
    mainResult =
@@ -763,7 +767,91 @@ ec1 = ErasureConfig (M.fromList [("Exp", [("env",Checked),("ans",Synthesized)])]
 ec2 :: ErasureConfig
 ec2 = ErasureConfig (M.fromList [("Exp", [("env",Kept),("ans",Kept)])])
 
-case_t1 = assertEqual "less" (Just LT) (erasureConfigPartOrd ec2 ec1)
+case_t1 = assertEqual "less"  (Just LT) (erasureConfigPartOrd ec2 ec1)
 case_t2 = assertEqual "same1" (Just EQ) (erasureConfigPartOrd ec1 ec1)
 case_t3 = assertEqual "same2" (Just EQ) (erasureConfigPartOrd ec2 ec2)
-case_t4 = assertEqual "less" (Just GT) (erasureConfigPartOrd ec1 ec2)
+case_t4 = assertEqual "less"  (Just GT) (erasureConfigPartOrd ec1 ec2)
+
+case_t5 = maxima erasureConfigPartOrd [ec1,ec2]
+
+case_t6 = length $ maxima erasureConfigPartOrd miniFeldsparSuccesses
+
+miniFeldsparSuccesses :: [ErasureConfig]
+miniFeldsparSuccesses =
+ [ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Checked)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Checked)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Kept),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Kept)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])]),
+  ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Synthesized),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Synthesized),(Var "arg",Kept)])])
+ ]
