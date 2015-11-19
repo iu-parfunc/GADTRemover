@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ParallelListComp  #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -74,7 +75,11 @@ data SurveyResult =
 -- | An erasure configuration for a complete CC.
 --  The type arguments are listed in the original order in the datatype.
 newtype ErasureConfig = ErasureConfig (M.Map TName [(TyVar, EraseMode)])
-data EraseMode = Kept | Checked | Synthesized
+  deriving Show
+data EraseMode = Kept | Checked | Synthesized  -- ORDER matters.
+  deriving (Show,Read,Eq,Ord)
+
+type SingletonErasureConf = (TName,[(TyVar, EraseMode)])
 
 
 -- | Permute the type args to match a given erasure config, while
@@ -142,6 +147,16 @@ permuteMonoTy perms = go
 applyPerm :: Permutation -> [a] -> [a]
 applyPerm inds ls = [ ls !! i | i <- inds ]
 
+-- Take a bunch of per-ddef/TName singleton-ECs, and combine them into
+-- all possible complete ErasureConfigs.
+--
+-- Each of the innermost input lists shoud be for the SAME TName.
+cartProdECs :: [[SingletonErasureConf]] -> [ErasureConfig]
+cartProdECs perDDefPossibs =
+  do (slice :: [SingletonErasureConf]) <- sequence perDDefPossibs
+     -- TODO: this doesn't check for name collision.
+     return $ ErasureConfig $ M.fromList slice
+
 --------------------------------------------------------------------------------
 
 -- | Run an expression in the context of ghostbusted definitions.
@@ -208,15 +223,30 @@ surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
 surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
    putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
+
+   mapM_ print $ ddefPossibs (head origdefs)
+
+   putStrLn$ "Total possibilities, without ordering constraint: "++ show (numPossib')
+   putStrLn$ "Based on ddef possibilities (minus the one degenerate): "++show possibCounts'
+
+   when (numPossib' < lIMIT) $ do
+     putStrLn $ "Search space size under limit, verifying prediction and possib list match: " ++
+              show (length possibs' == numPossib')
+
+   error "UNFINISHED - surveyFuzzTest"
+
    if True -- TEMP -- numPossib <= lIMIT
       then doExhaustive
       else doGreedy
 {-
 -}
   where
-   lIMIT     = 1024
+   lIMIT     = 10000 -- Increasing [2015.11.19]
    numPossib = product possibCounts - 1 -- Discount degenerate option.
    possibCounts = (map ddefNumPossib origdefs)
+
+   numPossib' = product possibCounts' - 1 -- Discount degenerate option.
+   possibCounts' = map ddefNumPossib' origdefs
 
    ------------------------------------------------------------
 
@@ -271,9 +301,15 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
         return $ SurveyResult (S.toList becameADTs) mode fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
+   possibs' :: [ErasureConfig]
+   possibs'  = filter (not . isDegenerateEC) (cartProdECs perDDefVariants')
+   perDDefVariants' :: [[SingletonErasureConf]]
+   perDDefVariants' =  map ddefPossibs origdefs
+
+   -- OLD:
    possibs       = filter (not . isDegenerate) cartesianProd
    cartesianProd = sequence perDDefVariants
-   perDDefVariants = map ddefPossibs origdefs
+   perDDefVariants = map _ddefPossibs_old origdefs
 
    ------------------------------------------------------------
 
@@ -318,6 +354,10 @@ isDegenerate = (all nullErasure)
   where
    nullErasure DDef{kVars,sVars} = null kVars && null sVars
 
+isDegenerateEC :: ErasureConfig -> Bool
+isDegenerateEC (ErasureConfig mp) =
+  and [ all (==Kept) (map snd ls) | (_,ls) <- M.toList mp ]
+
 _varPattern :: DDef -> String
 _varPattern DDef{kVars,cVars,sVars} =
   show (length kVars) ++"|"++
@@ -338,10 +378,14 @@ ddefNumPossib dd = combinations
   combinations = sum [ (totalVars + 1 - choice1) | choice1 <- [0..totalVars] ]
   totalVars    = length (allVars dd)
 
+-- | Much simpler notion of search space WITHOUT arbitrary ordering constraints.
+ddefNumPossib' :: DDef -> Int
+ddefNumPossib' dd = 3 ^ length (allVars dd)
+
 -- | Explode a single DDef into all the possible erasure modes.
 -- Limited by our ORDERING limitation.
-ddefPossibs :: DDef -> [DDef]
-ddefPossibs dd =
+_ddefPossibs_old :: DDef -> [DDef]
+_ddefPossibs_old dd =
   let allvs = allVars dd
       totalVars = length allvs
   in
@@ -352,6 +396,13 @@ ddefPossibs dd =
   , let cs = drop take1 $ take take2 allvs
   , let ss = drop take2 allvs
   ]
+
+-- | New version, search FULL possibility space.
+ddefPossibs :: DDef -> [SingletonErasureConf]
+ddefPossibs dd =
+  do let vars = map fst $ allVars dd
+     varSettings <- sequence $ replicate (length vars) [Kept,Checked,Synthesized]
+     return (tyName dd, zip vars varSettings)
 
 _chooseWithReplacement :: Integral a => a -> a -> a
 _chooseWithReplacement n m = (n + m + 1) `choose` m
