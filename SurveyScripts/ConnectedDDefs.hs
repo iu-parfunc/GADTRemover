@@ -88,6 +88,7 @@ import qualified Data.Csv                     as CSV
 import           Data.Function
 import           Data.Graph
 import           Data.List
+import qualified Data.Map                     as M
 import           Data.Maybe
 import           Data.Tree
 import           Data.Tuple.Utils
@@ -449,8 +450,11 @@ gatherFuzzStats
     -> GT.Prog
     -> FilePath
     -> Stats
-gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
-  let codeGend              = sum [1 | G.Success{} <- res]
+gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
+  let
+      res                   = M.elems results
+      --
+      codeGend              = sum [1 | G.Success{} <- res]
       ambFailed             = sum [1 | G.AmbFailure <- res]
       codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
       ccNumADTs             = sum [1 | DataDecl{} <- decls]
@@ -466,8 +470,6 @@ gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
           G.Exhaustive x                           -> (x,x)
           G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
           G.Greedy{}                               -> error "TODO gatherFuzzStats: greedy search"
-      G.SurveyResult{gadtsBecameASTS,surveyMode,results=res} = sres
-
   in
   Stats
     { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
