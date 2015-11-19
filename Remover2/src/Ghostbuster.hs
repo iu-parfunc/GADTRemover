@@ -17,6 +17,7 @@ module Ghostbuster (
     , surveyFuzzTest
     , FuzzResult(..), SurveyMode(..), SurveyResult(..)
     , varyBusting
+    , isGADT
     ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -158,7 +159,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
 
         mode <- case drop lIMIT possibs of
                   []         -> return (Exhaustive numPossib)
-                  _remaining -> do putStrLn "Search space do big, taking a prefix of the exhaustive enumeration..."
+                  _remaining -> do putStrLn "Search space too big, taking a prefix of the exhaustive enumeration..."
                                    return $ Partial numPossib lIMIT
         let toexplore = take lIMIT possibs
         ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,defs) -> do

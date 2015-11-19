@@ -74,6 +74,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE NamedFieldPuns      #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module ConnectedDDefs where -- Used as a library as well.
@@ -120,6 +121,8 @@ data Stats = Stats
   , actualCCSearchSpace         :: Int          -- Actual search space size for this CC
   , exploredCCSearchSpace       :: Int          -- The search space we searched (in the case of truncation)
   , fileName                    :: String       -- File name
+  , passGADTPredicate           :: Int          -- How many DDefs pass OUR predicate. <= `numGADTs'
+  , numGADTtoADT                :: Int          -- How many DDefs went from GADT->ADT in some erasure variant.
   }
  deriving (Show, Eq, Ord, Generic)
 
@@ -418,7 +421,8 @@ outputCCs onlyGADTs hdl outputBase input =
               sWriteProg  (outputBase </> ccName) mdl
 
               -- Fuzz-test this module
-              fuzz <- G.fuzzTestProg True prog gbName
+              -- fuzz <- G.fuzzTestProg True prog gbName
+              fuzz <- G.surveyFuzzTest prog gbName
 
               -- Compute statistics for fuzz-testing this module and save
               let stat = gatherFuzzStats fuzz mdl prog ccName
@@ -434,12 +438,12 @@ outputCCs onlyGADTs hdl outputBase input =
 
 
 gatherFuzzStats
-    :: [G.FuzzResult (Int,FilePath)]
+    :: G.SurveyResult -- [G.FuzzResult (Int,FilePath)]
     -> Module
     -> GT.Prog
     -> FilePath
     -> Stats
-gatherFuzzStats res (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
+gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
   let codeGend              = sum [1 | G.Success{} <- res]
       ambFailed             = sum [1 | G.AmbFailure <- res]
       codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
@@ -451,11 +455,12 @@ gatherFuzzStats res (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
       numGADTsWParams       = sum [1 | GDataDecl _  _ _ _ tvs _ _ _ <- decls, not (null tvs)]
       totalParamsInCC       = sum [length tvs | GDataDecl _  _ _ _ tvs _ _ _ <- decls]
                             + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
-      weakenings            = filter (not . all (\GT.DDef{..} -> null cVars && null sVars))
-                            $ sequence
-                            $ map (G.varyBusting True) ddefs
-      searchSpaceSize       = product [ length b | b <- weakenings]
-      actualSearchSpaceSize = length res
+      (searchSpaceSize,actualSearchSpaceSize) =
+        case surveyMode of
+          G.Exhaustive x -> (x,x)
+          G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
+      G.SurveyResult{gadtsBecameASTS,surveyMode,results=res} = sres
+
   in
   Stats
     { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
@@ -472,6 +477,8 @@ gatherFuzzStats res (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
     , numParamsInCC         = totalParamsInCC
     , actualCCSearchSpace   = searchSpaceSize
     , exploredCCSearchSpace = actualSearchSpaceSize
+    , passGADTPredicate     = length $ filter G.isGADT ddefs
+    , numGADTtoADT          = length gadtsBecameASTS
     }
 
 
