@@ -233,8 +233,6 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
    putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
 
-   mapM_ print $ ddefPossibs (head origdefs)
-
    putStrLn$ "Total possibilities, without ordering constraint: "++ show (numPossib')
    putStrLn$ "Based on ddef possibilities (minus the one degenerate): "++show possibCounts'
 
