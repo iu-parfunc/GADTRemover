@@ -1,6 +1,7 @@
 {-# LANGUAGE NamedFieldPuns  #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE ParallelListComp  #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -18,6 +19,9 @@ module Ghostbuster (
     , FuzzResult(..), SurveyMode(..), SurveyResult(..)
     , varyBusting
     , isGADT
+    ---------------
+    , ErasureConfig(..), EraseMode(..)
+    , permuteTyArgs
     ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -29,19 +33,19 @@ import Ghostbuster.Parser.Prog as Parse
 import Ghostbuster.Types
 
 import Control.Exception       (catch, SomeException, throw)
-import Control.Monad           (forM, forM_, when, unless)
+import Control.Monad           (forM, forM_, when)
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
-import Data.List (transpose)
-import qualified Data.Vector as V
+-- import Data.List (transpose)
+-- import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
-import Debug.Trace as Trace
+-- import Debug.Trace as Trace
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
@@ -77,30 +81,35 @@ data EraseMode = Kept | Checked | Synthesized
 -- maintaining the <kept, checked, synth> ordering.  The kept/checked/synth status of
 -- each input DDef is IGNORED, and the output DDefs respect the ErasureConfig.
 permuteTyArgs :: ErasureConfig -> [DDef] -> [DDef]
-permuteTyArgs (ErasureConfig mp) [DDef{tyName,kVars,cVars,sVars,cases}] =
+permuteTyArgs (ErasureConfig mp) alldefs =
   [ DDef { tyName
          , kVars= map snd ks
          , cVars= map snd cs
          , sVars= map snd ss
          , cases= map (permuteKConsTyApps allPermutes) cases
-         } ]
+         }
+  | DDef{tyName,cases} <- alldefs
+  | ((ks,cs,ss),_) <- allProcessed ]
  where
-  origOrder = kVars ++ cVars ++ sVars
-  origVec   = V.fromList origOrder
-  Just pairs = M.lookup tyName mp
-  ks = [ (ind,(same v1 v2,kind)) | (ind,(v1,Kept       ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
-  cs = [ (ind,(same v1 v2,kind)) | (ind,(v1,Checked    ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
-  ss = [ (ind,(same v1 v2,kind)) | (ind,(v1,Synthesized),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+
+  allProcessed = map doOne alldefs
+  -- This first pass computes the per-type-constructor permutations and new variable layout:
+  doOne DDef{tyName,kVars,cVars,sVars} =
+    let origOrder = kVars ++ cVars ++ sVars
+        Just pairs = M.lookup tyName mp
+        ks = [ (ind,(same v1 v2,kind)) | (ind,(v1,Kept       ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+        cs = [ (ind,(same v1 v2,kind)) | (ind,(v1,Checked    ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+        ss = [ (ind,(same v1 v2,kind)) | (ind,(v1,Synthesized),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+        -- At each application of TName, we reorder by doing a gather with this permutation.
+        -- This will transform the old order, into the new order that respects ErasureConfig.
+        permuteInds = map fst ks ++
+                      map fst cs ++
+                      map fst ss
+    in ((ks,cs,ss),permuteInds)
 
   allPermutes :: M.Map TName Permutation
-  allPermutes = M.fromList
-                [ (tyName, permuteInds) ]
-
-  -- At each application of TName, we reorder by doing a gather with this permutation.
-  -- This will transform the old order, into the new order that respects ErasureConfig.
-  permuteInds = map fst ks ++
-                map fst cs ++
-                map fst ss
+  allPermutes = M.fromList [ (tyName, perm)
+                           | (DDef{tyName}, (_,perm)) <- zip alldefs allProcessed ]
 
   same v w | v == w    = v
            | otherwise = error $ "permuteTyArgs: internal error, should match: " ++show(v,w)
@@ -123,7 +132,7 @@ permuteMonoTy perms = go
     case mono of
       VarTy _      -> mono
       TypeDictTy _ -> mono
-      ArrowTy a b -> ArrowTy (go a) (go a)
+      ArrowTy a b -> ArrowTy (go a) (go b)
       ConTy tname args ->
         let args' = map go args
             perm  = perms M.! tname
@@ -196,7 +205,7 @@ writeProg filename prog = do
 --
 --
 surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
-surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
+surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
    putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
    if True -- TEMP -- numPossib <= lIMIT
@@ -217,7 +226,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         -- forM_ (map (map varPattern) perDDefVariants) $  \ x ->
         --    putStrLn $ "  Per-ddef variant: "++show x
         -- -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
-        let winds = zip [0..] possibs
+        let
             -- Build a map of whether the original datatypes in the CC were GADTs:
             gadtMap :: M.Map TName Bool
             gadtMap = M.fromList [ (gadtDownName (tyName d), isGADT d) | d <- origdefs ]
@@ -240,7 +249,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
           fr <- gogo (ind,defs)
           let wasGADT :: [DDef]
               wasGADT = case fr of
-                         Success{ghostbustedProg,fuzzResult} ->
+                         Success{ghostbustedProg} ->
                             -- Trace.trace ("All the ddefs in the busted prog: "++show(map tyName (prgDefs ghostbustedProg))) $
                             -- Here we find the matching datatype in the ghostbusted output
                             -- for each datatype that started out as a GADT:
@@ -309,11 +318,13 @@ isDegenerate = (all nullErasure)
   where
    nullErasure DDef{kVars,sVars} = null kVars && null sVars
 
-varPattern DDef{kVars,cVars,sVars} =
+_varPattern :: DDef -> String
+_varPattern DDef{kVars,cVars,sVars} =
   show (length kVars) ++"|"++
   show (length cVars) ++"|"++
   show (length sVars)
 
+allVars :: DDef -> [(TyVar, Kind)]
 allVars DDef{kVars,cVars,sVars} = kVars ++ cVars ++ sVars
 
 -- | Number of possible erasures.  This is highly limited by our
@@ -342,8 +353,8 @@ ddefPossibs dd =
   , let ss = drop take2 allvs
   ]
 
-chooseWithReplacement :: Integral a => a -> a -> a
-chooseWithReplacement n m = (n + m + 1) `choose` m
+_chooseWithReplacement :: Integral a => a -> a -> a
+_chooseWithReplacement n m = (n + m + 1) `choose` m
 
 choose :: Integral a => a -> a -> a
 choose n k = (fact n) `quot` (fact k * fact (n-k))
