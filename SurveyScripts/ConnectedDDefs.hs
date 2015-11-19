@@ -440,7 +440,7 @@ gatherFuzzStats
     -> FilePath
     -> Stats
 gatherFuzzStats res (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
-  let codeGend              = sum [1 | G.Success _ <- res]
+  let codeGend              = sum [1 | G.Success{} <- res]
       ambFailed             = sum [1 | G.AmbFailure <- res]
       codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
       ccNumADTs             = sum [1 | DataDecl{} <- decls]

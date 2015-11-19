@@ -1,3 +1,5 @@
+{-# LANGUAGE NamedFieldPuns #-}
+
 module Main where
 
 import Ghostbuster
@@ -43,8 +45,8 @@ survey (infile:rest) = do
   putStrLn $ "Input: " ++infile
   prg <- Parse.gParseModule infile
   putStrLn $ "Input parsed..."
-  _ <- (surveyFuzzTest prg outfile)
-
+  SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
+  putStrLn $ "gadtsBecameASTS: "++show gadtsBecameASTS
   -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
   return ()
 

@@ -15,7 +15,7 @@ module Ghostbuster (
     , fuzzTest
     , fuzzTestProg
     , surveyFuzzTest
-    , FuzzResult(..)
+    , FuzzResult(..), SurveyMode(..), SurveyResult(..)
     , varyBusting
     ) where
 
@@ -28,18 +28,22 @@ import Ghostbuster.Parser.Prog as Parse
 import Ghostbuster.Types
 
 import Control.Exception       (catch, SomeException, throw)
-import Control.Monad           (forM, forM_, when)
+import Control.Monad           (forM, forM_, when, unless)
 import System.Directory
 import System.Exit
 import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
+import Data.List (transpose)
+import qualified Data.Set as S
 -- import Data.Functor -- for GHC 7.8.4
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
-data FuzzResult a = AmbFailure | CodeGenFailure | Success a
+data FuzzResult a = AmbFailure
+                  | CodeGenFailure
+                  | Success { ghostbustedProg :: Prog, fuzzResult :: a }
  deriving (Show, Eq, Ord)
 
 -- | Each ConnectedComponent of DDefs is surveyed in one of these two modes.
@@ -49,12 +53,14 @@ data SurveyMode = Exhaustive { searchSpace :: Int }
                              , exploredRounds   :: (Int,Int)
                              -- ^ How many complete rounds, then how many variants within the last round.
                              }
+  deriving Show
 
 data SurveyResult =
      SurveyResult { gadtsBecameASTS :: [DDef] -- ^ a subset of the survey'd CC that became ADTs in some variant
                   , surveyMode :: SurveyMode
                   , results :: [FuzzResult (Int,FilePath) ]
                   }
+  deriving Show
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -117,7 +123,7 @@ writeProg filename prog = do
 --
 --
 surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
-surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
+surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
    putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
    if numPossib <= lIMIT
@@ -128,7 +134,7 @@ surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
   where
    lIMIT     = 1024
    numPossib = product possibCounts - 1 -- Discount degenerate option.
-   possibCounts = (map ddefNumPossib defs)
+   possibCounts = (map ddefNumPossib origdefs)
 
    ------------------------------------------------------------
 
@@ -140,7 +146,10 @@ surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
         putStrLn $ "Length of cartesian product : " ++ show (length cartesianProd)
         let winds = zip [0..] cartesianProd
 
-        fuzzRes <- forM (zip [(0::Int)..] cartesianProd) $ \ (ind,defs) -> do
+            -- | Build a map of whether the original datatypes in the CC were GADTs:
+            gadtMap = map isGADT origdefs
+
+        ls <- forM (zip [(0::Int)..] cartesianProd) $ \ (ind,defs) -> do
           printf "%4d:" ind
           forM_ defs $ \ DDef{kVars,cVars,sVars} ->
             putStr $ "  " ++
@@ -148,20 +157,34 @@ surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
                           , map (unVar . fst) cVars
                           , map (unVar . fst) sVars)
           putStr "\n"
-          gogo (ind,defs)
+          fr <- gogo (ind,defs)
+          let wasGADT = case fr of
+                         Success{ghostbustedProg,fuzzResult} ->
+                            -- Here we find the matching datatype in the ghostbusted output:
+                            [ match | (True,match) <- zip gadtMap (prgDefs ghostbustedProg) ]
+                         CodeGenFailure -> []
+                         AmbFailure     -> []
+              winners = filter (not . isGADT) wasGADT
+          return (fr, S.fromList winners)
 
-        let gadtsBecameASTS = error "FINISHME - gadtsBecameASTS"
-        return $ SurveyResult gadtsBecameASTS (Exhaustive numPossib) fuzzRes
+        let (fuzzRes,gadtsBecameASTS) = unzip ls
+
+        putStrLn $ "All exhaustive survey variants explored, returning."
+
+        let finalSet = S.unions gadtsBecameASTS
+        unless (S.null finalSet) $
+          putStrLn $ "These datatypes BECAME ADTs but were gADTs: " ++show(map tyName $ S.toList finalSet)
+        return $ SurveyResult (S.toList finalSet) (Exhaustive numPossib) fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
    possibs       = filter (not . isDegenerate) cartesianProd
    cartesianProd = sequence perDDefVariants
-   perDDefVariants = map ddefPossibs defs
+   perDDefVariants = map ddefPossibs origdefs
 
    ------------------------------------------------------------
 
    doGreedy =
-     do putStrLn $ "Search space too big ("++show numPossib++"), greedy search of CC's erasure space..."
+     do putStrLn $ "Search space too big ("++show numPossib++") => greedy partial search of CC's erasure space..."
         return $ SurveyResult [] (Greedy numPossib 0 (0,0)) []
 
    gogo :: (Int,[DDef]) -> IO (FuzzResult (Int,FilePath))
@@ -174,10 +197,11 @@ surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
        Left err -> do
          printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
          return $ AmbFailure
-       Right () -> do
-         ((writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)) >>=
-           \_ -> return (Success (index,newName)))
-            `catch`
+       Right () ->
+         (do let newprg = lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
+             writeProg newName newprg
+             return (Success newprg (index,newName)))
+          `catch`
             \e ->
               do putStrLn $ "Unable to run codegen on program "
                  -- The above output to a file, but wrote nothing, so remove it
@@ -185,6 +209,14 @@ surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
                  when fExists $ removeFile newName
                  print (e :: SomeException)
                  return $ CodeGenFailure
+
+isGADT :: DDef -> Bool
+isGADT DDef{cases} = any gadtCase cases
+  where
+  gadtCase KCons{outputs} = not (all isTyVar outputs)
+  isTyVar (VarTy _) = True
+  isTyVar _         = False
+
 
 -- | Exclude the possibility that there are no erasures at all.
 isDegenerate :: [DDef] -> Bool
@@ -268,10 +300,11 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
         printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
         return $ AmbFailure
 
-      Right () -> do
-        ((writeProg newName $ lowerDicts $ Core.ghostbuster defs (tyscheme,expr)) >>=
-          \_ -> return (Success (index,newName)))
-           `catch`
+      Right () ->
+        (do let newprg = lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
+            writeProg newName newprg
+            return (Success newprg (index,newName)))
+         `catch`
            \e ->
              do putStrLn $ "Unable to run codegen on program "
                 -- The above output to a file, but wrote nothing, so remove it
@@ -334,7 +367,7 @@ fuzzTest doStrong inpath outroot = do
       fromFuzzResult :: [FuzzResult (Int, FilePath)] -> [Maybe (Int, FilePath)]
       fromFuzzResult = map go
          where
-            go (Success a) = Just a
+            go (Success _ a) = Just a
             go _ = Nothing
 
 --------------------------------------------------------------------------------
