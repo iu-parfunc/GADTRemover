@@ -738,14 +738,24 @@ type PartCompare a = a -> a -> Maybe Ordering
 --  for which there is no larger element in the list.
 --
 maxima :: PartCompare a -> [a] -> [a]
-maxima cmp = L.foldl' add []
-    where
-        add []     e = [e]
-        add ms@(m:mr) e = case cmp m e of
-            Nothing -> m : add mr e
-            Just GT -> ms
-            Just EQ -> ms
-            Just LT -> add mr e
+-- maxima cmp = L.foldl' add []
+--     where
+--         add []     e = [e]
+--         add ms@(m:mr) e = case cmp m e of
+--             Nothing -> m : add mr e
+--             Just GT -> ms
+--             Just EQ -> ms
+--             Just LT -> add mr e
+
+maxima comp ls = [ l | l <- ls, isBigOne l ls ]
+ where
+  isBigOne candidate [] = True
+  isBigOne candidate (x:xs) =
+    case comp candidate x of
+      Just EQ -> isBigOne candidate xs
+      Just GT -> isBigOne candidate xs
+      Just LT -> False
+      Nothing -> isBigOne candidate xs -- Incomparables dont count.
 
 
 (#) :: (Ord k, Show k, Show v) => M.Map k v -> k -> v
