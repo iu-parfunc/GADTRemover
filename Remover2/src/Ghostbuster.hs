@@ -794,6 +794,9 @@ case_t6 = length $ maxima erasureConfigPartOrd miniFeldsparSuccesses
 
 case_t7 = length $ maxima erasureConfigPartOrd $ S.toList $ S.fromList miniFeldsparSuccesses
 
+----------------------------------------
+-- MiniFeldsparSuccesses
+----------------------------------------
 -- This is still 76 elements long as a set (all unique)
 -- Running maxima on it directly says they're ALL maxima.
 --
@@ -802,6 +805,14 @@ case_t7 = length $ maxima erasureConfigPartOrd $ S.toList $ S.fromList miniFelds
 -- Should be above this:
 --   (ErasureConfig, Exp(env,arg) Typ(arg) Var(env,arg):  KS S CS )
 --
+
+example1 = ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])])
+
+example2 = ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])])
+
+case_t8 = ( erasureConfigPartOrd example1 example2
+          , erasureConfigPartOrd example2 example1 )
+
 miniFeldsparSuccesses :: [ErasureConfig]
 miniFeldsparSuccesses =
  [ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
