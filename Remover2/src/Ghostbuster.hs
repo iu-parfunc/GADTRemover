@@ -37,6 +37,7 @@ import System.IO
 import System.Process
 import Text.Printf
 import Data.List (transpose)
+import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
@@ -65,6 +66,74 @@ data SurveyResult =
                   , results :: [FuzzResult (Int,FilePath) ]
                   }
   deriving Show
+
+-- | An erasure configuration for a complete CC.
+--  The type arguments are listed in the original order in the datatype.
+newtype ErasureConfig = ErasureConfig (M.Map TName [(TyVar, EraseMode)])
+data EraseMode = Kept | Checked | Synthesized
+
+
+-- | Permute the type args to match a given erasure config, while
+-- maintaining the <kept, checked, synth> ordering.  The kept/checked/synth status of
+-- each input DDef is IGNORED, and the output DDefs respect the ErasureConfig.
+permuteTyArgs :: ErasureConfig -> [DDef] -> [DDef]
+permuteTyArgs (ErasureConfig mp) [DDef{tyName,kVars,cVars,sVars,cases}] =
+  [ DDef { tyName
+         , kVars= map snd ks
+         , cVars= map snd cs
+         , sVars= map snd ss
+         , cases= map (permuteKConsTyApps allPermutes) cases
+         } ]
+ where
+  origOrder = kVars ++ cVars ++ sVars
+  origVec   = V.fromList origOrder
+  Just pairs = M.lookup tyName mp
+  ks = [ (ind,(same v1 v2,kind)) | (ind,(v1,Kept       ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+  cs = [ (ind,(same v1 v2,kind)) | (ind,(v1,Checked    ),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+  ss = [ (ind,(same v1 v2,kind)) | (ind,(v1,Synthesized),(v2,kind)) <- zip3 [0..] pairs origOrder ]
+
+  allPermutes :: M.Map TName Permutation
+  allPermutes = M.fromList
+                [ (tyName, permuteInds) ]
+
+  -- At each application of TName, we reorder by doing a gather with this permutation.
+  -- This will transform the old order, into the new order that respects ErasureConfig.
+  permuteInds = map fst ks ++
+                map fst cs ++
+                map fst ss
+
+  same v w | v == w    = v
+           | otherwise = error $ "permuteTyArgs: internal error, should match: " ++show(v,w)
+
+
+type Permutation = [Int]
+
+-- | Permute all type applications within the given KCons.
+permuteKConsTyApps :: M.Map TName Permutation -> KCons -> KCons
+permuteKConsTyApps perms KCons{conName,fields,outputs} =
+  KCons{ conName
+       , fields  = map (permuteMonoTy perms) fields
+       , outputs = map (permuteMonoTy perms) outputs
+       }
+
+permuteMonoTy :: M.Map TName Permutation -> MonoTy -> MonoTy
+permuteMonoTy perms = go
+ where
+  go mono =
+    case mono of
+      VarTy _      -> mono
+      TypeDictTy _ -> mono
+      ArrowTy a b -> ArrowTy (go a) (go a)
+      ConTy tname args ->
+        let args' = map go args
+            perm  = perms M.! tname
+        in ConTy tname $ applyPerm perm args'
+
+-- This is quadratic... better use on small lists.
+applyPerm :: Permutation -> [a] -> [a]
+applyPerm inds ls = [ ls !! i | i <- inds ]
+
+--------------------------------------------------------------------------------
 
 -- | Run an expression in the context of ghostbusted definitions.
 -- This invokes the complete compiler pipeline, including ambiguity
@@ -150,7 +219,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         -- -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
         let winds = zip [0..] possibs
             -- Build a map of whether the original datatypes in the CC were GADTs:
-            gadtMap :: M.Map Var Bool
+            gadtMap :: M.Map TName Bool
             gadtMap = M.fromList [ (gadtDownName (tyName d), isGADT d) | d <- origdefs ]
 
         putStrLn $ "These datatypes were originally GADTs: "++show
