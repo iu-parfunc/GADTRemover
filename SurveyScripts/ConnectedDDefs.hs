@@ -118,8 +118,8 @@ data Stats = Stats
   , failedGBust                 :: Int          -- Number of failed erasure settings
   , successfulErasures          :: Int          -- Number of successful erasure settings
   , numParamsInCC               :: Int          -- Average number of parameters in this CC
-  , actualCCSearchSpace         :: Int          -- Actual search space size for this CC
-  , exploredCCSearchSpace       :: Int          -- The search space we searched (in the case of truncation)
+  , actualCCSearchSpace         :: Integer      -- Actual search space size for this CC
+  , exploredCCSearchSpace       :: Integer      -- The search space we searched (in the case of truncation)
   , passGADTPredicate           :: Int          -- How many DDefs pass OUR predicate. <= `numGADTs'
   , numGADTtoADT                :: Int          -- How many DDefs went from GADT->ADT in some erasure variant.
   , fileName                    :: String       -- File name
@@ -463,8 +463,9 @@ gatherFuzzStats sres (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
                             + sum [length tvs | DataDecl loc _ _ _ tvs _ _   <- decls, loc /= noLoc]
       (searchSpaceSize,actualSearchSpaceSize) =
         case surveyMode of
-          G.Exhaustive x -> (x,x)
+          G.Exhaustive x                           -> (x,x)
           G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
+          G.Greedy{}                               -> error "TODO gatherFuzzStats: greedy search"
       G.SurveyResult{gadtsBecameASTS,surveyMode,results=res} = sres
 
   in
