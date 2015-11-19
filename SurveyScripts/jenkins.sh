@@ -10,7 +10,7 @@ git clean -fxd
 WORKINGNAME=ghostbuster_survey_`date +'%s'`
 LOCALDIR="$HOME/local/working_copies_temp/$WORKINGNAME"
 mkdir -p "$LOCALDIR"
-time cp -a "$TOPDIR" "$LOCALDIR"
+time rsync -vrplt --delete "$TOPDIR/" "$LOCALDIR/"
 cd "$LOCALDIR/SurveyScripts/"
 
 # Just in case we are run in a dirty directory:
