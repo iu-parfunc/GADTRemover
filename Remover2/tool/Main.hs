@@ -48,6 +48,12 @@ survey (infile:rest) = do
   putStrLn $ "Input parsed..."
   SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
   putStrLn $ "gadtsBecameASTS: "++show (gadtsBecameASTS)
+
+  putStrLn $ "Total results: " ++ show (length results)
+  putStrLn $ "Succedeed: "     ++ show (length [() | Success {} <- results])
+  putStrLn $ "AmbFailure: "    ++ show (length [() | AmbFailure {} <- results])
+  putStrLn $ "CodegenFailure: "++ show (length [() | CodeGenFailure {} <- results])
+
   -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
   return ()
 

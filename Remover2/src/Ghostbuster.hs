@@ -139,9 +139,11 @@ permuteMonoTy perms = go
       TypeDictTy _ -> mono
       ArrowTy a b -> ArrowTy (go a) (go b)
       ConTy tname args ->
-        let args' = map go args
-            perm  = perms M.! tname
-        in ConTy tname $ applyPerm perm args'
+        let args' = map go args in
+        -- Cauterization has not happened yet.. some TNames may be absent:
+        case M.lookup tname perms of
+           Just perm -> ConTy tname $ applyPerm perm args'
+           Nothing   -> ConTy tname args'
 
 -- This is quadratic... better use on small lists.
 applyPerm :: Permutation -> [a] -> [a]
@@ -156,6 +158,13 @@ cartProdECs perDDefPossibs =
   do (slice :: [SingletonErasureConf]) <- sequence perDDefPossibs
      -- TODO: this doesn't check for name collision.
      return $ ErasureConfig $ M.fromList slice
+
+(#) :: (Ord k, Show k, Show v) => M.Map k v -> k -> v
+m # k =
+  case M.lookup k m of
+    Nothing -> error $ "\nERROR: Map lookup failed, key "++show k++" is absent from map:\n "++
+                       take 100 (show m)
+    Just v -> v
 
 --------------------------------------------------------------------------------
 
@@ -233,8 +242,6 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
      putStrLn $ "Search space size under limit, verifying prediction and possib list match: " ++
               show (length possibs' == numPossib')
 
-   -- error "UNFINISHED - surveyFuzzTest"
-
    if True -- (TEMP Greedy not implemented)
        -- numPossib <= lIMIT
       then doExhaustive
@@ -252,10 +259,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
 
    doExhaustive =
      do putStrLn $ "Performing an exhaustive search of this CC's erasure space..."
-        putStrLn $ "Lengths of per-ddef variants: " ++ show (map length perDDefVariants)
-        -- forM_ (map (map varPattern) perDDefVariants) $  \ x ->
-        --    putStrLn $ "  Per-ddef variant: "++show x
-        -- -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
+        putStrLn $ "Lengths of per-ddef variants: " ++ show (map length perDDefVariants')
         let
             -- Build a map of whether the original datatypes in the CC were GADTs:
             gadtMap :: M.Map TName Bool
@@ -263,13 +267,14 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
 
         putStrLn $ "These datatypes were originally GADTs: "++show
                    [ unMkVar d | (d,True) <- M.toList gadtMap ]
-        mode <- case drop lIMIT possibs of
-                  []         -> return (Exhaustive numPossib)
+        mode <- case drop lIMIT possibs' of
+                  []         -> return (Exhaustive numPossib')
                   _remaining -> do putStrLn "Search space too big, taking a prefix of the exhaustive enumeration..."
-                                   return $ Partial numPossib lIMIT
-        let toexplore = take lIMIT possibs
-        ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,defs) -> do
+                                   return $ Partial numPossib' lIMIT
+        let toexplore = take lIMIT possibs'
+        ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,ec:: ErasureConfig) -> do
           printf "%4d:" ind
+          let defs = permuteTyArgs ec origdefs
           forM_ defs $ \ DDef{kVars,cVars,sVars} ->
             putStr $ "  " ++
                      show ( map (unVar . fst) kVars
@@ -307,6 +312,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    perDDefVariants' =  map ddefPossibs origdefs
 
    -- OLD:
+   possibs  :: [[DDef]]
    possibs       = filter (not . isDegenerate) cartesianProd
    cartesianProd = sequence perDDefVariants
    perDDefVariants = map _ddefPossibs_old origdefs
