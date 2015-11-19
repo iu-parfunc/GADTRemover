@@ -123,6 +123,7 @@ data Stats = Stats
   , exploredCCSearchSpace       :: Integer      -- The search space we searched (in the case of truncation)
   , passGADTPredicate           :: Int          -- How many DDefs pass OUR predicate. <= `numGADTs'
   , numGADTtoADT                :: Int          -- How many DDefs went from GADT->ADT in some erasure variant.
+  , gradualProp                 :: Int          -- 1 if the CC was consistent with gradual-erasure for all maxima, 0 otherwise
   , fileName                    :: String       -- File name
   }
  deriving (Show, Eq, Ord, Generic)
@@ -150,6 +151,7 @@ instance Monoid Stats where
            , exploredCCSearchSpace = on (+) exploredCCSearchSpace x y
            , passGADTPredicate     = on (+) passGADTPredicate x y
            , numGADTtoADT          = on (+) numGADTtoADT x y
+           , gradualProp           = on (+) gradualProp  x y -- Add how many CCs satisfied it.
            , fileName              = fileName x ++ ':':fileName y
            }
 
@@ -171,6 +173,7 @@ emptyStats =
     , exploredCCSearchSpace = 0
     , passGADTPredicate     = 0
     , numGADTtoADT          = 0
+    , gradualProp           = 0
     , fileName              = ""
     }
 
@@ -438,10 +441,18 @@ outputCCs onlyGADTs hdl outputBase input =
               -- fuzz <- G.fuzzTestProg True prog gbName
               fuzz <- G.surveyFuzzTest prog gbName
 
+              let verifyGrad = G.verifyGradualErasure fuzz
+              case verifyGrad of
+                (n,Nothing) -> putStrLn $ "Woo!  Gradual erasure property held.  NumMaxima: "++show n
+                (_,Just s)  -> putStrLn $ "WARNING: Problems with gradual erasure:\n"++take 1000 s
+
               -- Compute statistics for fuzz-testing this module and save
               let stat = gatherFuzzStats fuzz mdl prog ccName
-              DBLC.hPutStr hdl (CSV.encode [stat])
-              return stat
+                  stat' = stat { gradualProp = if Nothing == snd verifyGrad
+                                               then 1 else 0 }
+
+              DBLC.hPutStr hdl (CSV.encode [stat'])
+              return stat'
             else
               return mempty
       --
@@ -495,6 +506,7 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
     , exploredCCSearchSpace = actualSearchSpaceSize
     , passGADTPredicate     = length $ filter G.isGADT ddefs
     , numGADTtoADT          = length gadtsBecameASTS
+    , gradualProp           = 0  -- This is set later.
     }
 
 

@@ -245,11 +245,6 @@ compareMany ls
    then Just LT
    -- Otherwise some sub-part was incomparable.  Or we have mixed LT/GT:
    else Nothing
-   -- case (allTheSame filtered, filtered) of
-   --   -- If any two compare differently, then the whole thing is incomparable.
-   --   (False,_) -> Nothing
-   --   (True,[]) -> Just EQ -- Empty tuple
-   --   (True,hd:_) -> hd
 
 -- | Check whether the gradual erasure property held for the configs
 -- explored by the Survey.  Return Nothing if the property holds, and
