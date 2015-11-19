@@ -156,6 +156,10 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         putStrLn $ "These datatypes were originally GADTs: "++show
                    [ unMkVar d | (d,True) <- M.toList gadtMap ]
 
+        mode <- case drop lIMIT possibs of
+                  []         -> return (Exhaustive numPossib)
+                  _remaining -> do putStrLn "Search space do big, taking a prefix of the exhaustive enumeration..."
+                                   return $ Partial numPossib lIMIT
         let toexplore = take lIMIT possibs
         ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,defs) -> do
           printf "%4d:" ind
@@ -187,9 +191,6 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         -- unless (S.null finalSet) $
         --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."
         putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were gADTs."
-        let mode = case splitAt lIMIT possibs of
-                     (_,[]) -> (Exhaustive numPossib)
-                     (_,_remaining) -> Partial numPossib lIMIT
         return $ SurveyResult (S.toList becameADTs) mode fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
