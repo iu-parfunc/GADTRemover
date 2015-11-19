@@ -145,18 +145,16 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
    doExhaustive =
      do putStrLn $ "Performing an exhaustive search of this CC's erasure space..."
         putStrLn $ "Lengths of per-ddef variants: " ++ show (map length perDDefVariants)
-        forM_ (map (map varPattern) perDDefVariants) $  \ x ->
-           putStrLn $ "  Per-ddef variant: "++show x
-        -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
+        -- forM_ (map (map varPattern) perDDefVariants) $  \ x ->
+        --    putStrLn $ "  Per-ddef variant: "++show x
+        -- -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
         let winds = zip [0..] possibs
-
-            -- | Build a map of whether the original datatypes in the CC were GADTs:
+            -- Build a map of whether the original datatypes in the CC were GADTs:
             gadtMap :: M.Map Var Bool
             gadtMap = M.fromList [ (gadtDownName (tyName d), isGADT d) | d <- origdefs ]
 
         putStrLn $ "These datatypes were originally GADTs: "++show
                    [ unMkVar d | (d,True) <- M.toList gadtMap ]
-
         mode <- case drop lIMIT possibs of
                   []         -> return (Exhaustive numPossib)
                   _remaining -> do putStrLn "Search space too big, taking a prefix of the exhaustive enumeration..."

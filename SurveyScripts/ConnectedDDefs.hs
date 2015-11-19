@@ -120,9 +120,9 @@ data Stats = Stats
   , numParamsInCC               :: Int          -- Average number of parameters in this CC
   , actualCCSearchSpace         :: Int          -- Actual search space size for this CC
   , exploredCCSearchSpace       :: Int          -- The search space we searched (in the case of truncation)
-  , fileName                    :: String       -- File name
   , passGADTPredicate           :: Int          -- How many DDefs pass OUR predicate. <= `numGADTs'
   , numGADTtoADT                :: Int          -- How many DDefs went from GADT->ADT in some erasure variant.
+  , fileName                    :: String       -- File name
   }
  deriving (Show, Eq, Ord, Generic)
 
@@ -147,6 +147,8 @@ instance Monoid Stats where
            , numParamsInCC         = on (+) numParamsInCC x y
            , actualCCSearchSpace   = on (+) actualCCSearchSpace x y
            , exploredCCSearchSpace = on (+) exploredCCSearchSpace x y
+           , passGADTPredicate     = on (+) passGADTPredicate x y
+           , numGADTtoADT          = on (+) numGADTtoADT x y
            , fileName              = fileName x ++ ':':fileName y
            }
 
@@ -166,6 +168,8 @@ emptyStats =
     , numParamsInCC         = 0
     , actualCCSearchSpace   = 0
     , exploredCCSearchSpace = 0
+    , passGADTPredicate     = 0
+    , numGADTtoADT          = 0
     , fileName              = ""
     }
 
@@ -374,7 +378,9 @@ main = do
   args <- getArgs
   let (curDir, outputDir) = parseInput args
 
+  putStrLn "Reading env var GHOSTBUST_ONLY_GADTS ... "
   onlyGADTs <- maybe True read <$> lookupEnv "GHOSTBUST_ONLY_GADTS"
+  putStrLn $ "GHOSTBUST_ONLY_GADTS: " ++ show onlyGADTs
   inputs    <- SFF.find SFF.always (SFF.fileType SFF.==? SFF.RegularFile SFF.&&? SFF.extension SFF.==? ".hs") curDir
 
   createDirectoryIfMissing True outputDir -- Just in case, but it _should_ be there
