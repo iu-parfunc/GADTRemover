@@ -28,7 +28,7 @@ import Ghostbuster.Parser.Prog as Parse
 import Ghostbuster.Types
 
 import Control.Exception       (catch, SomeException, throw)
-import Control.Monad           (forM_, when)
+import Control.Monad           (forM, forM_, when)
 import System.Directory
 import System.Exit
 import System.FilePath
@@ -117,22 +117,55 @@ writeProg filename prog = do
 --
 --
 surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
-surveyFuzzTest prg@(Prog _prgDefs _prgVals (VDef _name _tyscheme _expr)) _path = do
-   printf "surveyFuzzTest: Number of exhaustive possibilities (given ordering limitation): %d" numPossib
-   putStrLn $ "                Based on ddef possibilities: "++show possibs
+surveyFuzzTest prg@(Prog defs _prgVals (VDef _name tyscheme expr)) outroot = do
+   printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
+   putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
    if numPossib <= lIMIT
       then doExhaustive
       else doGreedy
 {-
-   forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
-     printf "%4d:" ind
-     forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-       putStr $ "  " ++
-                show ( map (unVar . fst) kVars
-                     , map (unVar . fst) cVars
-                     , map (unVar . fst) sVars)
-     putStr "\n"
-   sequence [
+-}
+  where
+   lIMIT     = 1024
+   numPossib = product possibCounts - 1 -- Discount degenerate option.
+   possibCounts = (map ddefNumPossib defs)
+
+   ------------------------------------------------------------
+
+   doExhaustive =
+     do putStrLn $ "Performing an exhaustive search of this CC's erasure space..."
+        putStrLn $ "Lengths of per-ddef variants: " ++ show (map length perDDefVariants)
+        forM_ (map (map varPattern) perDDefVariants) $  \ x ->
+           putStrLn $ "  Per-ddef variant: "++show x
+        putStrLn $ "Length of cartesian product : " ++ show (length cartesianProd)
+        let winds = zip [0..] cartesianProd
+
+        fuzzRes <- forM (zip [(0::Int)..] cartesianProd) $ \ (ind,defs) -> do
+          printf "%4d:" ind
+          forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+            putStr $ "  " ++
+                     show ( map (unVar . fst) kVars
+                          , map (unVar . fst) cVars
+                          , map (unVar . fst) sVars)
+          putStr "\n"
+          gogo (ind,defs)
+
+        let gadtsBecameASTS = error "FINISHME - gadtsBecameASTS"
+        return $ SurveyResult gadtsBecameASTS (Exhaustive numPossib) fuzzRes
+
+   -- Don't force this unless we're exhaustive... gets BIG:
+   possibs       = filter (not . isDegenerate) cartesianProd
+   cartesianProd = sequence perDDefVariants
+   perDDefVariants = map ddefPossibs defs
+
+   ------------------------------------------------------------
+
+   doGreedy =
+     do putStrLn $ "Search space too big ("++show numPossib++"), greedy search of CC's erasure space..."
+        return $ SurveyResult [] (Greedy numPossib 0 (0,0)) []
+
+   gogo :: (Int,[DDef]) -> IO (FuzzResult (Int,FilePath))
+   gogo (index,defs) =
      let
          (file,ext) = splitExtension outroot
          newName    = file ++ printf "%03d" index <.> ext
@@ -152,47 +185,48 @@ surveyFuzzTest prg@(Prog _prgDefs _prgVals (VDef _name _tyscheme _expr)) _path =
                  when fExists $ removeFile newName
                  print (e :: SomeException)
                  return $ CodeGenFailure
-    | (index,defs) <- (zip [(0::Int) ..] taken)
-    ]
--}
+
+-- | Exclude the possibility that there are no erasures at all.
+isDegenerate :: [DDef] -> Bool
+isDegenerate = (all nullErasure)
   where
-   lIMIT     = 1024
-   defs      = undefined
-   numPossib = product possibs
-   possibs   = (map ddefNumPossib defs)
+   nullErasure DDef{kVars,sVars} = null kVars && null sVars
 
-   doExhaustive =
-     return $ SurveyResult [] (Exhaustive numPossib) []
+varPattern DDef{kVars,cVars,sVars} =
+  show (length kVars) ++"|"++
+  show (length cVars) ++"|"++
+  show (length sVars)
 
-   doGreedy =
-     return $ SurveyResult [] (Greedy numPossib 0 (0,0)) []
-
+allVars DDef{kVars,cVars,sVars} = kVars ++ cVars ++ sVars
 
 -- | Number of possible erasures.  This is highly limited by our
 -- temporary ORDERING limitation.
 ddefNumPossib :: DDef -> Int
-ddefNumPossib DDef{kVars,cVars,sVars} = combinations
+ddefNumPossib dd = combinations
   where
   -- There are (totalVars + 1) ways to place a cursor between/before/after some var.
-  -- Thus there are (totalVars + 1) `choose` 2 ways to split into our three buckets.
-  combinations = ((totalVars + 1) `choose` 2) - 1  -- Subtract 1 for degenerate case.
-  totalVars    = length allVars
-  allVars      = kVars ++ cVars ++ sVars
+  -- combinations = ((totalVars + 1) `choose` 2)  -- This is wrong.
+  -- Argh, I'm too lazy to figure out the closed for for this atm:
+  combinations = sum [ (totalVars + 1 - choice1) | choice1 <- [0..totalVars] ]
+  totalVars    = length (allVars dd)
 
 -- | Explode a single DDef into all the possible erasure modes.
 -- Limited by our ORDERING limitation.
 ddefPossibs :: DDef -> [DDef]
-ddefPossibs dd@DDef{..} =
-  let allVars = kVars ++ cVars ++ sVars
-      totalVars = length allVars
+ddefPossibs dd =
+  let allvs = allVars dd
+      totalVars = length allvs
   in
   [ dd{kVars= ks, cVars = cs, sVars = ss}
-  | take1 <- [0 .. totalVars-1] -- (-1) because we omit the degenerate case.
+  | take1 <- [0 .. totalVars]
   , take2 <- [take1 .. totalVars]
-  , let ks = take take1 allVars
-  , let cs = drop take1 $ take take2 allVars
-  , let ss = drop take2 allVars
+  , let ks = take take1 allvs
+  , let cs = drop take1 $ take take2 allvs
+  , let ss = drop take2 allvs
   ]
+
+chooseWithReplacement :: Integral a => a -> a -> a
+chooseWithReplacement n m = (n + m + 1) `choose` m
 
 choose :: Integral a => a -> a -> a
 choose n k = (fact n) `quot` (fact k * fact (n-k))

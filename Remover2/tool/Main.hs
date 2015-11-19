@@ -1,6 +1,7 @@
 module Main where
 
 import Ghostbuster
+import Ghostbuster.Parser.Prog as Parse
 import System.Environment
 import System.Exit
 import System.FilePath
@@ -36,8 +37,16 @@ fuzztest doStrong (infile:rest) = do
       ]
 
 survey :: [String] -> IO ()
-survey args =
-  undefined (surveyFuzzTest undefined undefined)
+survey (infile:rest) = do
+  let (_,outfile) = parse [infile]
+  putStrLn "Begin --survey of the input file, ignoring Ghostbuster annotations."
+  putStrLn $ "Input: " ++infile
+  prg <- Parse.gParseModule infile
+  putStrLn $ "Input parsed..."
+  _ <- (surveyFuzzTest prg outfile)
+
+  -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
+  return ()
 
 
 check :: [String] -> IO ()
