@@ -3,6 +3,7 @@
 module Main where
 
 import Ghostbuster
+import Ghostbuster.Types (tyName)
 import Ghostbuster.Parser.Prog as Parse
 import System.Environment
 import System.Exit
@@ -46,7 +47,7 @@ survey (infile:rest) = do
   prg <- Parse.gParseModule infile
   putStrLn $ "Input parsed..."
   SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
-  putStrLn $ "gadtsBecameASTS: "++show gadtsBecameASTS
+  putStrLn $ "gadtsBecameASTS: "++show (gadtsBecameASTS)
   -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
   return ()
 

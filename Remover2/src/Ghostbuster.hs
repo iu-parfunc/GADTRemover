@@ -39,6 +39,7 @@ import Data.List (transpose)
 import qualified Data.Set as S
 import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
+import Debug.Trace as Trace
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
@@ -57,7 +58,7 @@ data SurveyMode = Exhaustive { searchSpace :: Int }
   deriving Show
 
 data SurveyResult =
-     SurveyResult { gadtsBecameASTS :: [DDef] -- ^ a subset of the survey'd CC that became ADTs in some variant
+     SurveyResult { gadtsBecameASTS :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
                   , surveyMode :: SurveyMode
                   , results :: [FuzzResult (Int,FilePath) ]
                   }
@@ -149,7 +150,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
 
             -- | Build a map of whether the original datatypes in the CC were GADTs:
             gadtMap :: M.Map Var Bool
-            gadtMap = M.fromList [ (tyName d, isGADT d) | d <- origdefs ]
+            gadtMap = M.fromList [ (gadtDownName (tyName d), isGADT d) | d <- origdefs ]
 
         putStrLn $ "These datatypes were originally GADTs: "++show
                    [ unMkVar d | (d,True) <- M.toList gadtMap ]
@@ -166,6 +167,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
           let wasGADT :: [DDef]
               wasGADT = case fr of
                          Success{ghostbustedProg,fuzzResult} ->
+                            Trace.trace ("All the ddefs in the busted prog: "++show(map tyName (prgDefs ghostbustedProg))) $
                             -- Here we find the matching datatype in the ghostbusted output
                             -- for each datatype that started out as a GADT:
                             [ dd | dd <- prgDefs ghostbustedProg
@@ -185,7 +187,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         if (S.null finalSet)
          then putStrLn $ "No datatypes became ADTs from GADTs..."
          else putStrLn $ "These datatypes BECAME ADTs but were gADTs: " ++show(map tyName $ S.toList finalSet)
-        return $ SurveyResult (S.toList finalSet) (Exhaustive numPossib) fuzzRes
+        return $ SurveyResult (S.toList $ S.map tyName finalSet) (Exhaustive numPossib) fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
    possibs       = filter (not . isDegenerate) cartesianProd
