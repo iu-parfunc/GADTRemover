@@ -41,7 +41,7 @@ import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
--- import Data.List (transpose)
+import Data.List                (genericLength)
 -- import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -56,20 +56,21 @@ data FuzzResult a = AmbFailure
  deriving (Show, Eq, Ord)
 
 -- | Each ConnectedComponent of DDefs is surveyed in one of these two modes.
-data SurveyMode = Exhaustive { searchSpace :: Int }
-                | Partial    { searchSpace :: Int, exploredVariants :: Int } -- | Temporary version
-                | Greedy     { searchSpace :: Int
-                             , exploredVariants :: Int -- ^ If this equals searchSpace then we shoud have done Exhaustive.
-                             , exploredRounds   :: (Int,Int)
-                             -- ^ How many complete rounds, then how many variants within the last round.
-                             }
+data SurveyMode
+  = Exhaustive { searchSpace      :: Integer }
+  | Partial    { searchSpace      :: Integer, exploredVariants :: Integer } -- | Temporary version
+  | Greedy     { searchSpace      :: Integer
+               , exploredVariants :: Integer -- ^ If this equals searchSpace then we shoud have done Exhaustive.
+               , exploredRounds   :: (Integer,Integer)
+               -- ^ How many complete rounds, then how many variants within the last round.
+               }
   deriving Show
 
-data SurveyResult =
-     SurveyResult { gadtsBecameASTS :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
-                  , surveyMode :: SurveyMode
-                  , results :: [FuzzResult (Int,FilePath) ]
-                  }
+data SurveyResult = SurveyResult
+  { gadtsBecameASTS :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
+  , surveyMode      :: SurveyMode
+  , results         :: [FuzzResult (Int,FilePath) ]
+  }
   deriving Show
 
 -- | An erasure configuration for a complete CC.
@@ -236,9 +237,9 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    putStrLn$ "Total possibilities, without ordering constraint: "++ show (numPossib')
    putStrLn$ "Based on ddef possibilities (minus the one degenerate): "++show possibCounts'
 
-   when (numPossib' < lIMIT) $ do
+   when (numPossib' < toInteger lIMIT) $ do
      putStrLn $ "Search space size under limit, verifying prediction and possib list match: " ++
-              show (length possibs' == numPossib')
+              show (genericLength possibs' == numPossib')
 
    if True -- (TEMP Greedy not implemented)
        -- numPossib <= lIMIT
@@ -246,11 +247,12 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
       else doGreedy
 
   where
-   lIMIT     = 10000 -- Increasing [2015.11.19]
-   numPossib = product possibCounts - 1 -- Discount degenerate option.
-   possibCounts = (map ddefNumPossib origdefs)
+   lIMIT :: Int
+   lIMIT        = 10000 -- Increasing [2015.11.19]
+   numPossib    = product possibCounts - 1 -- Discount degenerate option.
+   possibCounts = map ddefNumPossib origdefs
 
-   numPossib' = product possibCounts' - 1 -- Discount degenerate option.
+   numPossib'    = product possibCounts' - 1 -- Discount degenerate option.
    possibCounts' = map ddefNumPossib' origdefs
 
    ------------------------------------------------------------
@@ -268,7 +270,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
         mode <- case drop lIMIT possibs' of
                   []         -> return (Exhaustive numPossib')
                   _remaining -> do putStrLn "Search space too big, taking a prefix of the exhaustive enumeration..."
-                                   return $ Partial numPossib' lIMIT
+                                   return $ Partial numPossib' (toInteger lIMIT)
         let toexplore = take lIMIT possibs'
         ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,ec:: ErasureConfig) -> do
           printf "%4d:" ind
@@ -300,7 +302,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
             becameADTs = (S.map tyName finalSet)
         -- unless (S.null finalSet) $
         --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."
-        putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were gADTs."
+        putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were GADTs."
         return $ SurveyResult (S.toList becameADTs) mode fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
@@ -373,18 +375,18 @@ allVars DDef{kVars,cVars,sVars} = kVars ++ cVars ++ sVars
 
 -- | Number of possible erasures.  This is highly limited by our
 -- temporary ORDERING limitation.
-ddefNumPossib :: DDef -> Int
+ddefNumPossib :: DDef -> Integer
 ddefNumPossib dd = combinations
   where
   -- There are (totalVars + 1) ways to place a cursor between/before/after some var.
   -- combinations = ((totalVars + 1) `choose` 2)  -- This is wrong.
   -- Argh, I'm too lazy to figure out the closed for for this atm:
   combinations = sum [ (totalVars + 1 - choice1) | choice1 <- [0..totalVars] ]
-  totalVars    = length (allVars dd)
+  totalVars    = genericLength (allVars dd)
 
 -- | Much simpler notion of search space WITHOUT arbitrary ordering constraints.
-ddefNumPossib' :: DDef -> Int
-ddefNumPossib' dd = 3 ^ length (allVars dd)
+ddefNumPossib' :: DDef -> Integer
+ddefNumPossib' dd = (3 :: Integer) ^ genericLength (allVars dd)
 
 -- | Explode a single DDef into all the possible erasure modes.
 -- Limited by our ORDERING limitation.
