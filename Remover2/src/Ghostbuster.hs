@@ -50,6 +50,7 @@ data FuzzResult a = AmbFailure
 
 -- | Each ConnectedComponent of DDefs is surveyed in one of these two modes.
 data SurveyMode = Exhaustive { searchSpace :: Int }
+                | Partial    { searchSpace :: Int, exploredVariants :: Int } -- | Temporary version
                 | Greedy     { searchSpace :: Int
                              , exploredVariants :: Int -- ^ If this equals searchSpace then we shoud have done Exhaustive.
                              , exploredRounds   :: (Int,Int)
@@ -128,7 +129,7 @@ surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
 surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
    putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
-   if numPossib <= lIMIT
+   if True -- TEMP -- numPossib <= lIMIT
       then doExhaustive
       else doGreedy
 {-
@@ -145,8 +146,8 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         putStrLn $ "Lengths of per-ddef variants: " ++ show (map length perDDefVariants)
         forM_ (map (map varPattern) perDDefVariants) $  \ x ->
            putStrLn $ "  Per-ddef variant: "++show x
-        putStrLn $ "Length of cartesian product : " ++ show (length cartesianProd)
-        let winds = zip [0..] cartesianProd
+        -- putStrLn $ "Length of cartesian product : " ++ show (length possibs)
+        let winds = zip [0..] possibs
 
             -- | Build a map of whether the original datatypes in the CC were GADTs:
             gadtMap :: M.Map Var Bool
@@ -155,7 +156,8 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
         putStrLn $ "These datatypes were originally GADTs: "++show
                    [ unMkVar d | (d,True) <- M.toList gadtMap ]
 
-        ls <- forM (zip [(0::Int)..] cartesianProd) $ \ (ind,defs) -> do
+        let toexplore = take lIMIT possibs
+        ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,defs) -> do
           printf "%4d:" ind
           forM_ defs $ \ DDef{kVars,cVars,sVars} ->
             putStr $ "  " ++
@@ -167,7 +169,7 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
           let wasGADT :: [DDef]
               wasGADT = case fr of
                          Success{ghostbustedProg,fuzzResult} ->
-                            Trace.trace ("All the ddefs in the busted prog: "++show(map tyName (prgDefs ghostbustedProg))) $
+                            -- Trace.trace ("All the ddefs in the busted prog: "++show(map tyName (prgDefs ghostbustedProg))) $
                             -- Here we find the matching datatype in the ghostbusted output
                             -- for each datatype that started out as a GADT:
                             [ dd | dd <- prgDefs ghostbustedProg
@@ -175,19 +177,20 @@ surveyFuzzTest prg@(Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot =
                          CodeGenFailure -> []
                          AmbFailure     -> []
               winners = filter (not . isGADT) wasGADT
-          putStrLn $ "Here are possible winners: " ++
-                     show (map unMkVar $ map tyName $ wasGADT )
+          -- putStrLn $ "Here are possible winners: " ++
+          --            show (map unMkVar $ map tyName $ wasGADT )
           return (fr, S.fromList winners)
-
         let (fuzzRes,gadtsBecameASTS) = unzip ls
-
         putStrLn $ "All exhaustive survey variants explored, returning."
-
         let finalSet = S.unions gadtsBecameASTS
-        if (S.null finalSet)
-         then putStrLn $ "No datatypes became ADTs from GADTs..."
-         else putStrLn $ "These datatypes BECAME ADTs but were gADTs: " ++show(map tyName $ S.toList finalSet)
-        return $ SurveyResult (S.toList $ S.map tyName finalSet) (Exhaustive numPossib) fuzzRes
+            becameADTs = (S.map tyName finalSet)
+        -- unless (S.null finalSet) $
+        --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."
+        putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were gADTs."
+        let mode = case splitAt lIMIT possibs of
+                     (_,[]) -> (Exhaustive numPossib)
+                     (_,_remaining) -> Partial numPossib lIMIT
+        return $ SurveyResult (S.toList becameADTs) mode fuzzRes
 
    -- Don't force this unless we're exhaustive... gets BIG:
    possibs       = filter (not . isDegenerate) cartesianProd
