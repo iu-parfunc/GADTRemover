@@ -3,7 +3,7 @@
 module Main where
 
 import Ghostbuster
-import Ghostbuster.Types (tyName)
+-- import Ghostbuster.Types (tyName)
 import Ghostbuster.Parser.Prog as Parse
 import System.Environment
 import System.Exit
@@ -12,6 +12,7 @@ import System.Process
 import Text.Printf
 import Test.Tasty
 import Test.Tasty.HUnit   (testCase, assertEqual)
+import qualified Data.Map as M
 
 main :: IO ()
 main = do
@@ -40,7 +41,7 @@ fuzztest doStrong (infile:rest) = do
       ]
 
 survey :: [String] -> IO ()
-survey (infile:rest) = do
+survey (infile:_rest) = do
   let (_,outfile) = parse [infile]
   putStrLn "Begin --survey of the input file, ignoring Ghostbuster annotations."
   putStrLn $ "Input: " ++infile
@@ -49,13 +50,16 @@ survey (infile:rest) = do
   SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
   putStrLn $ "gadtsBecameASTS: "++show (gadtsBecameASTS)
 
+  let resList = M.elems results
   putStrLn $ "Total results: " ++ show (length results)
-  putStrLn $ "Succedeed: "     ++ show (length [() | Success {} <- results])
-  putStrLn $ "AmbFailure: "    ++ show (length [() | AmbFailure {} <- results])
-  putStrLn $ "CodegenFailure: "++ show (length [() | CodeGenFailure {} <- results])
+  putStrLn $ "Succedeed: "     ++ show (length [() | Success {}        <- resList])
+  putStrLn $ "AmbFailure: "    ++ show (length [() | AmbFailure {}     <- resList])
+  putStrLn $ "CodegenFailure: "++ show (length [() | CodeGenFailure {} <- resList])
 
   -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
   return ()
+
+survey [] = error "survey: bad arguments"
 
 
 check :: [String] -> IO ()

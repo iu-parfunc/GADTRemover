@@ -23,6 +23,8 @@ module Ghostbuster (
     ---------------
     , ErasureConfig(..), EraseMode(..)
     , permuteTyArgs
+    -- TEMP:
+    , maxima, PartCompare, allTheSame
     ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -41,7 +43,7 @@ import System.FilePath
 import System.IO
 import System.Process
 import Text.Printf
--- import Data.List (transpose)
+import qualified Data.List  as L
 -- import qualified Data.Vector as V
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -68,14 +70,17 @@ data SurveyMode = Exhaustive { searchSpace :: Int }
 data SurveyResult =
      SurveyResult { gadtsBecameASTS :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
                   , surveyMode :: SurveyMode
-                  , results :: [FuzzResult (Int,FilePath) ]
+                  , results :: M.Map ErasureConfig (FuzzResult (Int,FilePath))
                   }
   deriving Show
 
 -- | An erasure configuration for a complete CC.
 --  The type arguments are listed in the original order in the datatype.
 newtype ErasureConfig = ErasureConfig (M.Map TName [(TyVar, EraseMode)])
-  deriving Show
+  deriving (Show, Eq, Ord)
+  -- ^ Note this Ord instance is JUST for using it in data structures.
+  --  It is not the semantic notion of ordering (which is a partial order).
+
 data EraseMode = Kept | Checked | Synthesized  -- ORDER matters.
   deriving (Show,Read,Eq,Ord)
 
@@ -159,12 +164,27 @@ cartProdECs perDDefPossibs =
      -- TODO: this doesn't check for name collision.
      return $ ErasureConfig $ M.fromList slice
 
-(#) :: (Ord k, Show k, Show v) => M.Map k v -> k -> v
-m # k =
-  case M.lookup k m of
-    Nothing -> error $ "\nERROR: Map lookup failed, key "++show k++" is absent from map:\n "++
-                       take 100 (show m)
-    Just v -> v
+-- | This defines "stronger"/bigger erasures as erasing more things.
+erasureConfigPartOrd :: PartCompare ErasureConfig
+erasureConfigPartOrd (ErasureConfig ec1) (ErasureConfig ec2)
+  | (M.keys ec1 /= M.keys ec2) = Nothing
+  | otherwise =
+     case (allTheSame maybeCs, maybeCs) of
+       -- If different per-TName's compare differently, then the whole thing is incomparable.
+       (False,_) -> Nothing
+       (True,[]) -> Just EQ -- No types at all!
+       (True,hd:_) -> hd
+    where
+     maybeCs = map snd $ M.toList $ M.intersectionWithKey fn ec1 ec2
+     fn _k left right =
+       -- If every variable is "less" on one side than the other...
+       let individuals = [ compare emL emR | ((_,emL), (_,emR)) <- zip left right ] in
+       if allTheSame individuals
+          then case individuals of
+                 []    -> Just EQ
+                 (c:_) -> Just c
+          else Nothing
+
 
 --------------------------------------------------------------------------------
 
@@ -293,7 +313,8 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
               winners = filter (not . isGADT) wasGADT
           -- putStrLn $ "Here are possible winners: " ++
           --            show (map unMkVar $ map tyName $ wasGADT )
-          return (fr, S.fromList winners)
+          return ((ec,fr), S.fromList winners)
+
         let (fuzzRes,gadtsBecameASTS) = unzip ls
         putStrLn $ "All exhaustive survey variants explored, returning."
         let finalSet = S.unions gadtsBecameASTS
@@ -301,7 +322,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
         -- unless (S.null finalSet) $
         --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."
         putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were gADTs."
-        return $ SurveyResult (S.toList becameADTs) mode fuzzRes
+        return $ SurveyResult (S.toList becameADTs) mode (M.fromList fuzzRes)
 
    -- Don't force this unless we're exhaustive... gets BIG:
    possibs' :: [ErasureConfig]
@@ -319,7 +340,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
 
    doGreedy =
      do putStrLn $ "Search space too big ("++show numPossib++") => greedy partial search of CC's erasure space..."
-        return $ SurveyResult [] (Greedy numPossib 0 (0,0)) []
+        return $ SurveyResult [] (Greedy numPossib 0 (0,0)) M.empty
 
    gogo :: (Int,[DDef]) -> IO (FuzzResult (Int,FilePath))
    gogo (index,defs) =
@@ -594,3 +615,43 @@ say msg act =
     (\e ->
        do hPutStrLn stderr ("\n"++msg)
           throw (e::SomeException))
+
+
+-- Taken from swish:
+--------------------------------------------------------------------------------
+
+-- | Partial ordering
+type PartCompare a = a -> a -> Maybe Ordering
+
+-- |This function finds the maxima in a list of partially
+--  ordered values, preserving the sequence of retained
+--  values from the supplied list.
+--
+--  It returns all those values in the supplied list
+--  for which there is no larger element in the list.
+--
+maxima :: PartCompare a -> [a] -> [a]
+maxima cmp = L.foldl' add []
+    where
+        add []     e = [e]
+        add ms@(m:mr) e = case cmp m e of
+            Nothing -> m : add mr e
+            Just GT -> ms
+            Just EQ -> ms
+            Just LT -> add mr e
+
+
+(#) :: (Ord k, Show k, Show v) => M.Map k v -> k -> v
+m # k =
+  case M.lookup k m of
+    Nothing -> error $ "\nERROR: Map lookup failed, key "++show k++" is absent from map:\n "++
+                       take 100 (show m)
+    Just v -> v
+
+allTheSame :: (Eq a) => [a] -> Bool
+allTheSame [] = True
+allTheSame (x:xs) = go x xs
+ where
+   go _ [] = True
+   go x (y:ys) | x == y     = go x ys
+               | otherwise  = False
