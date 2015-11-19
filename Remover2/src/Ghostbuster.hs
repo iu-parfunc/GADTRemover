@@ -1,8 +1,10 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NamedFieldPuns  #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ParallelListComp  #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE OverloadedStrings  #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -26,25 +28,28 @@ module Ghostbuster (
     -- TEMP:
     , maxima, PartCompare, allTheSame
     , erasureConfigPartOrd, verifyGradualErasure
+    , case_t1
     ) where
 
-import Ghostbuster.Ambiguity   as A
-import Ghostbuster.CodeGen
-import Ghostbuster.Core        as Core
-import Ghostbuster.Interp      ()
-import Ghostbuster.LowerDicts
-import Ghostbuster.Parser.Prog as Parse
-import Ghostbuster.Types
+import           Ghostbuster.Ambiguity as A
+import           Ghostbuster.CodeGen
+import           Ghostbuster.Core as Core
+import           Ghostbuster.Interp ()
+import           Ghostbuster.LowerDicts
+import           Ghostbuster.Parser.Prog as Parse
+import           Ghostbuster.Types
 
-import Control.Exception       (catch, SomeException, throw)
-import Control.Monad           (forM, forM_, when)
-import System.Directory
-import System.Exit
-import System.FilePath
-import System.IO
-import System.Process
-import Text.Printf
-import qualified Data.List  as L
+import           Control.Exception (catch, SomeException, throw)
+import           Control.Monad (forM, forM_, when)
+import           System.Directory
+import           System.Exit
+import           System.FilePath
+import           System.IO
+import           System.Process
+import           Text.Printf
+import qualified Data.List as L
+
+import           Test.Tasty.HUnit (assertEqual)
 
 -- import qualified Data.Vector as V
 import qualified Data.Set as S
@@ -747,3 +752,18 @@ allTheSame (x:xs) = go x xs
    go _ [] = True
    go x (y:ys) | x == y     = go x ys
                | otherwise  = False
+
+
+-- Testing:
+--------------------------------------------------------------------------------
+
+ec1 :: ErasureConfig
+ec1 = ErasureConfig (M.fromList [("Exp", [("env",Checked),("ans",Synthesized)])])
+
+ec2 :: ErasureConfig
+ec2 = ErasureConfig (M.fromList [("Exp", [("env",Kept),("ans",Kept)])])
+
+case_t1 = assertEqual "less" (Just LT) (erasureConfigPartOrd ec2 ec1)
+case_t2 = assertEqual "same1" (Just EQ) (erasureConfigPartOrd ec1 ec1)
+case_t3 = assertEqual "same2" (Just EQ) (erasureConfigPartOrd ec2 ec2)
+case_t4 = assertEqual "less" (Just GT) (erasureConfigPartOrd ec1 ec2)

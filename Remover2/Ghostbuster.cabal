@@ -51,6 +51,7 @@ library
                      , directory
                      , filepath
                      , vector
+                     , tasty-hunit
   hs-source-dirs:      src
   default-language:    Haskell2010
 
