@@ -198,12 +198,18 @@ cartProdECs perDDefPossibs =
 erasureConfigPartOrd :: PartCompare ErasureConfig
 erasureConfigPartOrd (ErasureConfig ec1) (ErasureConfig ec2)
   | (M.keys ec1 /= M.keys ec2) = Nothing
-  | otherwise = compareMany maybeCs
+  | otherwise =
+      T.trace ("Comparing different ddefs within CC: "++show maybeCs) $
+      compareMany maybeCs
     where
      maybeCs = map snd $ M.toList $ M.intersectionWithKey fn ec1 ec2
-     fn _k left right =
+     fn tname left right =
        -- If every variable is "less" on one side than the other...
-       let individuals = [ eraseModePartOrd emL emR | ((_,emL), (_,emR)) <- zip left right ] in
+       let individuals = [ if v1 == v2
+                              then eraseModePartOrd emL emR
+                              else error $ "erasureConfigPartOrd: internal error, should match: "++show (v1,v2)
+                         | ((v1,emL), (v2,emR)) <- zip left right ] in
+       T.trace ("Comparing tyvas for constructor "++show tname++", results: "++show individuals) $
        compareMany individuals
        -- if allTheSame individuals
        --    then case individuals of
@@ -227,12 +233,21 @@ eraseModePartOrd x y =
 -- | Lift a partial ordering to a product type.
 compareMany :: [Maybe Ordering] -> Maybe Ordering
 compareMany ls =
-   T.trace ("CompareMany: "++show ls) $
-   case (allTheSame ls, ls) of
-     -- If any two compare differently, then the whole thing is incomparable.
-     (False,_) -> Nothing
-     (True,[]) -> Just EQ -- Empty tuple
-     (True,hd:_) -> hd
+   -- Any parts of the structure that are the same.. that's fine, move along:
+   let filtered = filter (/= Just EQ) ls in
+   -- T.trace ("CompareMany: "++show ls) $
+   -- The results shoud be all (Just LT) or all (Just GT)
+   if all (== Just GT) filtered
+   then Just GT
+   else if all (== Just LT) filtered
+   then Just LT
+   -- Otherwise some sub-part was incomparable.  Or we have mixed LT/GT:
+   else Nothing
+   -- case (allTheSame filtered, filtered) of
+   --   -- If any two compare differently, then the whole thing is incomparable.
+   --   (False,_) -> Nothing
+   --   (True,[]) -> Just EQ -- Empty tuple
+   --   (True,hd:_) -> hd
 
 -- | Check whether the gradual erasure property held for the configs
 -- explored by the Survey.  Return Nothing if the property holds, and
