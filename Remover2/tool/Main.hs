@@ -47,7 +47,7 @@ survey (infile:_rest) = do
   putStrLn $ "Input: " ++infile
   prg <- Parse.gParseModule infile
   putStrLn $ "Input parsed..."
-  SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
+  sr@SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
   putStrLn $ "gadtsBecameASTS: "++show (gadtsBecameASTS)
 
   let resList = M.elems results
@@ -55,6 +55,10 @@ survey (infile:_rest) = do
   putStrLn $ "Succedeed: "     ++ show (length [() | Success {}        <- resList])
   putStrLn $ "AmbFailure: "    ++ show (length [() | AmbFailure {}     <- resList])
   putStrLn $ "CodegenFailure: "++ show (length [() | CodeGenFailure {} <- resList])
+
+  case verifyGradualErasure sr of
+    (n,Nothing) -> putStrLn $ "Woo!  Gradual erasure property held.  NumMaxima: "++show n
+    (_,Just s)  -> putStrLn $ "WARNING: Problems with gradual erasure:\n"++s
 
   -- status <- system (unwords [ "ghc", "-fforce-recomp", file ])
   return ()

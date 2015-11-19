@@ -25,6 +25,7 @@ module Ghostbuster (
     , permuteTyArgs
     -- TEMP:
     , maxima, PartCompare, allTheSame
+    , erasureConfigPartOrd, verifyGradualErasure
     ) where
 
 import Ghostbuster.Ambiguity   as A
@@ -79,9 +80,29 @@ data SurveyResult =
 -- | An erasure configuration for a complete CC.
 --  The type arguments are listed in the original order in the datatype.
 newtype ErasureConfig = ErasureConfig (M.Map TName [(TyVar, EraseMode)])
-  deriving (Show, Eq, Ord)
+  deriving (Eq, Ord)
   -- ^ Note this Ord instance is JUST for using it in data structures.
   --  It is not the semantic notion of ordering (which is a partial order).
+
+instance Show ErasureConfig where
+  show (ErasureConfig mp) =
+    let ls = M.toList mp
+    in "(ErasureConfig, "++
+       concat (L.intersperse " "
+               [ unMkVar tv ++ "(" ++
+                 (concat$ L.intersperse "," (map (unMkVar . fst) vrls))
+                  ++ ")"
+               | (tv,vrls) <- ls ])
+       ++ ":  "++
+       concat [ [ eraseModeToChar em
+                | (_,em) <- vrls ] ++ " "
+              | (_,vrls) <- ls ]
+       ++")"
+
+eraseModeToChar :: EraseMode -> Char
+eraseModeToChar Kept        = 'K'
+eraseModeToChar Checked     = 'C'
+eraseModeToChar Synthesized = 'S'
 
 data EraseMode = Kept | Checked | Synthesized  -- ORDER matters.
   deriving (Show,Read,Eq,Ord)
@@ -170,22 +191,90 @@ cartProdECs perDDefPossibs =
 erasureConfigPartOrd :: PartCompare ErasureConfig
 erasureConfigPartOrd (ErasureConfig ec1) (ErasureConfig ec2)
   | (M.keys ec1 /= M.keys ec2) = Nothing
-  | otherwise =
-     case (allTheSame maybeCs, maybeCs) of
-       -- If different per-TName's compare differently, then the whole thing is incomparable.
-       (False,_) -> Nothing
-       (True,[]) -> Just EQ -- No types at all!
-       (True,hd:_) -> hd
+  | otherwise = compareMany maybeCs
     where
      maybeCs = map snd $ M.toList $ M.intersectionWithKey fn ec1 ec2
      fn _k left right =
        -- If every variable is "less" on one side than the other...
-       let individuals = [ compare emL emR | ((_,emL), (_,emR)) <- zip left right ] in
-       if allTheSame individuals
-          then case individuals of
-                 []    -> Just EQ
-                 (c:_) -> Just c
-          else Nothing
+       let individuals = [ eraseModePartOrd emL emR | ((_,emL), (_,emR)) <- zip left right ] in
+       compareMany individuals
+       -- if allTheSame individuals
+       --    then case individuals of
+       --           []    -> Just EQ
+       --           (c:_) -> Just c
+       --    else Nothing
+
+eraseModePartOrd :: PartCompare EraseMode
+eraseModePartOrd x y =
+  case (x,y) of
+    (_,_) | x==y       -> Just EQ
+    (Kept,Checked)     -> Just LT
+    (Kept,Synthesized) -> Just LT
+    (Checked,Kept)     -> Just GT
+    (Synthesized,Kept) -> Just GT
+    (Synthesized,Checked) -> Nothing
+    (Checked,Synthesized) -> Nothing
+
+-- compareMany :: PartCompare a -> [a] ->
+
+-- | Lift a partial ordering to a product type.
+compareMany :: [Maybe Ordering] -> Maybe Ordering
+compareMany ls =
+   case (allTheSame ls, ls) of
+     -- If any two compare differently, then the whole thing is incomparable.
+     (False,_) -> Nothing
+     (True,[]) -> Just EQ -- Empty tuple
+     (True,hd:_) -> hd
+
+-- | Check whether the gradual erasure property held for the configs
+-- explored by the Survey.  Return Nothing if the property holds, and
+-- otherwise return a message explaining what failed.
+--
+-- Also return the number of maxima.
+verifyGradualErasure :: SurveyResult -> (Int, Maybe String)
+verifyGradualErasure SurveyResult{results} =
+   (numMaxima,mainResult)
+  where
+   mainResult =
+      if null allResults
+         then Nothing
+         else Just $
+              "Found "++show numMaxima ++
+              " distinct failures of gradual-erasure in the SurveyResult of this connected component.\n"++
+              "This was while searching under "++show (length maxes)++" different successful maxima.\n"++
+              concat allResults
+
+   numMaxima     = length allResults
+   maxes         = maxima erasureConfigPartOrd $ M.keys successesOnly
+   successesOnly = M.filter isSuccess results
+
+   asList = M.toList results
+
+   allResults = concat allTests
+   allTests = map testUnder maxes
+
+   -- There's probaby a more efficient data structure to avoid this quadratic business..
+   testUnder ecMax =
+     let go [] = []
+         go ((ec,fr):rest) =
+           let showBoth = "\n Maxima: "++show ecMax++
+                          "\n Point:  "++show ec++"\n}"
+           in
+           case erasureConfigPartOrd ec ecMax of
+             Nothing -> go rest
+             Just LT -> case fr of
+                          Success{} -> go rest
+                          f -> ["{GradualErasureFailure: found failure ("++ show f
+                                ++") under maxima." ++showBoth] ++
+                               go rest
+             Just EQ -> go rest -- This is just the maxima itself.
+             Just GT -> go rest
+
+     in go asList
+
+isSuccess :: FuzzResult a -> Bool
+isSuccess Success{} = True
+isSuccess _ = False
 
 
 --------------------------------------------------------------------------------
