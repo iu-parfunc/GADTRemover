@@ -227,6 +227,7 @@ eraseModePartOrd x y =
 -- | Lift a partial ordering to a product type.
 compareMany :: [Maybe Ordering] -> Maybe Ordering
 compareMany ls =
+   T.trace ("CompareMany: "++show ls) $
    case (allTheSame ls, ls) of
      -- If any two compare differently, then the whole thing is incomparable.
      (False,_) -> Nothing
@@ -240,14 +241,14 @@ compareMany ls =
 -- Also return the number of maxima.
 verifyGradualErasure :: SurveyResult -> (Int, Maybe String)
 verifyGradualErasure SurveyResult{results} =
-   T.trace ("Looking for maxima in "++show (M.size successesOnly)++" successes, found "++
-            show numMaxima++
-            "\nAnd is the success map equal to miniFeldsparSuccesses? "++
-            show (M.keysSet successesOnly == S.fromList miniFeldsparSuccesses) ++ "\n"++
-            "And how many maxima for miniFeldsparSuccesses? "++show (length (maxima erasureConfigPartOrd miniFeldsparSuccesses))
-            ++"\n"
-           -- ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))
-           ) $
+   -- T.trace ("Looking for maxima in "++show (M.size successesOnly)++" successes, found "++
+   --          show numMaxima++
+   --          "\nAnd is the success map equal to miniFeldsparSuccesses? "++
+   --          show (M.keysSet successesOnly == S.fromList miniFeldsparSuccesses) ++ "\n"++
+   --          "And how many maxima for miniFeldsparSuccesses? "++show (length (maxima erasureConfigPartOrd miniFeldsparSuccesses))
+   --          ++"\n"
+   --         -- ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))
+   --         ) $
    (numMaxima,mainResult)
   where
    mainResult =
@@ -810,8 +811,12 @@ example1 = ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Checked),(Var "arg"
 
 example2 = ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Synthesized)]),(Var "Typ",[(Var "arg",Synthesized)]),(Var "Var",[(Var "env",Checked),(Var "arg",Synthesized)])])
 
-case_t8 = ( erasureConfigPartOrd example1 example2
-          , erasureConfigPartOrd example2 example1 )
+case_t8 = erasureConfigPartOrd example1 example2
+case_t9 = erasureConfigPartOrd example2 example1
+
+
+
+
 
 miniFeldsparSuccesses :: [ErasureConfig]
 miniFeldsparSuccesses =
