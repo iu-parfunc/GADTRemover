@@ -240,7 +240,10 @@ compareMany ls =
 -- Also return the number of maxima.
 verifyGradualErasure :: SurveyResult -> (Int, Maybe String)
 verifyGradualErasure SurveyResult{results} =
-   T.trace ("Looking for maxima in successes: \n"
+   T.trace ("Looking for maxima in "++show (M.size successesOnly)++" successes, found "++
+            show numMaxima++
+            ", and is the success map equal to miniFeldsparSuccesses? "++
+            show (M.keysSet successesOnly == S.fromList miniFeldsparSuccesses) ++ ":\n"
            ++ concat (L.intersperse "\n" (map show (M.keys successesOnly)))) $
    (numMaxima,mainResult)
   where
@@ -776,6 +779,15 @@ case_t5 = maxima erasureConfigPartOrd [ec1,ec2]
 
 case_t6 = length $ maxima erasureConfigPartOrd miniFeldsparSuccesses
 
+
+-- This is still 76 elements long as a set (all unique)
+-- Running maxima on it directly says they're ALL maxima.
+--
+-- Can't be right, this:
+--   (ErasureConfig, Exp(env,arg) Typ(arg) Var(env,arg):  CS S CS )
+-- Should be above this:
+--   (ErasureConfig, Exp(env,arg) Typ(arg) Var(env,arg):  KS S CS )
+--
 miniFeldsparSuccesses :: [ErasureConfig]
 miniFeldsparSuccesses =
  [ErasureConfig (M.fromList [(Var "Exp",[(Var "env",Kept),(Var "arg",Kept)]),(Var "Typ",[(Var "arg",Kept)]),(Var "Var",[(Var "env",Kept),(Var "arg",Checked)])]),
