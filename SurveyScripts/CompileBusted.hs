@@ -256,15 +256,12 @@ test1 opts stat = do
                       , pgFormat = printf "%s :percent [:bar] :current/:total (for :elapsed, :eta remaining)" (takeBaseName (CC.fileName stat))
                       }
 
-      -- First, make sure that we can compile
-      ok       <- liftIO $ compileFile opts (inDir </> degen)
+      -- First, make sure that we can compile the degenerate configuration
+      degenok  <- liftIO $ compileFile opts (inDir </> degen)
       liftIO    $ tick progress
 
-      -- If that was successful, compile everything else
-      !status  <-
-        if not ok
-          then do return []
-          else do parForM defs $ \d -> liftIO $ do
+      -- Now compile everything else
+      !status  <- parForM defs $ \d -> liftIO $ do
                     !s <- compileFile opts (inDir </> d)
                           `catch`
                           \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
@@ -275,7 +272,7 @@ test1 opts stat = do
       liftIO $ closeConsoleRegion (pgRegion progress)
       return result { variants           = genericLength defs
                     , successes          = sum [ 1 | True <- status ]
-                    , degenerateCompiles = ok
+                    , degenerateCompiles = degenok
                     }
 
 
