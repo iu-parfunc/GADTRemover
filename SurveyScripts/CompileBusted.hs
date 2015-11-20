@@ -19,6 +19,7 @@ import qualified ConnectedDDefs               as CC ( Stats(..) )
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Exception
+import           Control.Monad                (unless)
 import           Control.Monad.IO.Class
 import           Control.Monad.Par.Class
 import           Control.Monad.Par.IO
@@ -240,45 +241,41 @@ parForM xs f = parMapM f xs
 --
 test1 :: Options -> Stats -> ParIO Result
 test1 opts stat = do
-  mfiles       <- liftIO $ locateFiles opts stat
+  (degen,defs) <- liftIO $ locateFiles opts stat
   let result    = Result { filePath           = CC.fileName stat
-                         , variants           = 0
+                         , variants           = genericLength defs
                          , successes          = 0
                          , degenerateCompiles = False
                          }
       inDir     = takeDirectory (CC.fileName stat)
   --
-  case mfiles of
-    Nothing            -> return result
-    Just (degen, defs) -> do
-      progress  <- liftIO $ newProgressBar def
-                      { pgTotal  = genericLength defs + 1
-                      , pgFormat = printf "%s :percent [:bar] :current/:total (for :elapsed, :eta remaining)" (takeBaseName (CC.fileName stat))
-                      }
+  progress  <- liftIO $ newProgressBar def
+                  { pgTotal  = genericLength defs + 1
+                  , pgFormat = printf "%s :percent [:bar] :current/:total (for :elapsed, :eta remaining)" (takeBaseName (CC.fileName stat))
+                  }
 
-      -- First, make sure that we can compile the degenerate configuration
-      degenok  <- liftIO $ compileFile opts (inDir </> degen)
-      liftIO    $ tick progress
+  -- First, make sure that we can compile the degenerate configuration
+  degenok  <- liftIO $ compileFile opts (inDir </> degen)
+  liftIO    $ tick progress
 
-      -- Now compile everything else
-      !status  <- parForM defs $ \d -> liftIO $ do
-                    !s <- compileFile opts (inDir </> d)
-                          `catch`
-                          \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
-                                   return False
-                    tick progress
-                    return s
-      --
-      liftIO $ closeConsoleRegion (pgRegion progress)
-      return result { variants           = genericLength defs
-                    , successes          = sum [ 1 | True <- status ]
-                    , degenerateCompiles = degenok
-                    }
+  -- Now compile everything else
+  !status  <- parForM defs $ \d -> liftIO $ do
+                !s <- compileFile opts (inDir </> d)
+                      `catch`
+                      \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
+                               return False
+                tick progress
+                return s
+  --
+  liftIO $ closeConsoleRegion (pgRegion progress)
+  return result { successes          = sum [ 1 | True <- status ]
+                , degenerateCompiles = degenok
+                }
 
 
 -- Locate the ghostbusted CCs that were generated for a given file.
 --
-locateFiles :: Options -> Stats -> IO (Maybe (FilePath, [FilePath]))
+locateFiles :: Options -> Stats -> IO (FilePath, [FilePath])
 locateFiles opts stats =
   let
       inRoot            = takeDirectory (inputCSV opts)
@@ -287,19 +284,15 @@ locateFiles opts stats =
       pat               = dropExtension name ++ "*ghostbusted*"
       degen             = dropExtension name ++ "degenerate" <.> "hs"
   in
-  if CC.successfulErasures stats > 0
-    then do
+  do
       ls     <- getDirectoryContents inDir
       yes    <- doesFileExist (inDir </> degen)
 
-      if yes
-        then do
-          let busted = filter (~~ pat) ls
-          sayIO  $ printf "Found %d busted CCs for '%s'" (length busted) (CC.fileName stats)
-          return $ Just (degen, busted)
-        else return Nothing
-    else
-      return Nothing
+      unless yes $ error $ printf "could not find degenerate file '%s'\n" (inDir </> degen)
+
+      let busted = filter (~~ pat) ls
+      sayIO  $ printf "Found %d busted CCs for '%s'" (length busted) (CC.fileName stats)
+      return $ (degen, busted)
 
 
 {-# NOINLINE ghc #-}
