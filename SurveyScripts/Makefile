@@ -9,7 +9,7 @@ all: scripts step1 step2 step3 step4
 
 # Backpedaling and building scripts as executables:
 scripts:
-	stack install
+	stack --install-ghc install
 
 # These steps are really per-package and could be broken up that way
 # ------------------------------------------------------------------
