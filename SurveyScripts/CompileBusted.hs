@@ -9,6 +9,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Main where
 
@@ -22,6 +23,7 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Par.Class
 import           Control.Monad.Par.IO
 import qualified Data.ByteString              as B
+import qualified Data.ByteString.Char8        as BC
 import qualified Data.ByteString.Lazy         as BL
 import           Data.Csv                     as CSV
 import           Data.Default
@@ -96,6 +98,7 @@ defaultOptions = Options
 
 data Result = Result
   { filePath            :: FilePath
+  , degenerateCompiles  :: !Bool
   , variants            :: !Integer
   , successes           :: !Integer
   }
@@ -105,6 +108,15 @@ instance CSV.FromNamedRecord Result
 instance CSV.ToNamedRecord   Result
 instance CSV.ToRecord        Result
 instance CSV.DefaultOrdered  Result
+
+instance CSV.ToField Bool where
+  toField True  = "True"
+  toField False = "False"
+
+instance CSV.FromField Bool where
+  parseField "True"  = return True
+  parseField "False" = return False
+  parseField x       = error $ printf "FromField: failed to parse %s :: Bool" (BC.unpack x)
 
 
 -- Poor man's concurrent file IO. This is okay for us because we expect to
@@ -228,47 +240,69 @@ parForM xs f = parMapM f xs
 --
 test1 :: Options -> Stats -> ParIO Result
 test1 opts stat = do
-  defs          <- liftIO $ locateBustedDDefs opts stat
-  let result    = Result { filePath  = CC.fileName stat
-                         , variants  = genericLength defs
-                         , successes = 0
+  mfiles       <- liftIO $ locateFiles opts stat
+  let result    = Result { filePath           = CC.fileName stat
+                         , variants           = 0
+                         , successes          = 0
+                         , degenerateCompiles = False
                          }
+      inDir     = takeDirectory (CC.fileName stat)
   --
-  if null defs
-    then return result
-    else do
+  case mfiles of
+    Nothing            -> return result
+    Just (degen, defs) -> do
       progress  <- liftIO $ newProgressBar def
-                      { pgTotal  = genericLength defs
+                      { pgTotal  = genericLength defs + 1
                       , pgFormat = printf "%s :percent [:bar] :current/:total (for :elapsed, :eta remaining)" (takeBaseName (CC.fileName stat))
                       }
-      !status   <- parForM defs $ \d -> liftIO $ do
-                      !s <- compileFile opts (takeDirectory (CC.fileName stat) </> d)
-                             `catch`
-                             \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
-                                      return False
-                      tick progress
-                      return s
+
+      -- First, make sure that we can compile
+      ok       <- liftIO $ compileFile opts (inDir </> degen)
+      liftIO    $ tick progress
+
+      -- If that was successful, compile everything else
+      !status  <-
+        if not ok
+          then do return []
+          else do parForM defs $ \d -> liftIO $ do
+                    !s <- compileFile opts (inDir </> d)
+                          `catch`
+                          \e -> do errIO $ printf "Testing '%s' returned error: %s" d (show (e :: SomeException))
+                                   return False
+                    tick progress
+                    return s
       --
       liftIO $ closeConsoleRegion (pgRegion progress)
-      return result { successes = sum [ 1 | True <- status ] }
+      return result { variants           = genericLength defs
+                    , successes          = sum [ 1 | True <- status ]
+                    , degenerateCompiles = ok
+                    }
 
 
 -- Locate the ghostbusted CCs that were generated for a given file.
 --
-locateBustedDDefs :: Options -> Stats -> IO [FilePath]
-locateBustedDDefs opts stats =
+locateFiles :: Options -> Stats -> IO (Maybe (FilePath, [FilePath]))
+locateFiles opts stats =
   let
-      inDir             = takeDirectory (inputCSV opts)
+      inRoot            = takeDirectory (inputCSV opts)
+      inDir             = inRoot </> base
       (base,name)       = splitFileName (CC.fileName stats)
       pat               = dropExtension name ++ "*ghostbusted*"
+      degen             = dropExtension name ++ "degenerate" <.> "hs"
   in
   if CC.successfulErasures stats > 0
     then do
-      busted <- filter (~~ pat) `fmap` getDirectoryContents (inDir </> base)
-      sayIO   $ printf "Found %d busted CCs for '%s'" (length busted) (CC.fileName stats)
-      return busted
+      ls     <- getDirectoryContents inDir
+      yes    <- doesFileExist (inDir </> degen)
+
+      if yes
+        then do
+          let busted = filter (~~ pat) ls
+          sayIO  $ printf "Found %d busted CCs for '%s'" (length busted) (CC.fileName stats)
+          return $ Just (degen, busted)
+        else return Nothing
     else
-      return []
+      return Nothing
 
 
 {-# NOINLINE ghc #-}
@@ -319,7 +353,7 @@ sayIO :: String -> IO ()
 sayIO msg = outputConcurrent (msg ++ "\n")
 -- sayIO _ = return ()
 
-
 errIO :: String -> IO ()
 errIO msg = errorConcurrent (msg ++ "\n")
 -- sayIO _ = return ()
+
