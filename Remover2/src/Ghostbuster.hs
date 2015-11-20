@@ -75,11 +75,11 @@ data SurveyMode
                }
   deriving Show
 
-data SurveyResult =
-     SurveyResult { gadtsBecameASTS :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
-                  , surveyMode :: SurveyMode
-                  , results :: M.Map ErasureConfig (FuzzResult (Int,FilePath))
-                  }
+data SurveyResult = SurveyResult
+  { gadtsBecameASTS     :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
+  , surveyMode          :: SurveyMode
+  , results             :: M.Map ErasureConfig (FuzzResult (Int,FilePath))
+  }
   deriving Show
 
 -- | An erasure configuration for a complete CC.
@@ -373,12 +373,11 @@ writeProg filename prog = do
 --
 --
 surveyFuzzTest :: Prog -> FilePath -> IO SurveyResult
-surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
+surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
    printf "surveyFuzzTest: Number of CC variants (given ordering limitation): %d\n" numPossib
-   putStrLn $ "                Based on ddef possibilities (minus the one degenerate): "++show possibCounts
-
-   putStrLn$ "Total possibilities, without ordering constraint: "++ show (numPossib')
-   putStrLn$ "Based on ddef possibilities (minus the one degenerate): "++show possibCounts'
+   printf "                Based on ddef possibilities (minus the one degenerate): %s\n" (show possibCounts)
+   printf "Total possibilities, without ordering constraint: %d\n" numPossib'
+   printf "Based on ddef possibilities (minus the one degenerate): %s\n" (show possibCounts')
 
    when (numPossib' < toInteger lIMIT) $ do
      putStrLn $ "Search space size under limit, verifying prediction and possib list match: " ++
@@ -446,7 +445,7 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
             becameADTs = (S.map tyName finalSet)
         -- unless (S.null finalSet) $
         --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."
-        putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were gADTs."
+        putStrLn $ (show$ S.size becameADTs) ++ " datatypes BECAME ADTs but were GADTs."
         return $ SurveyResult (S.toList becameADTs) mode (M.fromList fuzzRes)
 
    -- Don't force this unless we're exhaustive... gets BIG:
@@ -456,10 +455,10 @@ surveyFuzzTest (Prog origdefs _prgVals (VDef _name tyscheme expr)) outroot = do
    perDDefVariants' =  map ddefPossibs origdefs
 
    -- OLD:
-   possibs  :: [[DDef]]
-   possibs       = filter (not . isDegenerate) cartesianProd
-   cartesianProd = sequence perDDefVariants
-   perDDefVariants = map _ddefPossibs_old origdefs
+   -- possibs  :: [[DDef]]
+   -- possibs       = filter (not . isDegenerate) cartesianProd
+   -- cartesianProd = sequence perDDefVariants
+   -- perDDefVariants = map _ddefPossibs_old origdefs
 
    ------------------------------------------------------------
 
@@ -530,7 +529,7 @@ ddefNumPossib dd = combinations
 
 -- | Much simpler notion of search space WITHOUT arbitrary ordering constraints.
 ddefNumPossib' :: DDef -> Integer
-ddefNumPossib' dd = (3 :: Integer) ^ L.genericLength (allVars dd)
+ddefNumPossib' dd = 3 ^ (L.genericLength (allVars dd) :: Integer)
 
 -- | Explode a single DDef into all the possible erasure modes.
 -- Limited by our ORDERING limitation.
