@@ -435,7 +435,11 @@ outputCCs onlyGADTs hdl outputBase input =
               -- are kept. If this program doesn't compile, there is no
               -- point testing the variants.
               G.writeProg degenName
-                $ prog { GT.prgDefs = [ ddef { GT.kVars = kVars ++ cVars ++ sVars } | ddef@GT.DDef{..} <- GT.prgDefs prog ]}
+                $ prog { GT.prgDefs = [ ddef { GT.kVars = kVars ++ cVars ++ sVars
+                                             , GT.cVars = []
+                                             , GT.sVars = []
+                                             }
+                                      | ddef@GT.DDef{..} <- GT.prgDefs prog ]}
 
               -- Fuzz-test this module
               -- fuzz <- G.fuzzTestProg True prog gbName
