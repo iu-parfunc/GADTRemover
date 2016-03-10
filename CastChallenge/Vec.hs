@@ -7,6 +7,7 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE InstanceSigs #-}
 
+{-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 -- {-# LANGUAGE FlexibleInstances, UndecidableInstances #-}
@@ -22,7 +23,7 @@ import Prelude
                Maybe(..), Either(..))
 import Prelude as P
 
-
+import Data.Maybe
 import Data.Typeable
 -- import Data.Type.Equality
 
@@ -55,20 +56,27 @@ data Vec' a where
 -}
 
 --  readsPrec :: forall a n . P.Int -> P.String -> [(Vec a n, P.String)]
-{-
-instance (Read a, Typeable a) => Read (Vec a n) where
+instance (Read a, Typeable a, Typeable n0) => Read (Vec a n0) where
   readsPrec i s =
-    map (\(v',s) ->
+
+  -- Huh, not sure why this version doesn't work:
+  --   [ (v,s)
+  --   | (v',s) <- ls
+  --   , SealedVec (v :: Vec a n2) <- upVec v'
+  --   , Just Refl <- eqT :: Maybe (n0 :~: n2)
+  --   ]
+    catMaybes $
+     map (\(v',s) ->
           case upVec v' of
-            SealedVec d v ->
-              case checkTEQ d
-         )
+            SealedVec (v :: Vec a n2) ->
+              case eqT :: Maybe (n0 :~: n2) of
+                Just Refl -> Just (v,s)
+                Nothing   -> Nothing)
         ls
    where
     ls :: [(Vec' a, P.String)]
     ls = readsPrec i s
-    -- [(, "")]
--}
+
 
 data ZZ where
 data S n where
