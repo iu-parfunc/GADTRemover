@@ -23,7 +23,7 @@ import Prelude
                Maybe(..), Either(..))
 import Prelude as P
 
-import Data.Maybe
+-- import Data.Maybe
 import Data.Typeable
 -- import Data.Type.Equality
 
@@ -43,8 +43,9 @@ deriving instance Ord a => Ord (Vec a n)
 data Vec' a where
    Nil' :: Vec' a
    Cons' :: a -> Vec' a -> Vec' a
- deriving (Show, Read, Eq, Ord)
+ deriving (Show, Eq, Ord)
 
+deriving instance Read a => (Read (Vec' a))
 
 -- deriving instance Read a => Read (Vec a n)
 {-
@@ -56,8 +57,19 @@ data Vec' a where
 -}
 
 --  readsPrec :: forall a n . P.Int -> P.String -> [(Vec a n, P.String)]
-instance (Read a, Typeable a, Typeable n0) => Read (Vec a n0) where
-  readsPrec i s =
+-- instance (Read a, Typeable a, Typeable n0) => Read (Vec a n0) where
+--   readsPrec i s =
+--     catMaybes $
+--      map (\(v',s) ->
+--           case upVec v' of
+--             SealedVec (v :: Vec a n2) ->
+--               case eqT :: Maybe (n0 :~: n2) of
+--                 Just Refl -> Just (v,s)
+--                 Nothing   -> Nothing)
+--         ls
+--    where
+--     ls :: [(Vec' a, P.String)]
+--     ls = readsPrec i s
 
   -- Huh, not sure why this version doesn't work:
   --   [ (v,s)
@@ -65,17 +77,21 @@ instance (Read a, Typeable a, Typeable n0) => Read (Vec a n0) where
   --   , SealedVec (v :: Vec a n2) <- upVec v'
   --   , Just Refl <- eqT :: Maybe (n0 :~: n2)
   --   ]
-    catMaybes $
-     map (\(v',s) ->
-          case upVec v' of
-            SealedVec (v :: Vec a n2) ->
-              case eqT :: Maybe (n0 :~: n2) of
-                Just Refl -> Just (v,s)
-                Nothing   -> Nothing)
-        ls
-   where
-    ls :: [(Vec' a, P.String)]
-    ls = readsPrec i s
+
+instance (Read a, Typeable n) => Read (Vec a n) where
+  readsPrec i s =
+    [ (v,s) | (v',s) <- readsPrec i s
+            , let Just v = upVec2 v' ]
+
+   --  catMaybes $
+   --   map (\(v',s) ->
+   --          case upVec2 v' :: Maybe (Vec a n0) of
+   --            Just v -> Just (v, s)
+   --            Nothing -> Nothing)
+   --      ls
+   -- where
+   --  ls :: [(Vec' a, P.String)]
+   --  ls = readsPrec i s
 
 
 data ZZ where
@@ -126,6 +142,13 @@ upVec !lower
 --              let n_s0_dict = SDict n_dict in
               SealedVec (Cons a b')
 
+upVec2 :: forall a n . Typeable n => Vec' a -> Maybe (Vec a n)
+upVec2 v' =
+   case upVec v' of
+     SealedVec (v :: Vec a n2) ->
+       case eqT :: Maybe (n :~: n2) of
+         Just Refl -> Just v
+         Nothing   -> Nothing
 
 main :: P.IO ()
 main = print "hello"
