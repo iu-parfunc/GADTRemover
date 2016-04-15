@@ -20,6 +20,11 @@ else
     OS=linux
 fi
 
+# Peek at where stack has put it:
+find -name ghostbust
+# Test run:
+$RUN -h
+
 # Hack, for now assume Stack has installed GHC:
 GHC=~/.stack/programs/x86_64-${OS}/ghc-7.10.2/bin/ghc
 
