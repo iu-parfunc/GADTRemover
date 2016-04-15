@@ -11,8 +11,11 @@ $STACK --version
 time $STACK setup
 time $STACK test
 
+# Ryan changed this to include an extension:
+GHOSTBUST=ghostbust.exe
+
 # Then we run some standalone tests:
-RUN="stack exec ghostbust --"
+RUN="stack exec $GHOSTBUST --"
 
 if [ `uname` == "Darwin" ]; then
     OS=osx
@@ -24,7 +27,7 @@ mkdir -p ./bin
 time $STACK install --local-bin-path=./bin
 
 # Peek at where stack has put it:
-find -name ghostbust
+find -name $GHOSTBUST
 # Test run:
 $RUN -h
 
