@@ -20,6 +20,9 @@ else
     OS=linux
 fi
 
+mkdir -p ./bin
+time $STACK install --local-bin-path=./bin
+
 # Peek at where stack has put it:
 find -name ghostbust
 # Test run:
