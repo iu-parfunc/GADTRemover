@@ -9,6 +9,9 @@ library
   default-language:     Haskell2010
   exposed-modules:      GADT2 ADT2 Test2
                         GADT3 ADT3 Test3
+-- This one has errors!  But they're only RUNTIME errors:
+-- Huh, and yet the ".o" file never gets produced...
+--                        DeferredErrors                        
                         Feldspar.GADT Feldspar.ADT1 Feldspar.ADT2
                         TypeCase TypeableMagic
                         TimTypeCase
