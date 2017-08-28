@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package Ghostbuster --package filemanip --package concurrent-output --package ascii-progress
+-- stack runghc
 
 -- | This script compiles the generated connected component definitions
 -- that were ghostbusted in the previous step by 'ConnectedDDefs'.
@@ -31,7 +31,7 @@ import           Data.Default
 import           Data.List                    as L
 import           Data.Vector                  ( Vector )
 import qualified Data.Vector                  as V
-import           GHC.Conc                     (getNumCapabilities)
+import           GHC.Conc                     ( getNumCapabilities, getNumProcessors, setNumCapabilities )
 import           GHC.Generics
 import           System.Console.AsciiProgress ( newProgressBar, tick, pgRegion, pgTotal, pgFormat )
 import           System.Console.Concurrent
@@ -178,7 +178,7 @@ main = displayConsoleRegions $ do
   stats         <-
     case CSV.decodeByName statsfile of
       Left err    -> error $ printf "Failed to decode stats file '%s'\nMessage: %s" (inputCSV opts) err
-      Right (_,v) -> return (v :: Vector CC.Stats)
+      Right (_,v) -> return (V.filter (not . null . CC.fileName) v)
 
   let stats'    =  maybe stats (\pat -> (V.filter (\s -> CC.fileName s ~~ pat)) stats) (globPattern opts)
 
@@ -205,16 +205,19 @@ main = displayConsoleRegions $ do
     sayIO $ printf "COMPLETE: "
     sayIO $ printf "  Files     : %d" (V.length res)
     sayIO $ printf "  Variants  : %d" v
-    sayIO $ printf "  Successes : %d (%.2f%%)" s p
+    sayIO $ printf "  Successes : %d (%.2f %%)" s p
 
 
--- Test all Ghostbusted files, in parallel if possible.
+-- Test all Ghostbusted files (in parallel).
 --
 testAllP :: Options -> Vector Stats -> SharedHandle -> IO (Vector Result)
 testAllP opts stats sh = do
   progress <- newProgressBar def { pgTotal = toInteger (V.length stats) }
-  numCap <- getNumCapabilities
-  printf "Running in parallel on %d capabilities\n" numCap
+  numCap   <- getNumCapabilities
+  numProc  <- getNumProcessors
+  let np = max numCap numProc
+  setNumCapabilities np
+  printf "Running in parallel with %d threads\n" np
   results  <- runParIO $
     parForM stats $ \s -> do
       r <- test1 opts s
@@ -323,7 +326,7 @@ compileFile opts inFile = do
   withFile (outFile `replaceExtension` "log") WriteMode $ \h -> do
     let
         -- This initially called "stack exec ghc", but that is very slow.
-        compile = (proc ghc ["-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
+        compile = (proc ghc ["-O0", "-fno-code", "-odir", "/dev/null", "-hidir", "/dev/null", "-c", inFile'])
                     { std_out = UseHandle h
                     , std_err = UseHandle h
                     }

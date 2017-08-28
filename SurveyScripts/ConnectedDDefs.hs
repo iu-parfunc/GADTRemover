@@ -1,5 +1,6 @@
 #!/usr/bin/env stack
--- stack --no-system-ghc --verbosity silent --resolver lts-3.8 --install-ghc runghc --package Ghostbuster
+-- stack runghc
+
 -- | This is a shell script that yanks out all of the connected component
 -- data declarations (i.e., all the declarations that refer to each other
 -- in the same file) and puts them in separate files -- each file is a
@@ -106,6 +107,7 @@ import           System.Exit
 import           System.FilePath
 import qualified System.FilePath.Find         as SFF
 import           System.IO
+import           Text.Printf
 
 data Stats = Stats
   { numADTs                     :: Int          -- Number of ADTs in this file
@@ -152,7 +154,16 @@ instance Monoid Stats where
            , passGADTPredicate     = on (+) passGADTPredicate x y
            , numGADTtoADT          = on (+) numGADTtoADT x y
            , gradualProp           = on (+) gradualProp  x y -- Add how many CCs satisfied it.
-           , fileName              = fileName x ++ ':':fileName y
+           -- , fileName              = fileName x ++ ':':fileName y
+           , fileName              =
+              let nx = fileName x
+                  ny = fileName y
+              in
+              if null nx && null ny  then [] else
+              if null nx             then ny else
+              if null ny             then nx else
+              if nx == ny            then nx
+                                     else error $ printf "%s <> %s" nx ny
            }
 
 emptyStats :: Stats
@@ -181,16 +192,17 @@ emptyStats =
 -- TZ: Treating pairs and arrows as primitive for now
 gParseModule
     :: String
-    -> IO (Either [(Module, GT.Prog)] String)
+    -> IO (Either String [(Module, GT.Prog)])
 gParseModule str = do
   parsed <- parseFileContentsWithMode
-    ParseMode { parseFilename         = str
-              , baseLanguage          = Haskell2010
-              , extensions            = glasgowExts
-              , ignoreLanguagePragmas = False
-              , ignoreLinePragmas     = True
-              , fixities              = Just preludeFixities
-              }
+    (defaultParseMode
+        { parseFilename         = str
+        , baseLanguage          = Haskell2010
+        , extensions            = glasgowExts
+        , ignoreLanguagePragmas = False
+        , ignoreLinePragmas     = True
+        , fixities              = Just preludeFixities
+        })
     <$> (CP.runCpphs CP.defaultCpphsOptions "" =<< (readFile str))
   case parsed of
     ParseOk (Module a b c _ _ f decls) ->
@@ -214,8 +226,8 @@ gParseModule str = do
           -- Make this into a module of CC data defs
           modules                   = map (Module a b c Nothing Nothing f) cauterizedCDefs
       in
-      return $ Left (zip modules ghostbusterDDefs)
-    ParseFailed _ err -> return $ Right $ "ParseFailed: "++show err
+      return $ Right (zip modules ghostbusterDDefs)
+    ParseFailed _ err -> return $ Left $ "ParseFailed: " ++ err
 
 builtin :: [Name]
 builtin = map Ident [ "Int", "Bool", "Maybe", "Unit"]   -- Ghostbuster.Types.primitiveTypes
@@ -401,16 +413,18 @@ parseInput _               = error "argument parse failed: expected one or two a
 
 -- | Parse the module and return the list of CCs
 outputCCs :: Bool -> Handle -> String -> String -> IO Stats
-outputCCs onlyGADTs hdl outputBase input =
-  go `catch` \e ->
+outputCCs onlyGADTs hdl outputBase input = do
+  stat <- go `catch` \e ->
     do putStrLn $ "--------- Haskell exception while working on " ++ input ++ " --------------"
        print (e :: SomeException)
        return $ emptyStats {parseFailed = 1}
+  DBLC.hPutStr hdl (CSV.encode [stat])
+  return stat
   where
   go =
    gParseModule input >>= \res ->
     case res of
-      Left yes -> do
+      Right yes -> do
         let
             -- Number all the tests
             tests :: [(Integer, Module, GT.Prog)]
@@ -455,12 +469,12 @@ outputCCs onlyGADTs hdl outputBase input =
                   stat' = stat { gradualProp = if Nothing == snd verifyGrad
                                                then 1 else 0 }
 
-              DBLC.hPutStr hdl (CSV.encode [stat'])
+              -- DBLC.hPutStr hdl (CSV.encode [stat'])
               return stat'
             else
               return mempty
       --
-      Right err -> do
+      Left err -> do
         putStrLn $ "--------- Failed parse of file " ++ input ++ " --------------"
         putStrLn err
         return $ emptyStats { parseFailed = 1 }

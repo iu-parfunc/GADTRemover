@@ -57,6 +57,9 @@ import qualified Data.Map as M
 -- import Data.Functor -- for GHC 7.8.4
 import Debug.Trace as T
 
+verbose :: Bool
+verbose = False
+
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
 data FuzzResult a = AmbFailure
@@ -410,14 +413,18 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
                                    return $ Partial numPossib' (toInteger lIMIT)
         let toexplore = take lIMIT possibs'
         ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,ec:: ErasureConfig) -> do
-          printf "%4d:" ind
           let defs = permuteTyArgs ec origdefs
-          forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-            putStr $ "  " ++
-                     show ( map (unVar . fst) kVars
-                          , map (unVar . fst) cVars
-                          , map (unVar . fst) sVars)
-          putStr "\n"
+	  --
+	  -- XXX: verbose mode
+	  when verbose $ do
+	    printf "%4d:" ind
+	    forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+	      putStr $ "  " ++
+		       show ( map (unVar . fst) kVars
+			    , map (unVar . fst) cVars
+			    , map (unVar . fst) sVars)
+	    putStr "\n"
+	  --
           fr <- gogo (ind,defs)
           let wasGADT :: [DDef]
               wasGADT = case fr of
@@ -572,15 +579,17 @@ fuzzTestProg :: Bool -> Prog -> FilePath -> IO [FuzzResult (Int, FilePath)]
 fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot = do
   putStrLn         $ printf "Number of weakening possibilities below current Ghostbuster erasure point: %d" n
   when (n > lIMIT) $ printf "Testing the first %d weakenings\n" (lIMIT `min` (n `div` lIMIT))
-  forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
-    printf "%4d:" ind
-    forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-      putStr $ "  " ++
-               show ( map (unVar . fst) kVars
-                    , map (unVar . fst) cVars
-                    , map (unVar . fst) sVars)
-    putStr "\n"
-
+  --
+  when verbose $ do
+    forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
+      printf "%4d:" ind
+      forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+	putStr $ "  " ++
+		 show ( map (unVar . fst) kVars
+		      , map (unVar . fst) cVars
+		      , map (unVar . fst) sVars)
+      putStr "\n"
+  --
   sequence [
     let
         (file,ext) = splitExtension outroot

@@ -53,13 +53,14 @@ data GhostbustAnn = GhostbustAnn
 gParseModule :: String -> IO G.Prog
 gParseModule str = do
   parsed <- parseFileContentsWithMode
-    (ParseMode { parseFilename         = str
-               , baseLanguage          = Haskell2010
-               , extensions            = glasgowExts
-               , ignoreLanguagePragmas = False
-               , ignoreLinePragmas     = True
-               , fixities              = Just preludeFixities
-               })
+    (defaultParseMode
+	{ parseFilename         = str
+        , baseLanguage          = Haskell2010
+        , extensions            = glasgowExts
+        , ignoreLanguagePragmas = False
+        , ignoreLinePragmas     = True
+        , fixities              = Just preludeFixities
+        })
     <$> ((CP.runCpphs CP.defaultCpphsOptions "") =<< (readFile str))
   let
       Module _ _ _ _ _ _ decls = fromParseResult parsed
@@ -81,7 +82,7 @@ gParseModule str = do
 -- | Convert a Haskell kind into a Ghostbuster kind
 mkKind :: H.Kind -> G.Kind
 mkKind KindStar       = G.Star
-mkKind KindBang       = G.Star -- Unboxed types are of kind * right?
+-- mkKind KindBang       = G.Star -- Unboxed types are of kind * right?
 mkKind (KindFn k1 k2) = G.ArrowKind (mkKind k1) (mkKind k2)
 
 kindTyVar:: TyVarBind -> (G.TyVar, G.Kind)

@@ -1,0 +1,13 @@
+# vim: nospell
+
+resolver: lts-6.35
+packages:
+- 'CastChallenge'
+- 'GADTRemover'
+- 'Remover2'
+- 'SurveyScripts'
+
+extra-deps: []
+
+flags: {}
+

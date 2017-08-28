@@ -60,8 +60,8 @@ moduleOfProg (Prog ddefs vdefs vtop) =
                ++ declOfVDef (mkMain topShowable vtop)
 
 builtinTypes :: [ImportSpec]
-builtinTypes = map (IAbs      . Ident) types
-            ++ map (IThingAll . Ident) ctors
+builtinTypes = map (IAbs NoNamespace . Ident) types
+            ++ map (IThingAll        . Ident) ctors
   where
     types       = [ "Char", "Float", "Double", "Int", "Word", "Integer", "String", "FilePath", "IO", "IOError", "Ordering", "Rational", "Real", "ShowS", "String" ]
     ctors       = [ "Bool", "Maybe", "Either" ]
@@ -80,3 +80,4 @@ mkMain doprint vtop =
                       else EApp (EApp "seq" (G.EVar (valName vtop)))
                                 (EApp "return" (EK "()"))
        }
+

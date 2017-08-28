@@ -2,14 +2,15 @@
 
 .PHONY: step1 step2 step3 step4 CompileBusted clean distclean
 
-ROOT=$(shell pwd)
+ROOT	:= $(shell pwd)
+INSTALL	:= $(shell stack path --local-install-root)
 
 default: scripts
 all: scripts step1 step2 step3 step4
 
 # Backpedaling and building scripts as executables:
 scripts:
-	stack --install-ghc install
+	stack build
 
 # These steps are really per-package and could be broken up that way
 # ------------------------------------------------------------------
@@ -23,12 +24,12 @@ step2:
 #
 # Gathers DDefs from each discovered haskell file.
 # Organize output in per-package directories.
-step3:
-	cd data/2_untarred && $(ROOT)/bin/ConnectedDDefs.exe . $(ROOT)/data/3_ddef_clusters/
+step3: scripts
+	cd data/2_untarred && $(INSTALL)/bin/ConnectedDDefs.exe . $(ROOT)/data/3_ddef_clusters/
 
 # Attempt to compile generated DDefs
-step4:
-	$(ROOT)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N -RTS
+step4: scripts
+	$(INSTALL)/bin/CompileBusted.exe data/3_ddef_clusters/ghostbust_data.csv data/4_compiled_ddefs +RTS -N -RTS
 
 # ------------------------------------------------------------------
 

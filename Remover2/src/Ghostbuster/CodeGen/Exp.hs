@@ -29,7 +29,7 @@ mkExp (G.ELet (v,t,bnd) body)   =
 
 mkAlt :: G.Pat -> G.Exp -> H.Alt
 mkAlt p e =
-  Alt noLoc (mkPat p) (mkRhs e) (BDecls [])
+  Alt noLoc (mkPat p) (mkRhs e) Nothing -- (BDecls [])
 
 mkPat :: G.Pat -> H.Pat
 mkPat (Pat "_" []) = wildcard
@@ -71,7 +71,7 @@ expandCaseOfExp fn p (splitArgs -> (vs,e)) =
     (mkPat p:map mkArg vs)      -- patterns, to be matched against a value
     Nothing                     -- type signature
     (mkRhs e)                   -- the right hand side of the function, pattern, or case alternative
-    (BDecls [])                 -- binding group for let or where clause
+    Nothing -- (BDecls [])                 -- binding group for let or where clause
 
 matchOfExp :: Var -> G.Exp -> Match
 matchOfExp fn (splitArgs -> (vs, e)) =
@@ -81,7 +81,7 @@ matchOfExp fn (splitArgs -> (vs, e)) =
     (map mkArg vs)
     Nothing
     (mkRhs e)
-    (BDecls [])
+    Nothing -- (BDecls [])
 
 splitArgs :: G.Exp -> ( [G.Var], G.Exp )
 splitArgs (ELam (v,_) rhs) = let (vs,r) = splitArgs rhs in (v:vs, r)
