@@ -117,8 +117,8 @@ data Stats = Stats
   , numADTsWithParams           :: !Int         -- Number of ADTs in this file with a type variable
   , numGADTs                    :: !Int         -- Number of GADTs in this file
   , numGADTsWithParams          :: !Int         -- Number of GADTs in this file with a type variable
-  , parseSucc                   :: !Int         -- These are integers to make it easier to combine
-  , parseFailed                 :: !Int
+  , parseSucc                   :: !Int         -- Successfully parsed the input .hs file
+  , parseFailed                 :: !Int         -- Failed to parse the input .hs file
   -- , numCCsInFile                :: !Int         -- Number of connected components
   , successfulErasures          :: !Int         -- Number of successful erasure settings
   , numParamsInCC               :: !Int         -- Average number of parameters in this CC
@@ -352,7 +352,7 @@ calledConstrs decl =
   case decl of
     DataDecl  _ DataType _ nm _   contrs _ -> (decl, nm, called nm (concatMap fromConDecl contrs))
     GDataDecl _ DataType _ nm _ _ contrs _ -> (decl, nm, called nm [ typ | GadtDecl _ _ _ typ <- contrs ])
-    _                                           -> error "calledConstrs: i only know about ADTs and GADTs"
+    _                                           -> error "calledConstrs: I only know about ADTs and GADTs"
   where
     called nm = nub
               . filter ((/= nm) . fst)
@@ -388,7 +388,7 @@ gatherCalled = go
     go (TyInfix l t r)          = (nameOfQName t, 2) : go l ++ go r
 
     -- go (TyPromoted _)           = []
-    go other                    = error $ "gatherCalled: unhandled case: " ++ show other
+    go other                    = ghostbusterError NotImplemented $ "gatherCalled: unhandled case: " ++ show other
 
 
 strOfName :: Name -> String
@@ -556,7 +556,7 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
         case surveyMode of
           G.Exhaustive x                           -> (x,x)
           G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
-          G.Greedy{}                               -> error "TODO gatherFuzzStats: greedy search"
+          G.Greedy{}                               -> ghostbusterError NotImplemented "TODO gatherFuzzStats: greedy search"
 
       failure s             = sum [1| G.Failure (GhostbusterError t _) <- res, s == t ]
   in
@@ -602,7 +602,7 @@ writeModule filename (Module a _ c d e f decls) = do
 parse :: [String] -> (String, String)
 parse [input]         = (input, takeDirectory input </> "output")
 parse [input, output] = (input, output)
-parse _               = error "parse failed"
+parse _               = ghostbusterError Unknown "parse failed"
 
 exit :: IO a
 exit = exitSuccess

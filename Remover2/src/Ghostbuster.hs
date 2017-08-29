@@ -351,11 +351,11 @@ writeProg :: String -> Prog -> IO ()
 writeProg filename prog = do
   createDirectoryIfMissing True (takeDirectory filename)
   hdl <- openFile filename WriteMode
-  say ("\n Writing to file " ++ filename)$ do
+  say ("Writing to file " ++ filename)$ do
     let contents = prettyProg prog
     hPutStr hdl contents
     hClose hdl
-    say "\n File written." $
+    say "File written." $
       return ()
 
 
@@ -408,17 +408,17 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
         let toexplore = take lIMIT possibs'
         ls <- forM (zip [(0::Int)..] toexplore) $ \ (ind,ec:: ErasureConfig) -> do
           let defs = permuteTyArgs ec origdefs
-	  --
-	  -- XXX: verbose mode
-	  when verbose $ do
-	    printf "%4d:" ind
-	    forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-	      putStr $ "  " ++
-		       show ( map (unVar . fst) kVars
-			    , map (unVar . fst) cVars
-			    , map (unVar . fst) sVars)
-	    putStr "\n"
-	  --
+          --
+          -- XXX: verbose mode
+          when verbose $ do
+            printf "%4d:" ind
+            forM_ defs $ \ DDef{kVars,cVars,sVars} ->
+              putStr $ "  " ++
+                       show ( map (unVar . fst) kVars
+                            , map (unVar . fst) cVars
+                            , map (unVar . fst) sVars)
+            putStr "\n"
+          --
           fr <- gogo (ind,defs)
           let wasGADT :: [DDef]
               wasGADT = case fr of
@@ -470,15 +470,18 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
      in
      case ambCheck defs of
        Left err -> do
-         printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
+         when verbose $ printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
          return $ Failure (GhostbusterError AmbiguityCheck err)
        Right () ->
          (do let newprg = lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
+
+--              case
+
              writeProg newName newprg
              return (Success newprg (index,newName)))
           `catch`
             \e ->
-              do putStrLn $ "Unable to run codegen on program "
+              do when verbose $ putStrLn $ "Unable to run codegen on program "
                  -- The above output to a file, but wrote nothing, so remove it
                  fExists <- doesFileExist newName
                  when fExists $ removeFile newName
@@ -492,6 +495,9 @@ isGADT DDef{cases} = any gadtCase cases
   gadtCase KCons{outputs} = not (all isTyVar outputs)
   isTyVar (VarTy _) = True
   isTyVar _         = False
+
+isEmptyDataDecl :: DDef -> Bool
+isEmptyDataDecl = null . cases
 
 
 -- | Exclude the possibility that there are no erasures at all.
@@ -579,10 +585,10 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     forM_ (zip [(0::Int)..] taken) $ \ (ind,defs) -> do
       printf "%4d:" ind
       forM_ defs $ \ DDef{kVars,cVars,sVars} ->
-	putStr $ "  " ++
-		 show ( map (unVar . fst) kVars
-		      , map (unVar . fst) cVars
-		      , map (unVar . fst) sVars)
+        putStr $ "  " ++
+                 show ( map (unVar . fst) kVars
+                      , map (unVar . fst) cVars
+                      , map (unVar . fst) sVars)
       putStr "\n"
   --
   sequence [
@@ -592,7 +598,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     in
     case ambCheck defs of
       Left err -> do
-        printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
+        when verbose $ printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
         return $ Failure (GhostbusterError AmbiguityCheck err)
 
       Right () ->
@@ -601,7 +607,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
             return (Success newprg (index,newName)))
          `catch`
            \e ->
-             do putStrLn $ "Unable to run codegen on program "
+             do when verbose $ putStrLn $ "Unable to run codegen on program "
                 -- The above output to a file, but wrote nothing, so remove it
                 fExists <- doesFileExist newName
                 when fExists $ removeFile newName
@@ -690,11 +696,11 @@ runghcProg (Just tname) prg =
    createDirectoryIfMissing True ghostbustTempDir
    (file,hdl) <- openTempFile ghostbustTempDir ("temp_"++tname++ "_.hs")
   -- withSystemTempFile "Ghostbuster.hs" $ \file hdl -> do
-   say ("\n   Writing file to: "++ file) $ do
+   say ("Writing file to: "++ file) $ do
     let contents = prettyProg prg
     hPutStr hdl contents
     hClose hdl
-    say ("   File written.") $ do
+    say "File written." $ do
   {-
 -- Hint version:
                 when False $ do
