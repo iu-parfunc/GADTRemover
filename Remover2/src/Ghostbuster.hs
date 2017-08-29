@@ -79,7 +79,7 @@ data SurveyMode
   deriving Show
 
 data SurveyResult = SurveyResult
-  { gadtsBecameASTS     :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
+  { gadtsBecameADTs     :: [TName] -- ^ a subset of the survey'd CC that became ADTs in some variant
   , surveyMode          :: SurveyMode
   , results             :: M.Map ErasureConfig (FuzzResult (Int,FilePath))
   }
@@ -441,9 +441,9 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
           --            show (map unMkVar $ map tyName $ wasGADT )
           return ((ec,fr), S.fromList winners)
 
-        let (fuzzRes,gadtsBecameASTS) = unzip ls
+        let (fuzzRes,gadtsBecameADTs) = unzip ls
         putStrLn $ "All exhaustive survey variants explored, returning."
-        let finalSet = S.unions gadtsBecameASTS
+        let finalSet = S.unions gadtsBecameADTs
             becameADTs = (S.map tyName finalSet)
         -- unless (S.null finalSet) $
         --   -- then putStrLn $ "No datatypes became ADTs from GADTs..."

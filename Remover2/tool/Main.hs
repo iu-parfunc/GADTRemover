@@ -47,8 +47,8 @@ survey (infile:_rest) = do
   putStrLn $ "Input: " ++infile
   prg <- Parse.gParseModule infile
   putStrLn $ "Input parsed..."
-  sr@SurveyResult{gadtsBecameASTS,surveyMode,results} <- (surveyFuzzTest prg outfile)
-  putStrLn $ "gadtsBecameASTS: "++show (gadtsBecameASTS)
+  sr@SurveyResult{gadtsBecameADTs,surveyMode,results} <- (surveyFuzzTest prg outfile)
+  putStrLn $ "gadtsBecameADTs: "++show (gadtsBecameADTs)
 
   let resList = M.elems results
   putStrLn $ "Total results: " ++ show (length results)

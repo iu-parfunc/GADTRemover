@@ -110,23 +110,28 @@ import           System.IO
 import           Text.Printf
 
 data Stats = Stats
-  { numADTs                     :: Int          -- Number of ADTs in this file
-  , numADTsWithParams           :: Int          -- Number of ADTs in this file with a type variable
-  , numGADTs                    :: Int          -- Number of GADTs in this file
-  , numGADTsWithParams          :: Int          -- Number of GADTs in this file with a type variable
-  , parseSucc                   :: Int          -- These are integers to make it easier to combine
-  , parseFailed                 :: Int
-  -- , numCCsInFile                :: Int          -- Number of connected components
-  , failedAmb                   :: Int          -- Number of failed erasure settings
-  , failedGBust                 :: Int          -- Number of failed erasure settings
-  , successfulErasures          :: Int          -- Number of successful erasure settings
-  , numParamsInCC               :: Int          -- Average number of parameters in this CC
-  , actualCCSearchSpace         :: Integer      -- Actual search space size for this CC
-  , exploredCCSearchSpace       :: Integer      -- The search space we searched (in the case of truncation)
-  , passGADTPredicate           :: Int          -- How many DDefs pass OUR predicate. <= `numGADTs'
-  , numGADTtoADT                :: Int          -- How many DDefs went from GADT->ADT in some erasure variant.
-  , gradualProp                 :: Int          -- 1 if the CC was consistent with gradual-erasure for all maxima, 0 otherwise
-  , fileName                    :: String       -- File name
+  { numADTs                     :: !Int         -- Number of ADTs in this file
+  , numADTsWithParams           :: !Int         -- Number of ADTs in this file with a type variable
+  , numGADTs                    :: !Int         -- Number of GADTs in this file
+  , numGADTsWithParams          :: !Int         -- Number of GADTs in this file with a type variable
+  , parseSucc                   :: !Int         -- These are integers to make it easier to combine
+  , parseFailed                 :: !Int
+  -- , numCCsInFile                :: !Int         -- Number of connected components
+  , failedAmb                   :: !Int         -- Number of failed erasure settings
+  , failedGBust                 :: !Int         -- Number of failed erasure settings
+  , successfulErasures          :: !Int         -- Number of successful erasure settings
+  -- , numDDefs                    :: !Int
+  -- , numDDefsBustedKC            :: !Int
+  -- , numDDefsBustedKS            :: !Int
+  , numParamsInCC               :: !Int         -- Average number of parameters in this CC
+  , actualCCSearchSpace         :: !Integer     -- Actual search space size for this CC
+  , exploredCCSearchSpace       :: !Integer     -- The search space we searched (in the case of truncation)
+  , passGADTPredicate           :: !Int         -- How many DDefs pass OUR predicate. <= `numGADTs'
+  , numGADTtoADT                :: !Int         -- How many DDefs went from GADT->ADT in some erasure variant.
+  , numGADTtoADT_KC             :: !Int         -- How many DDefs went from GADT->ADT in kept/checked erasure mode
+  , numGADTtoADT_KS             :: !Int         -- How many DDefs went from GADT->ADT in kept/synthesized erasure mode
+  , gradualProp                 :: !Int         -- 1 if the CC was consistent with gradual-erasure for all maxima, 0 otherwise
+  , fileName                    :: !String      -- File name
   }
  deriving (Show, Eq, Ord, Generic)
 
@@ -148,11 +153,16 @@ instance Monoid Stats where
            , failedAmb             = on (+) failedAmb x y
            , failedGBust           = on (+) failedGBust x y
            , successfulErasures    = on (+) successfulErasures x y
+           -- , numDDefs              = on (+) numDDefs x y
+           -- , numDDefsBustedKC      = on (+) numDDefsBustedKC x y
+           -- , numDDefsBustedKS      = on (+) numDDefsBustedKS x y
            , numParamsInCC         = on (+) numParamsInCC x y
            , actualCCSearchSpace   = on (+) actualCCSearchSpace x y
            , exploredCCSearchSpace = on (+) exploredCCSearchSpace x y
            , passGADTPredicate     = on (+) passGADTPredicate x y
-           , numGADTtoADT          = on (+) numGADTtoADT x y
+           , numGADTtoADT          = on (+) numGADTtoADT    x y
+           , numGADTtoADT_KC       = on (+) numGADTtoADT_KC x y
+           , numGADTtoADT_KS       = on (+) numGADTtoADT_KS x y
            , gradualProp           = on (+) gradualProp  x y -- Add how many CCs satisfied it.
            -- , fileName              = fileName x ++ ':':fileName y
            , fileName              =
@@ -179,11 +189,16 @@ emptyStats =
     , failedAmb             = 0
     , failedGBust           = 0
     , successfulErasures    = 0
+    -- , numDDefs              = 0
+    -- , numDDefsBustedKC      = 0
+    -- , numDDefsBustedKS      = 0
     , numParamsInCC         = 0
     , actualCCSearchSpace   = 0
     , exploredCCSearchSpace = 0
     , passGADTPredicate     = 0
     , numGADTtoADT          = 0
+    , numGADTtoADT_KC       = 0
+    , numGADTtoADT_KS       = 0
     , gradualProp           = 0
     , fileName              = ""
     }
@@ -445,9 +460,9 @@ outputCCs onlyGADTs hdl outputBase input = do
               -- Output the file that we're looking at
               writeModule (outputBase </> ccName) mdl
 
-              -- Also output the generate program, where all type variables
-              -- are kept. If this program doesn't compile, there is no
-              -- point testing the variants.
+              -- Also output the degenerate program, where all type variables
+              -- are kept. If this program doesn't compile, there is no point
+              -- testing the variants.
               G.writeProg degenName
                 $ prog { GT.prgDefs = [ ddef { GT.kVars = kVars ++ cVars ++ sVars
                                              , GT.cVars = []
@@ -461,7 +476,7 @@ outputCCs onlyGADTs hdl outputBase input = do
 
               let verifyGrad = G.verifyGradualErasure fuzz
               case verifyGrad of
-                (n,Nothing) -> putStrLn $ "Woo!  Gradual erasure property held.  NumMaxima: "++show n
+                (m,Nothing) -> putStrLn $ "Woo!  Gradual erasure property held.  NumMaxima: "++show m
                 (_,Just s)  -> putStrLn $ "WARNING: Problems with gradual erasure:\n"++take 1000 s
 
               -- Compute statistics for fuzz-testing this module and save
@@ -488,9 +503,49 @@ gatherFuzzStats
     -> Stats
 gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _) file =
   let
-      res                   = M.elems results
+      res                       = M.elems results
+
+      mkUpName :: GT.TName -> GT.TName
+      mkUpName v = GT.mkVar (init (GT.unMkVar v))
       --
-      codeGend              = sum [1 | G.Success{} <- res]
+      gadtsBecameADTsKC     = nub [adt | (G.ErasureConfig ec, G.Success{}) <- M.toList results
+                                       , adt                               <- gadtsBecameADTs
+                                       , case M.lookup (mkUpName adt) ec of
+                                           Nothing  -> False
+                                           Just tvs -> not (null [()| (_,G.Checked)     <- tvs ])
+                                                         && null [()| (_,G.Synthesized) <- tvs ]
+                                       ]
+
+      gadtsBecameADTsKS     = nub [adt | (G.ErasureConfig ec, G.Success{}) <- M.toList results
+                                       , adt                               <- gadtsBecameADTs
+                                       , case M.lookup (mkUpName adt) ec of
+                                           Nothing  -> False
+                                           Just tvs -> not (null [()| (_,G.Synthesized) <- tvs ])
+                                                         && null [()| (_,G.Checked)     <- tvs ]
+                                       ]
+
+      -- numDDefs              = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg ]
+      -- numDDefsBustedKC      = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg, null (GT.sVars dd) ]
+      -- numDDefsBustedKS      = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg, null (GT.cVars dd) ]
+
+      -- gadtsBecameADTsKC     = nubBy ((==) `on` GT.tyName)
+      --                       $ [dd | G.Success{ghostbustedProg} <- res
+      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
+      --                             , not (null (GT.cVars dd))
+      --                             ,      null (GT.sVars dd)
+      --                             ]
+      -- gadtsBecameADTsKS     = nubBy ((==) `on` GT.tyName)
+      --                       $ [dd | G.Success{ghostbustedProg} <- res
+      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
+      --                             , not (null (GT.sVars dd))
+      --                             ,      null (GT.cVars dd)
+      --                             ]
+      -- gadtsBecameADTs'      = [dd | G.Success{ghostbustedProg} <- res
+      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
+      --                             , not (null (GT.cVars dd))
+      --                             ]
+
+      codeGenSuccess        = sum [1 | G.Success{} <- res]
       ambFailed             = sum [1 | G.AmbFailure <- res]
       codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
       ccNumADTs             = sum [1 | DataDecl{} <- decls]
@@ -517,13 +572,18 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
     -- , numCCsInFile          = length mods -- Superfluous?
     , failedAmb             = ambFailed
     , failedGBust           = codeGenFailed
-    , successfulErasures    = codeGend
+    , successfulErasures    = codeGenSuccess
+    -- , numDDefs              = numDDefs
+    -- , numDDefsBustedKC      = numDDefsBustedKC
+    -- , numDDefsBustedKS      = numDDefsBustedKS
     , fileName              = file
     , numParamsInCC         = totalParamsInCC
     , actualCCSearchSpace   = searchSpaceSize
     , exploredCCSearchSpace = actualSearchSpaceSize
     , passGADTPredicate     = length $ filter G.isGADT ddefs
-    , numGADTtoADT          = length gadtsBecameASTS
+    , numGADTtoADT          = length gadtsBecameADTs
+    , numGADTtoADT_KC       = length gadtsBecameADTsKC
+    , numGADTtoADT_KS       = length gadtsBecameADTsKS
     , gradualProp           = 0  -- This is set later.
     }
 
