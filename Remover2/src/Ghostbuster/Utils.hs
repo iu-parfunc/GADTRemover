@@ -7,15 +7,17 @@
 
 module Ghostbuster.Utils where
 
+import Ghostbuster.Error
+import Ghostbuster.Types
+
+import Data.Char                       (isAlpha)
+import GHC.Generics                    (Generic)
+import Data.Map.Lazy                   as M
 import qualified Data.ByteString.Char8 as B
-import           Data.Char (isAlpha)
-import qualified Data.List as L
-import qualified Data.Map as Map
-import           Data.Map.Lazy as M
-import qualified Data.Set as S
-import qualified Data.Set as Set
-import           GHC.Generics (Generic)
-import           Ghostbuster.Types
+import qualified Data.List             as L
+import qualified Data.Map              as Map
+import qualified Data.Set              as S
+import qualified Data.Set              as Set
 
 
 --------------------------------------------------------------------------------
@@ -39,7 +41,7 @@ addToErr _ (Right x)  = Right x
 
 -- | Look up the arguments for a given data constructor K
 getConArgs :: [DDef] -> KName -> [MonoTy]
-getConArgs [] k = error $ "getConArgs: cannot find definition for constructor "++show k
+getConArgs [] k = ghostbusterError Internal $ "getConArgs: cannot find definition for constructor "++show k
 getConArgs (DDef {cases} : rst) k =
   case loop cases of
     Just x  -> x
@@ -66,7 +68,7 @@ kLookup (d@DDef{..} : ds) name =
 
 -- | Look up the type arguments for a given type constructor T
 getTyArgs :: [DDef] -> TName -> [Kind]
-getTyArgs [] t = error$ "getTyArgs: cannot find type def with name: "++show t
+getTyArgs [] t = ghostbusterError Internal $ "getTyArgs: cannot find type def with name: "++show t
 getTyArgs (DDef {tyName,kVars,cVars,sVars} : rst) k
   | k == tyName  = L.map snd $ kVars ++ cVars ++ sVars
   | otherwise = getTyArgs rst k
@@ -117,9 +119,10 @@ allExistentials KCons {fields,outputs} =
 splitTyArgs :: Show t => [TyStatus] -> [t] -> ([t],[t],[t])
 splitTyArgs myStatus outputs
   | length myStatus /= length outputs =
-    error $ "splitTyArgs: mismatched lengths: "++ show (length myStatus, length outputs)++
-            "\n  "++ show myStatus ++
-            "\n  "++ show outputs
+    ghostbusterError Internal
+      $ "splitTyArgs: mismatched lengths: "++ show (length myStatus, length outputs)++
+        "\n  "++ show myStatus ++
+        "\n  "++ show outputs
   | otherwise  = (ks,cs,ss)
   where
   ks = [ x | (Keep,x)  <- wStatus ]
@@ -129,7 +132,7 @@ splitTyArgs myStatus outputs
 
 -- | Look up a DDef in a list.  TODO!  Switch over to Maps for all the helpers here and elsewhere.
 lookupDDef :: [DDef] -> TName -> DDef
-lookupDDef [] tn = error $ "lookupDDef: couldn't find: "++show tn
+lookupDDef [] tn = ghostbusterError Internal $ "lookupDDef: couldn't find: "++show tn
 lookupDDef (dd:rst) tn
            | tyName dd == tn = dd
            | otherwise = lookupDDef rst tn
@@ -147,7 +150,7 @@ gatherTypesMentioned ty =
    go = gatherTypesMentioned
 
 freeVars :: Exp -> S.Set Var
-freeVars = error "FINISHME"
+freeVars = ghostbusterError NotImplemented "freeVars"
 
 
 
@@ -164,7 +167,7 @@ val2Exp (VClo vt env bod) = loop (M.toList env)
  where
    loop [] = (ELam vt bod)
    -- Need type recovery or typed environments at runttime to finish this:
-   loop ((x,val):tl) = ELet (x,error "FINISHME-val2Exp",val2Exp val)
+   loop ((x,val):tl) = ELet (x,ghostbusterError NotImplemented"val2Exp",val2Exp val)
                             (loop tl)
 
 
@@ -183,7 +186,7 @@ getArgStatus [] t
   = getArgStatus primitiveTypes t
   --
   | otherwise
-  = error $ "getArgStatus: could not find type constructor "++show t
+  = ghostbusterError Internal $ "getArgStatus: could not find type constructor "++show t
 
 getArgStatus (DDef{tyName,kVars,cVars,sVars} : rest) t
   | t == tyName
@@ -227,7 +230,7 @@ letBindNonTriv e f =
   tmp = freshenVar "tmp"
   -- If we hoist things out with ELet, then we need to have their type.
   -- This should go in the type checking module.
-  recoverType = error "FINISHME: implement recoverType"
+  recoverType = ghostbusterError NotImplemented "recoverType"
 
 -- | Create an immediately-applied lambda.  Very similar to a let-binding.
 leftleftLambda :: Exp -> MonoTy -> (Exp -> Exp) -> Exp

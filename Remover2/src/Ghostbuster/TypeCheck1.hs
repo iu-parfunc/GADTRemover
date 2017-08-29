@@ -16,16 +16,18 @@ module Ghostbuster.TypeCheck1
       )
       where
 
-import           Ghostbuster.Types
-import           Ghostbuster.Utils
-import           Control.Monad.Error
-import           Control.Monad.Reader
-import           Control.Monad.State
-import           Control.Monad.Identity
+import Ghostbuster.Types
+import Ghostbuster.Error
+import Ghostbuster.Utils
+import qualified Ghostbuster.Examples.Tiny as T
+
+import Control.Monad.Error
+import Control.Monad.Reader
+import Control.Monad.State
+import Control.Monad.Identity
 import qualified Data.ByteString.Char8 as B
 import qualified Data.Map              as Map
 import qualified Data.Set              as Set
-import qualified Ghostbuster.Examples.Tiny as T
 -- import qualified Text.PrettyPrint      as PP
 
 import Debug.Trace
@@ -212,7 +214,7 @@ inferExp denv env (ELet (x, _s, e1) e2) =
         return (s1 `composeSubst` s2, t2)
 inferExp denv _env (EK name) =
   case ddefLookup denv name of
-    Nothing -> error $ "Unbound data constructor found! " ++ show name
+    Nothing -> ghostbusterError TypeCheck $ "Unbound data constructor found! " ++ show name
     Just (topDef, constr) ->
       return (nullSubst,  foldr ArrowTy (ConTy (tyName topDef) (outputs constr)) (fields constr))
 inferExp denv env (ECase e1 pats) = do
@@ -225,7 +227,7 @@ inferExp denv env (ECase e1 pats) = do
   -- return the type of the alts, and we need to be optimisitic and apply
   -- all the substitutions to the environment (right??)
   return (foldr composeSubst s1 substs, typ)
-inferExp _denv _env t = error $ "Type = " ++ show t
+inferExp _denv _env t = ghostbusterError TypeCheck $ "Type = " ++ show t
 
 typeInference :: [DDef] -> Map.Map TermVar TyScheme -> Exp -> TI MonoTy
 typeInference denv env e =

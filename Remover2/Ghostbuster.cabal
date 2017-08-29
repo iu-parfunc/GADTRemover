@@ -21,17 +21,7 @@ library
 
   exposed-modules:
       Ghostbuster
-      Ghostbuster.Types
-      Ghostbuster.Interp
-      Ghostbuster.TypeCheck
-      Ghostbuster.TypeCheck1
-      Ghostbuster.KindCheck
-      Ghostbuster.LowerDicts
       Ghostbuster.Ambiguity
-      Ghostbuster.Utils
-      Ghostbuster.Showable
-      Ghostbuster.Examples.Feldspar
-      Ghostbuster.Examples.Tiny
       Ghostbuster.CodeGen
       Ghostbuster.CodeGen.Base
       Ghostbuster.CodeGen.DDef
@@ -39,7 +29,18 @@ library
       Ghostbuster.CodeGen.Prog
       Ghostbuster.CodeGen.VDef
       Ghostbuster.Core
+      Ghostbuster.Error
+      Ghostbuster.Examples.Feldspar
+      Ghostbuster.Examples.Tiny
+      Ghostbuster.Interp
+      Ghostbuster.KindCheck
+      Ghostbuster.LowerDicts
       Ghostbuster.Parser.Prog
+      Ghostbuster.Showable
+      Ghostbuster.TypeCheck
+      Ghostbuster.TypeCheck1
+      Ghostbuster.Types
+      Ghostbuster.Utils
 
   ghc-options:
       -Wall

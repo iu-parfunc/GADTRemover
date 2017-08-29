@@ -10,17 +10,19 @@
 
 module Ghostbuster.Parser.Prog where
 
-import           Data.Char
-import           Data.List
+import Ghostbuster.CodeGen
+import Ghostbuster.Error
+import Ghostbuster.Types                        as G hiding (outputs)
+
+import Data.Char
+import Data.List
+import Language.Haskell.Exts                    as H hiding (name)
+import Numeric
+import Text.PrettyPrint.GenericPretty (Out(doc))
+import Text.Printf
 import qualified Data.Set                       as S
--- -- import qualified Debug.Trace                    as Debug
-import           Ghostbuster.CodeGen
-import           Ghostbuster.Types              as G hiding (outputs)
-import           Language.Haskell.Exts          as H hiding (name)
 import qualified Language.Preprocessor.Cpphs    as CP
-import           Numeric
-import           Text.PrettyPrint.GenericPretty (Out(doc))
-import           Text.Printf
+-- import qualified Debug.Trace                    as Debug
 
 {-# INLINE trace #-}
 trace :: String -> a -> a
@@ -128,7 +130,8 @@ gatherByTyVar nm anns ktys =
              , filter (\x -> elem (fst x) c) ktys
              , filter (\x -> elem (fst x) s) ktys
              )
-        else error $ "Error: gatherByTyVar.\n"
+        else ghostbusterError Parser
+                   $ "Error: gatherByTyVar.\n"
                   ++ "Ghostbuster annotation mentioned variables: " ++ show annMentioned ++ "\n"
                   ++ "But datatype is actually indexed by variables: "++ show (k++c++s)
 
@@ -164,7 +167,7 @@ convertAnnotation (Ann nm (Paren (App (App (App (Con _) (List ks)) (List cs)) (L
     checked = [ varOfQName v | H.Var v <- cs ]
     synth   = [ varOfQName v | H.Var v <- ss ]
 convertAnnotation a =
-  error $ printf "convertAnnotation: parse error in Ghostbuster annotation '%s'\n" (show a)
+  ghostbusterError Parser $ printf "convertAnnotation: in Ghostbuster annotation '%s'" (show a)
 
 
 convertTypeDecl
@@ -209,7 +212,7 @@ kconsOfGadtDecl (GadtDecl _ name _ types) = KCons n args res
     args        = init ts
     res         = case last ts of
                     ConTy n' r -> r
-                    _          -> error "kconsOfGadtDecl: unexpected error"
+                    _          -> ghostbusterError Parser "kconsOfGadtDecl: unexpected"
 
 
 -- Convert a Haskell Type into a Ghostbuster MonoTy.
@@ -232,12 +235,12 @@ convertType = go
     go t@TyApp{}                = let app (TyApp (TyCon c) t) = (varOfQName c, [go t])
                                       app (TyApp (TyVar n) t) = (fromName n,   [go t])
                                       app (TyApp a b)         = let (c,r) = app a in (c, r ++ [go b])
-                                      app t                   = error $ printf "convertType: unhandled type application: %s\n" (show t)
+                                      app t                   = ghostbusterError Parser $ printf "convertType: unhandled type application: %s\n" (show t)
                                   in uncurry G.ConTy (app t)
     go (TyList t)               = G.ConTy (mkVar "[]") [go t]
     go (TyForall Nothing _ t)   = go t  -- TODO: ignoring the context!!
     go (TyInfix l t r)          = G.ConTy (varOfQName t) [go l, go r]
-    go other                    = error $ printf "convertType: unhandled case: %s" (show other)
+    go other                    = ghostbusterError Parser $ printf "convertType: unhandled case: %s" (show other)
 
     bang _ t                    = t
     -- bang BangedTy t             = G.ConTy (mkVar "!")              [t]

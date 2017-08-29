@@ -1,10 +1,9 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NamedFieldPuns  #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TupleSections   #-}
-{-# LANGUAGE ParallelListComp  #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE NamedFieldPuns      #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ParallelListComp    #-}
+{-# LANGUAGE RecordWildCards     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 
 -- |  The main module which reexports the primary entrypoints into the Ghostbuster tool.
 
@@ -31,41 +30,36 @@ module Ghostbuster (
     , case_t1
     ) where
 
-import           Ghostbuster.Ambiguity as A
-import           Ghostbuster.CodeGen
-import           Ghostbuster.Core as Core
-import           Ghostbuster.Interp ()
-import           Ghostbuster.LowerDicts
-import           Ghostbuster.Parser.Prog as Parse
-import           Ghostbuster.Types
+import Ghostbuster.Ambiguity                                        as A
+import Ghostbuster.CodeGen
+import Ghostbuster.Core                                             as Core
+import Ghostbuster.Error
+import Ghostbuster.LowerDicts
+import Ghostbuster.Parser.Prog                                      as Parse
+import Ghostbuster.Types
 
-import           Control.Exception (catch, SomeException, throw)
-import           Control.Monad (forM, forM_, when)
-import           System.Directory
-import           System.Exit
-import           System.FilePath
-import           System.IO
-import           System.Process
-import           Text.Printf
-import qualified Data.List as L
-
-import           Test.Tasty.HUnit (assertEqual)
-
--- import qualified Data.Vector as V
-import qualified Data.Set as S
-import qualified Data.Map as M
--- import Data.Functor -- for GHC 7.8.4
-import Debug.Trace as T
+import Control.Exception
+import Control.Monad                                                (forM, forM_, when)
+import System.Directory
+import System.Exit
+import System.FilePath
+import System.IO
+import System.Process
+import Test.Tasty.HUnit                                             (assertEqual)
+import Text.Printf
+import qualified Data.List                                          as L
+import qualified Data.Map                                           as M
+import qualified Data.Set                                           as S
+import Debug.Trace                                                  as T
 
 verbose :: Bool
 verbose = False
 
 -- | Records a result from the fuzzer. Since we want to keep track of each
 -- of these fields for each erasure setting
-data FuzzResult a = AmbFailure
-                  | CodeGenFailure
-                  | Success { ghostbustedProg :: Prog, fuzzResult :: a }
- deriving (Show, Eq, Ord)
+data FuzzResult a = Success { ghostbustedProg :: Prog, fuzzResult :: a }
+                  | Failure GhostbusterError
+ deriving Show
 
 -- | Each ConnectedComponent of DDefs is surveyed in one of these two modes.
 data SurveyMode
@@ -155,7 +149,7 @@ permuteTyArgs (ErasureConfig mp) alldefs =
                            | (DDef{tyName}, (_,perm)) <- zip alldefs allProcessed ]
 
   same v w | v == w    = v
-           | otherwise = error $ "permuteTyArgs: internal error, should match: " ++show(v,w)
+           | otherwise = ghostbusterError Internal $ "permuteTyArgs: should match: " ++show(v,w)
 
 
 type Permutation = [Int]
@@ -210,7 +204,7 @@ erasureConfigPartOrd (ErasureConfig ec1) (ErasureConfig ec2)
        -- If every variable is "less" on one side than the other...
        let individuals = [ if v1 == v2
                               then eraseModePartOrd emL emR
-                              else error $ "erasureConfigPartOrd: internal error, should match: "++show (v1,v2)
+                              else ghostbusterError Internal $ "erasureConfigPartOrd: should match: "++show (v1,v2)
                          | ((v1,emL), (v2,emR)) <- zip left right ] in
        -- T.trace ("Comparing tyvas for constructor "++show tname++", results: "++show individuals++ " -> " ++ show (compareMany individuals)) $
        compareMany individuals
@@ -305,7 +299,7 @@ verifyGradualErasure SurveyResult{results} =
 
 isSuccess :: FuzzResult a -> Bool
 isSuccess Success{} = True
-isSuccess _ = False
+isSuccess _         = False
 
 
 --------------------------------------------------------------------------------
@@ -322,7 +316,7 @@ runWGhostbusted :: Maybe String    -- ^ Descriptive name for this program.
                 -> IO ()
 runWGhostbusted tname ddefs mainE =
   case ambCheck ddefs of
-    Left err -> error$ "Failed ambiguity check:\n" ++err
+    Left err -> ghostbusterError AmbiguityCheck $ "Failed ambiguity check: " ++ err
     Right () ->
       runghcProg tname $
         lowerDicts $ Core.ghostbuster ddefs mainE
@@ -333,7 +327,7 @@ runWGhostbusted tname ddefs mainE =
 -- interpWGhostbusted :: Maybe String -> [DDef] -> (TyScheme, Exp) -> IO ()
 -- interpWGhostbusted tname ddefs mainE =
 --   case ambCheck ddefs of
---     Left err -> error$ "Failed ambiguity check:\n" ++err
+--     Left err -> ghostbusterError AmbiguityCheck $ "Failed ambiguity check: " ++err
 --     Right () ->
 --       undefined $
 --        lowerDicts $ Core.ghostbuster ddefs mainE
@@ -348,7 +342,7 @@ ghostBustToFile :: FilePath -> FilePath -> IO ()
 ghostBustToFile input output = do
   Prog prgDefs _prgVals (VDef _name tyscheme expr) <- Parse.gParseModule input
   case ambCheck prgDefs of
-    Left err -> error$ "Failed ambiguity check:\n" ++err
+    Left err -> ghostbusterError AmbiguityCheck $ "Failed ambiguity check: " ++err
     Right () ->
       writeProg output $
        lowerDicts $ Core.ghostbuster prgDefs (tyscheme, expr)
@@ -434,8 +428,8 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
                             -- for each datatype that started out as a GADT:
                             [ dd | dd <- prgDefs ghostbustedProg
                                  , Just True == (M.lookup (tyName dd) gadtMap) ]
-                         CodeGenFailure -> []
-                         AmbFailure     -> []
+                         Failure{} -> []
+
               winners = filter (not . isGADT) wasGADT
           -- putStrLn $ "Here are possible winners: " ++
           --            show (map unMkVar $ map tyName $ wasGADT )
@@ -477,7 +471,7 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
      case ambCheck defs of
        Left err -> do
          printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
-         return $ AmbFailure
+         return $ Failure (GhostbusterError AmbiguityCheck err)
        Right () ->
          (do let newprg = lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
              writeProg newName newprg
@@ -488,8 +482,9 @@ surveyFuzzTest prog@(Prog origdefs _ (VDef _ tyscheme expr)) outroot = do
                  -- The above output to a file, but wrote nothing, so remove it
                  fExists <- doesFileExist newName
                  when fExists $ removeFile newName
-                 print (e :: SomeException)
-                 return $ CodeGenFailure
+                 return $ case fromException e of
+                   Just err@GhostbusterError{} -> Failure err
+                   _                           -> Failure (GhostbusterError Unknown (show e))
 
 isGADT :: DDef -> Bool
 isGADT DDef{cases} = any gadtCase cases
@@ -598,7 +593,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     case ambCheck defs of
       Left err -> do
         printf "Possibility %d failed ambiguity check!\nReturned error: %s\n" index err
-        return $ AmbFailure
+        return $ Failure (GhostbusterError AmbiguityCheck err)
 
       Right () ->
         (do let newprg = lowerDicts $ Core.ghostbuster defs (tyscheme,expr)
@@ -610,8 +605,10 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
                 -- The above output to a file, but wrote nothing, so remove it
                 fExists <- doesFileExist newName
                 when fExists $ removeFile newName
-                print (e :: SomeException)
-                return $ CodeGenFailure
+                return $ case fromException e of
+                  Just err@GhostbusterError{} -> Failure err
+                  _                           -> Failure (GhostbusterError Unknown (show e))
+
    | (index,defs) <- (zip [(0::Int) ..] taken)
    ]
 
@@ -631,7 +628,7 @@ fuzzTestProg doStrong (Prog prgDefs _prgVals (VDef _name tyscheme expr)) outroot
     case splitAt lIMIT weakenings of
       (short,[]) -> short
       (x:_,rest) -> x : take (lIMIT-1) (thin rest)
-      _          -> error "impossible case"
+      _          -> ghostbusterError Internal "impossible case"
 
   thin []       = []
   thin (x:xs)   = x : thin (drop lIMIT xs)
@@ -782,8 +779,8 @@ maxima comp ls = [ l | l <- ls, isBigOne l ls ]
 (#) :: (Ord k, Show k, Show v) => M.Map k v -> k -> v
 m # k =
   case M.lookup k m of
-    Nothing -> error $ "\nERROR: Map lookup failed, key "++show k++" is absent from map:\n "++
-                       take 100 (show m)
+    Nothing -> ghostbusterError Internal
+             $ "ERROR: Map lookup failed, key "++show k++" is absent from map: "++ take 100 (show m)
     Just v -> v
 
 allTheSame :: (Eq a) => [a] -> Bool

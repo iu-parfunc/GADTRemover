@@ -6,12 +6,13 @@
 module Ghostbuster.Ambiguity
        (ambCheck, ambCheckErr, AmbError) where
 
-import           Control.Monad
+import Control.Monad
 import qualified Data.List as L
-import qualified Data.Set as S
--- import           Debug.Trace
-import           Ghostbuster.Types
-import           Ghostbuster.Utils
+import qualified Data.Set  as S
+
+import Ghostbuster.Error
+import Ghostbuster.Types
+import Ghostbuster.Utils
 
 type AmbError = TypeError
 
@@ -30,7 +31,7 @@ ambCheck defs = loop defs
 ambCheckErr :: [DDef] -> ()
 ambCheckErr defs =
   case ambCheck defs of
-    Left e -> error e
+    Left e -> ghostbusterError AmbiguityCheck e
     Right () -> ()
 
 checkKCons :: TName -> (TName -> [TyStatus]) -> KCons -> Either AmbError ()

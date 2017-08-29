@@ -5,6 +5,7 @@ module Ghostbuster.CodeGen.Exp
   where
 
 import Ghostbuster.Types                                as G
+import Ghostbuster.Error                                as G
 import Ghostbuster.CodeGen.Base                         as G
 
 import Language.Haskell.Exts                            as H
@@ -19,9 +20,9 @@ mkExp (G.EVar n)                = var (varName n)
 mkExp (G.EApp a b)              = app (mkExp a) (mkExp b)
 mkExp (G.ELam (x,_) b)          = lamE noLoc [mkPat (Pat x [])] (mkExp b)       -- TLM: add local type signature?
 mkExp (G.ECase e ps)            = caseE (mkExp e) (map (uncurry mkAlt) ps)
-mkExp G.EDict{}                 = error "EDict: not handled by codegen"
-mkExp G.ECaseDict{}             = error "ECaseDict: not handled by codegen"
-mkExp G.EIfTyEq{}               = error "EIfTyEq: not handled by codegen"
+mkExp G.EDict{}                 = ghostbusterError CodeGen "EDict: not handled by codegen"
+mkExp G.ECaseDict{}             = ghostbusterError CodeGen "ECaseDict: not handled by codegen"
+mkExp G.EIfTyEq{}               = ghostbusterError CodeGen "EIfTyEq: not handled by codegen"
 mkExp (G.ELet (v,t,bnd) body)   =
     if t == ForAll [] "_"
        then letE [ mkDeclOfExp v bnd ] (mkExp body)

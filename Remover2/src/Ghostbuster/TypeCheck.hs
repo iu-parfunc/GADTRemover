@@ -4,7 +4,6 @@ module Ghostbuster.TypeCheck where
 
 
 import Control.Applicative
-
 import Control.Monad.ST
 import Data.Atomics.Counter
 import Data.STRef
@@ -12,10 +11,11 @@ import Data.Foldable as F
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Set as S
--- import           Ghostbuster.Types (VDef (..), Exp (..), TypeError)
 import System.IO.Unsafe (unsafePerformIO, unsafeDupablePerformIO)
-
 import Prelude hiding (foldr)
+
+-- import Ghostbuster.Types (VDef (..), Exp (..), TypeError)
+import Ghostbuster.Error
 
 --- Replicating the data types for now since it's a pain trying to add in
 --  the stref stuff to the types. This should all go away soon once I switch
@@ -137,7 +137,7 @@ unify t01 t02 = do
   case (t01, t02) of
    (VarTy v ref, t) ->
      if occurs v t02
-       then error "can't construct infinite type"
+       then ghostbusterError TypeCheck "can't construct infinite type"
        else do
          contents <- readSTRef ref
          case contents of
@@ -149,16 +149,17 @@ unify t01 t02 = do
    (TInt, TInt) -> return ()
    (ConTy n1 mono1, ConTy n2 mono2) ->
      if n1 /= n2
-     then error $ "Can't unify different type constructors. Tried unifying: "
-          ++ show n1 ++ " and " ++ show n2
+     then ghostbusterError TypeCheck
+        $ "Can't unify different type constructors. Tried unifying: " ++ show n1 ++ " and " ++ show n2
      else  do
        _monos <- mapM (\(m1,m2) -> unify m1 m2) $ zip mono1 mono2
        return () -- Pretty sure this is correct but double check it
    (TypeDictTy n1, TypeDictTy n2) ->
      if n1 == n2
      then return ()
-     else error "Unable to unify TypeDict applied to two different constructors"
-   (t1 , t2) -> error $ "Can't unify " ++ show t1 ++ " whith " ++ show t2
+     else ghostbusterError TypeCheck
+        $ "Unable to unify TypeDict applied to two different constructors"
+   (t1 , t2) -> ghostbusterError TypeCheck $ "Can't unify " ++ show t1 ++ " whith " ++ show t2
 
 substMonoTy :: MonoTy -> MonoTyEnv -> MonoTy
 substMonoTy x env = case x of
@@ -206,7 +207,7 @@ inferExp :: [DDef] -> Env -> Exp -> ST RealWorld MonoTy
 inferExp ddef env expr = case expr of
   ELit _ -> return TInt
   EVar v -> case M.lookup v env of
-    Nothing -> error $ "unbound variable " ++ show v
+    Nothing -> ghostbusterError TypeCheck $ "unbound variable " ++ show v
     Just t -> instantiate t >>= collapse
   EPair e1 e2 -> do
     t1 <- inferExp ddef env e1
@@ -240,7 +241,7 @@ inferExp ddef env expr = case expr of
   -- etc.
                Just (topDef, constr) ->
                  return $ foldr ArrowTy (ConTy (tyName topDef) (outputs constr)) (fields constr)
-               Nothing -> error $ "Unbound data constructor found! " ++ show name
+               Nothing -> ghostbusterError TypeCheck $ "Unbound data constructor found! " ++ show name
   EDict name                             -> undefined
   ECase expr [(pat,exps)]                -> undefined
   ECaseDict expr (tname,[tvar],exps) alt -> undefined
@@ -253,7 +254,7 @@ inferExp ddef env expr = case expr of
     unify ttyp ftyp
     {-unify e1typ e2typ -- FIXME: THIS IS WRONG, and do we even need to do this? -}
     return ttyp
-  t -> error $ "Inference for type: " ++ show t ++ " not implented yet!"
+  t -> ghostbusterError TypeCheck $ "Inference for type: " ++ show t ++ " not implented yet!"
 
 varCounter :: AtomicCounter
 varCounter = unsafePerformIO $ newCounter 0

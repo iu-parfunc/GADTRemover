@@ -7,9 +7,11 @@ module Ghostbuster.Interp
        ( interp
        ) where
 
-import Data.Map.Lazy as M
+import Ghostbuster.Error
 import Ghostbuster.Types
-import Prelude as P hiding (exp)
+
+import Data.Map.Lazy                  as M
+import Prelude                        as P hiding (exp)
 import Text.PrettyPrint.GenericPretty (Out(doc))
 
 -- import Debug.Trace
@@ -87,7 +89,7 @@ exp defs env exp0 =
         (bad1,bad2) -> tyErr $ "EIfTyEq must take two VDict values, got: "++show (bad1,bad2)
  where
  doCases val [] =
-   error $ "value did not match any patterns in ECase: " ++show val
+   ghostbusterError Interpreter $ "value did not match any patterns in ECase: " ++show val
 
  doCases _   ((Pat "_"   [],   rhs) : _)   = exp defs env rhs
  doCases val ((Pat kname vars, rhs) : rst) =
@@ -114,12 +116,12 @@ exp defs env exp0 =
 
 (#) :: (Ord k, Show k, Show v) => Map k v -> k -> v
 m # k = case M.lookup k m of
-          Nothing -> error$ "Map does not contain key: "++show k++"\nFull map:\n"++show m
+          Nothing -> ghostbusterError Interpreter$ "Map does not contain key: "++show k++"\nFull map:\n"++show m
           Just x  -> x
 
 
 tyErr :: String -> t
-tyErr s = error ("<Runtime Type Error>: "++s)
+tyErr s = ghostbusterError Interpreter ("<Runtime Type Error>: "++s)
 
 --------------------------------------------------------------------------------
 -- Old/unused

@@ -52,9 +52,8 @@ survey (infile:_rest) = do
 
   let resList = M.elems results
   putStrLn $ "Total results: " ++ show (length results)
-  putStrLn $ "Succedeed: "     ++ show (length [() | Success {}        <- resList])
-  putStrLn $ "AmbFailure: "    ++ show (length [() | AmbFailure {}     <- resList])
-  putStrLn $ "CodegenFailure: "++ show (length [() | CodeGenFailure {} <- resList])
+  putStrLn $ "Succeeded: "     ++ show (length [() | Success{} <- resList])
+  putStrLn $ "Failed: "        ++ show (length [() | Failure{} <- resList])
 
   case verifyGradualErasure sr of
     (n,Nothing) -> putStrLn $ "Woo!  Gradual erasure property held.  NumMaxima: "++show n

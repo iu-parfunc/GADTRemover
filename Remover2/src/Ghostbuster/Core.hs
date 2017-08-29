@@ -12,16 +12,18 @@ module Ghostbuster.Core
     -- )
   where
 
-import           Control.Exception      ( assert )
-import           Data.List              (isSuffixOf)
+import Ghostbuster.Error
+import Ghostbuster.TypeCheck1           (unify, runTI, composeSubst)
+import Ghostbuster.Types
+import Ghostbuster.Utils
+
+import Control.Exception                (assert)
+import Data.List                        (isSuffixOf)
+import Debug.Trace
+import Text.Printf
 import qualified Data.List              as L
 import qualified Data.Map               as M
 import qualified Data.Set               as S
-import           Debug.Trace
-import           Ghostbuster.TypeCheck1 (unify, runTI, composeSubst)
-import           Ghostbuster.Types
-import           Ghostbuster.Utils
-import           Text.Printf
 
 type Equations  = (M.Map TyVar [TyVar])
 type Patterns   = (M.Map TyVar MonoTy)
@@ -158,7 +160,7 @@ stripMono alldefs monoty =
     ArrowTy mono1 mono2 -> ArrowTy (go mono1) (go mono2)
     ConTy tname monos
       | any (containErased alldefs) monos ->
-         error$ "stripMono: not handling erased as argument to type constructor: "++show monoty
+         ghostbusterError Core $ "stripMono: not handling erased as argument to type constructor: "++show monoty
       | hasErased alldefs tname -> ConTy (gadtDownName tname)
                                         (map go (onlyKeep alldefs tname monos))
       | otherwise -> ConTy tname (map go monos)
@@ -348,7 +350,7 @@ generateUpMono n patterns equalities introduction conclusion =
 
 toVarFromMono :: MonoTy -> Var
 toVarFromMono (VarTy var) = var
-toVarFromMono _           = error "toVarFromMono called with non-VarTy"
+toVarFromMono _           = ghostbusterError Core  "toVarFromMono called with non-VarTy"
 
 --------------------------------------------------------------------------------
 -- A second attempt at genUp
@@ -498,9 +500,9 @@ openConstraint denv dv outTy k =
                     (tn, dictvars,
                      k denv'' ())
                     unreachable
-           else error$ "Unfinished: need to recursively process: "++show ls
+           else ghostbusterError NotImplemented $ "Unfinished: need to recursively process: "++show ls
 
-   (TypeDictTy _) -> error$
+   (TypeDictTy _) -> ghostbusterError Core $
       "genUp2:openConstraint - Dicts in inputs not allowed: "++show outTy
 
 
@@ -542,7 +544,7 @@ doRecursions alldefs initDictMap KCons{fields} unseal kont =
     -- NOTE: one of our current rules is that there are not
     -- `hasErased` types under here:
     | containErased alldefs field
-    = error $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
+    = ghostbusterError Core $ "genUp2:doRecursions - erased type not allowed nested under other constructors: "++show field
     --
     | otherwise
     = k denv (EVar var)
@@ -603,7 +605,7 @@ generateDown alldefs which =
                          do ls <- mapM (\((arg,_),rhsTy) -> unify (VarTy arg) rhsTy)
                                        (zip allVars outputs)
                             return $ foldl1 composeSubst ls of
-                      (Left e,_) -> error$ "generateDown: error unifying: "++show e
+                      (Left e,_) -> ghostbusterError Core $ "generateDown: failed unifying: "++show e
                       (Right s,_) -> s
      ]
  where
@@ -656,7 +658,7 @@ buildDict oty =
       VarTy t       -> EVar $ dictArgify t
       ConTy k ls    -> appLst (EDict k)         (map loop ls)
       ArrowTy t1 t2 -> appLst (EDict "ArrowTy") [loop t1, loop t2]
-      TypeDictTy _  -> error $ "Core.buildDict: should never build a dictionary of a dictionary: "++show ty
+      TypeDictTy _  -> ghostbusterError Core $ "Core.buildDict: should never build a dictionary of a dictionary: "++show ty
 
 -- | Bind dictionaries for ALL variable names that occur free in the monotype.
 --   Use a substitution to determine relevant equalities.
@@ -707,7 +709,7 @@ bindDictVars subst existentials varsToBind body =
         -- to the substitution:
         [] -> EVar$ dictArgify fv
           -- EVar$mkVar$ "(failed to find "++show fv++" in subst "++show subst++")"
-          -- error$ "generateDown: failed to find "++show fv++" in subst "++show subst
+          -- ghostbusterError Core $ "generateDown: failed to find "++show fv++" in subst "++show subst
 
   digItOut :: TyVar -> MonoTy -> TyVar -> Exp
   digItOut cursor monty dest =
@@ -715,7 +717,7 @@ bindDictVars subst existentials varsToBind body =
     case monty of
       VarTy x -> if x == dest
                     then EVar cursor
-                    else error "internal error, generateDown"
+                    else ghostbusterError Core "generateDown"
       ArrowTy x1 x2 -> ECaseDict (EVar $ dictArgify cursor)
                           ( "ArrowTy"
                           , ["left","right"]
@@ -775,4 +777,5 @@ dictArgify = (+++ "_dict")
 unDictVar :: TermVar -> TyVar
 unDictVar v | isSuffixOf "_dict" (unMkVar v) = mkVar $ reverse $ drop 5 $
                                                reverse $ unMkVar v
-            | otherwise = error$ "unDictVar: bad input "++show v
+            | otherwise = ghostbusterError Core $ "unDictVar: bad input "++show v
+

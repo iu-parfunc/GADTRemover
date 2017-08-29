@@ -80,34 +80,37 @@
 
 module ConnectedDDefs where -- Used as a library as well.
 
-import           Control.Exception
-import           Control.Monad
+import qualified Ghostbuster                  as G
+import qualified Ghostbuster.Parser.Prog      as GPP
+import qualified Ghostbuster.Types            as GT
+import Ghostbuster.Error
+
+import Control.Exception
+import Control.Monad
+import Data.Function
+import Data.Graph
+import Data.List
+import Data.Maybe
+import Data.Tree
+import Data.Tuple.Utils
+import GHC.Generics
+import Language.Haskell.Exts                  as H hiding (name, parse)
+import Language.Haskell.Exts.SrcLoc           (noLoc)
+import System.Directory
+import System.Environment
+import System.Exit
+import System.FilePath
+import System.IO
+import Text.Printf
 import qualified Data.ByteString              as DB
 import qualified Data.ByteString.Char8        as DBB
 import qualified Data.ByteString.Lazy.Char8   as DBLC
 import qualified Data.Csv                     as CSV
-import           Data.Function
-import           Data.Graph
-import           Data.List
 import qualified Data.Map                     as M
-import           Data.Maybe
-import           Data.Tree
-import           Data.Tuple.Utils
 import qualified Data.Vector                  as V
-import           GHC.Generics
-import qualified Ghostbuster                  as G
-import qualified Ghostbuster.Parser.Prog      as GPP
-import qualified Ghostbuster.Types            as GT
-import           Language.Haskell.Exts        as H hiding (name, parse)
-import           Language.Haskell.Exts.SrcLoc (noLoc)
 import qualified Language.Preprocessor.Cpphs  as CP
-import           System.Directory
-import           System.Environment
-import           System.Exit
-import           System.FilePath
 import qualified System.FilePath.Find         as SFF
-import           System.IO
-import           Text.Printf
+
 
 data Stats = Stats
   { numADTs                     :: !Int         -- Number of ADTs in this file
@@ -117,12 +120,7 @@ data Stats = Stats
   , parseSucc                   :: !Int         -- These are integers to make it easier to combine
   , parseFailed                 :: !Int
   -- , numCCsInFile                :: !Int         -- Number of connected components
-  , failedAmb                   :: !Int         -- Number of failed erasure settings
-  , failedGBust                 :: !Int         -- Number of failed erasure settings
   , successfulErasures          :: !Int         -- Number of successful erasure settings
-  -- , numDDefs                    :: !Int
-  -- , numDDefsBustedKC            :: !Int
-  -- , numDDefsBustedKS            :: !Int
   , numParamsInCC               :: !Int         -- Average number of parameters in this CC
   , actualCCSearchSpace         :: !Integer     -- Actual search space size for this CC
   , exploredCCSearchSpace       :: !Integer     -- The search space we searched (in the case of truncation)
@@ -132,6 +130,17 @@ data Stats = Stats
   , numGADTtoADT_KS             :: !Int         -- How many DDefs went from GADT->ADT in kept/synthesized erasure mode
   , gradualProp                 :: !Int         -- 1 if the CC was consistent with gradual-erasure for all maxima, 0 otherwise
   , fileName                    :: !String      -- File name
+  --
+  -- Ghostbuster.Error
+  , failAmbiguity               :: !Int
+  , failTypeCheck               :: !Int
+  , failParser                  :: !Int
+  , failCodeGen                 :: !Int
+  , failCore                    :: !Int
+  , failInterpreter             :: !Int
+  , failInternal                :: !Int
+  , failUnknown                 :: !Int
+  , failNotImplemented          :: !Int
   }
  deriving (Show, Eq, Ord, Generic)
 
@@ -150,12 +159,7 @@ instance Monoid Stats where
            , parseSucc             = on (+) parseSucc x y
            , parseFailed           = on (+) parseFailed x y
            -- , numCCsInFile          = on (+) numCCsInFile x y
-           , failedAmb             = on (+) failedAmb x y
-           , failedGBust           = on (+) failedGBust x y
            , successfulErasures    = on (+) successfulErasures x y
-           -- , numDDefs              = on (+) numDDefs x y
-           -- , numDDefsBustedKC      = on (+) numDDefsBustedKC x y
-           -- , numDDefsBustedKS      = on (+) numDDefsBustedKS x y
            , numParamsInCC         = on (+) numParamsInCC x y
            , actualCCSearchSpace   = on (+) actualCCSearchSpace x y
            , exploredCCSearchSpace = on (+) exploredCCSearchSpace x y
@@ -174,6 +178,16 @@ instance Monoid Stats where
               if null ny             then nx else
               if nx == ny            then nx
                                      else error $ printf "%s <> %s" nx ny
+           --
+           , failAmbiguity         = on (+) failAmbiguity x y
+           , failTypeCheck         = on (+) failTypeCheck x y
+           , failParser            = on (+) failParser x y
+           , failCodeGen           = on (+) failCodeGen x y
+           , failCore              = on (+) failCore x y
+           , failInterpreter       = on (+) failInterpreter x y
+           , failInternal          = on (+) failInternal x y
+           , failUnknown           = on (+) failUnknown x y
+           , failNotImplemented    = on (+) failNotImplemented x y
            }
 
 emptyStats :: Stats
@@ -186,12 +200,7 @@ emptyStats =
     , parseSucc             = 0
     , parseFailed           = 0
     -- , numCCsInFile          = 0
-    , failedAmb             = 0
-    , failedGBust           = 0
     , successfulErasures    = 0
-    -- , numDDefs              = 0
-    -- , numDDefsBustedKC      = 0
-    -- , numDDefsBustedKS      = 0
     , numParamsInCC         = 0
     , actualCCSearchSpace   = 0
     , exploredCCSearchSpace = 0
@@ -201,6 +210,16 @@ emptyStats =
     , numGADTtoADT_KS       = 0
     , gradualProp           = 0
     , fileName              = ""
+    --
+    , failAmbiguity         = 0
+    , failTypeCheck         = 0
+    , failParser            = 0
+    , failCodeGen           = 0
+    , failCore              = 0
+    , failInterpreter       = 0
+    , failInternal          = 0
+    , failUnknown           = 0
+    , failNotImplemented    = 0
     }
 
 -- | Read in a module and then gather it into a forest of connected components
@@ -524,30 +543,7 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
                                                          && null [()| (_,G.Checked)     <- tvs ]
                                        ]
 
-      -- numDDefs              = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg ]
-      -- numDDefsBustedKC      = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg, null (GT.sVars dd) ]
-      -- numDDefsBustedKS      = length $ nub [dd| G.Success{ghostbustedProg} <- res, dd <- GT.prgDefs ghostbustedProg, null (GT.cVars dd) ]
-
-      -- gadtsBecameADTsKC     = nubBy ((==) `on` GT.tyName)
-      --                       $ [dd | G.Success{ghostbustedProg} <- res
-      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
-      --                             , not (null (GT.cVars dd))
-      --                             ,      null (GT.sVars dd)
-      --                             ]
-      -- gadtsBecameADTsKS     = nubBy ((==) `on` GT.tyName)
-      --                       $ [dd | G.Success{ghostbustedProg} <- res
-      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
-      --                             , not (null (GT.sVars dd))
-      --                             ,      null (GT.cVars dd)
-      --                             ]
-      -- gadtsBecameADTs'      = [dd | G.Success{ghostbustedProg} <- res
-      --                             , dd <- filter (\d -> GT.tyName d `elem` gadtsBecameADTs) (GT.prgDefs ghostbustedProg)
-      --                             , not (null (GT.cVars dd))
-      --                             ]
-
       codeGenSuccess        = sum [1 | G.Success{} <- res]
-      ambFailed             = sum [1 | G.AmbFailure <- res]
-      codeGenFailed         = sum [1 | G.CodeGenFailure <- res]
       ccNumADTs             = sum [1 | DataDecl{} <- decls]
       -- We only cauterize with ADTs
       numADTsCauterized     = sum [1 | DataDecl loc _ _ _ _ _ _ <- decls, loc == noLoc]
@@ -561,6 +557,8 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
           G.Exhaustive x                           -> (x,x)
           G.Partial {searchSpace,exploredVariants} -> (searchSpace,exploredVariants)
           G.Greedy{}                               -> error "TODO gatherFuzzStats: greedy search"
+
+      failure s             = sum [1| G.Failure (GhostbusterError t _) <- res, s == t ]
   in
   Stats
     { numADTs               = ccNumADTs - numADTsCauterized -- don't count cauterized data decls
@@ -570,12 +568,7 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
     , parseSucc             = 1
     , parseFailed           = 0
     -- , numCCsInFile          = length mods -- Superfluous?
-    , failedAmb             = ambFailed
-    , failedGBust           = codeGenFailed
     , successfulErasures    = codeGenSuccess
-    -- , numDDefs              = numDDefs
-    -- , numDDefsBustedKC      = numDDefsBustedKC
-    -- , numDDefsBustedKS      = numDDefsBustedKS
     , fileName              = file
     , numParamsInCC         = totalParamsInCC
     , actualCCSearchSpace   = searchSpaceSize
@@ -585,6 +578,16 @@ gatherFuzzStats G.SurveyResult{..} (Module _ _ _ _ _ _ decls) (GT.Prog ddefs _ _
     , numGADTtoADT_KC       = length gadtsBecameADTsKC
     , numGADTtoADT_KS       = length gadtsBecameADTsKS
     , gradualProp           = 0  -- This is set later.
+    --
+    , failAmbiguity         = failure AmbiguityCheck
+    , failTypeCheck         = failure TypeCheck
+    , failParser            = failure Parser
+    , failCodeGen           = failure CodeGen
+    , failCore              = failure Core
+    , failInterpreter       = failure Interpreter
+    , failInternal          = failure Internal
+    , failUnknown           = failure Unknown
+    , failNotImplemented    = failure NotImplemented
     }
 
 
